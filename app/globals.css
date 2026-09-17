@@ -3,25 +3,99 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f9f9f7;
+  --foreground: #0b0b0b;
+
+  /* チャート面と文字 */
+  --surface-1: #fcfcfb;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
+  --gridline: #e1e0d9;
+  --baseline: #c3c2b7;
+  --hairline: rgba(11, 11, 11, 0.1);
+
+  /* 単一系列（週次応募数など）の色 */
+  --series-1: #2a78d6;
+
+  /* 選考段階のオーディナルランプ（青 明→暗）。--ordinal で検証済み。 */
+  --stage-untouched: #86b6ef;
+  --stage-scheduling: #5598e7;
+  --stage-interview-scheduled: #2a78d6;
+  --stage-interviewed: #1c5cab;
+
+  /* 結果を表すステータス色（必ずラベルと併記する） */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+
+  /* 前週差の増減 */
+  --delta-up: #006300;
+  --delta-down: #d03b3b;
+
+  /* ヒートマップ（連続量）の青ランプ */
+  --heat-0: #f2f2ef;
+  --heat-1: #cde2fb;
+  --heat-2: #9ec5f4;
+  --heat-3: #6da7ec;
+  --heat-4: #3987e5;
+  --heat-5: #256abf;
+  --heat-6: #104281;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    --background: #0d0d0d;
+    --foreground: #ffffff;
+
+    --surface-1: #1a1a19;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --gridline: #2c2c2a;
+    --baseline: #383835;
+    --hairline: rgba(255, 255, 255, 0.1);
+
+    --series-1: #3987e5;
+
+    --stage-untouched: #cde2fb;
+    --stage-scheduling: #9ec5f4;
+    --stage-interview-scheduled: #6da7ec;
+    --stage-interviewed: #3987e5;
+
+    --status-good: #0ca30c;
+    --status-warning: #fab219;
+    --status-serious: #ec835a;
+    --status-critical: #d03b3b;
+
+    --delta-up: #0ca30c;
+    --delta-down: #e66767;
+
+    --heat-0: #232322;
+    --heat-1: #0d366b;
+    --heat-2: #104281;
+    --heat-3: #184f95;
+    --heat-4: #256abf;
+    --heat-5: #2a78d6;
+    --heat-6: #5598e7;
   }
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN",
+    "Noto Sans JP", Meiryo, sans-serif;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* 表の数値列は縦に揃えたいので等幅数字にする */
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
 }
