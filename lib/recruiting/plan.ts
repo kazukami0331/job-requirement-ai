@@ -32,6 +32,26 @@ function cell(row: unknown[], i: number): string {
   return String(row[i] ?? "").trim();
 }
 
+/**
+ * 期限セルの整形。
+ * Excelの日付セルは表示形式が壊れていることがある（"上午/下午 00時00分00秒" など）ので、
+ * シリアル値・Dateはこちらで YYYY/MM/DD に組み直し、文字列はそのまま使う。
+ */
+function dateCell(value: unknown): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return `${value.getFullYear()}/${pad(value.getMonth() + 1)}/${pad(value.getDate())}`;
+  }
+
+  if (typeof value === "number" && value > 20000 && value < 90000) {
+    const d = XLSX.SSF.parse_date_code(value);
+    if (d) return `${d.y}/${pad(d.m)}/${pad(d.d)}`;
+  }
+
+  return String(value ?? "").trim();
+}
+
 function triple(row: unknown[], start: number): [number, number, number] {
   return [toNum(row[start]), toNum(row[start + 1]), toNum(row[start + 2])];
 }
@@ -70,6 +90,7 @@ function readLabels(grid: unknown[][]): PlanLabels {
     shortage: use(cell(subRow, 12), DEFAULT_PLAN_LABELS.shortage),
     deadline: use(cell(subRow, 13), DEFAULT_PLAN_LABELS.deadline),
     flag: use(cell(subRow, 14), DEFAULT_PLAN_LABELS.flag),
+    note: use(cell(subRow, 15), DEFAULT_PLAN_LABELS.note),
   };
 }
 
@@ -77,10 +98,12 @@ function readLabels(grid: unknown[][]): PlanLabels {
 export function parsePlanFile(fileName: string, buf: ArrayBuffer): HiringPlan {
   const wb = /\.(csv|txt|tsv)$/i.test(fileName)
     ? XLSX.read(decodeText(buf), { type: "string", raw: true })
-    : XLSX.read(new Uint8Array(buf), { type: "array", codepage: 932, raw: true });
+    : XLSX.read(new Uint8Array(buf), { type: "array", codepage: 932, cellDates: true });
 
-  const sheet = wb.Sheets[wb.SheetNames[0]];
-  const grid = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: false, defval: "" });
+  // 「不足人数管理表」があればそれを、無ければ先頭シートを使う
+  const named = wb.SheetNames.find((n) => n.includes("不足人数"));
+  const sheet = wb.Sheets[named ?? wb.SheetNames[0]];
+  const grid = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: "" });
 
   const labels = readLabels(grid);
   const rows: PlanRow[] = [];
@@ -108,7 +131,7 @@ export function parsePlanFile(fileName: string, buf: ArrayBuffer): HiringPlan {
       groupB: triple(raw, 6),
       groupC: triple(raw, 9),
       shortage: shortageCell === "" ? null : toNum(shortageCell),
-      deadline: cell(raw, 13),
+      deadline: dateCell(raw[13]),
       flag: cell(raw, 14),
       note: cell(raw, 15),
     });
@@ -155,7 +178,7 @@ export function planToGrid(plan: HiringPlan): unknown[][] {
       labels.shortage,
       labels.deadline,
       labels.flag,
-      "備考",
+      labels.note,
     ],
   ];
 

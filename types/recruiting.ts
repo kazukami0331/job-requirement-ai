@@ -117,16 +117,18 @@ export interface PlanLabels {
   shortage: string;
   deadline: string;
   flag: string;
+  note: string;
 }
 
 export const DEFAULT_PLAN_LABELS: PlanLabels = {
-  groupA: "グループA",
-  groupB: "グループB",
-  groupC: "不足人数",
-  sub: ["区分1", "区分2", "区分3"],
-  shortage: "校舎計 不足人数",
-  deadline: "充足期限",
-  flag: "フラグ",
+  groupA: "既存",
+  groupB: "新規採用",
+  groupC: "不足",
+  sub: ["朝昼", "夜", "土日"],
+  shortage: "最小採用人数",
+  deadline: "社員最終勤務日",
+  flag: "元社員PT",
+  note: "応援PT",
 };
 
 /** 採用計画全体 */
