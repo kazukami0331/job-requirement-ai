@@ -1,0 +1,2327 @@
+{
+  "version": 1,
+  "exportedAt": "2026-09-18T08:02:41.597Z",
+  "snapshots": [
+    {
+      "id": "seed-21",
+      "takenAt": "2026-09-16T15:50:00.000Z",
+      "sourceFileName": "3b78204f-____20260917130517.xls",
+      "applications": [
+        {
+          "applicationId": "0029035122",
+          "receivedAt": "2026-09-16T15:14:00.000Z",
+          "receivedDate": "2026-09-16",
+          "shopId": "1106562",
+          "shopName": "Winスクール 北千住校",
+          "shopShortName": "北千住校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "2",
+          "statusName": "面接予約待ち",
+          "statusUpdatedAt": "2026-09-16T15:50:00.000Z",
+          "interviewStartAt": null,
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0029033512",
+          "receivedAt": "2026-09-16T14:11:00.000Z",
+          "receivedDate": "2026-09-16",
+          "shopId": "1106583",
+          "shopName": "Winスクール 宇都宮校",
+          "shopShortName": "宇都宮校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "2",
+          "statusName": "面接予約待ち",
+          "statusUpdatedAt": "2026-09-16T15:49:00.000Z",
+          "interviewStartAt": null,
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0029030839",
+          "receivedAt": "2026-09-16T12:19:00.000Z",
+          "receivedDate": "2026-09-16",
+          "shopId": "1106562",
+          "shopName": "Winスクール 北千住校",
+          "shopShortName": "北千住校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "2",
+          "statusName": "面接予約待ち",
+          "statusUpdatedAt": "2026-09-16T15:47:00.000Z",
+          "interviewStartAt": null,
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0029021791",
+          "receivedAt": "2026-09-15T23:11:00.000Z",
+          "receivedDate": "2026-09-15",
+          "shopId": "1106570",
+          "shopName": "Winスクール 水戸校",
+          "shopShortName": "水戸校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "2",
+          "statusName": "面接予約待ち",
+          "statusUpdatedAt": "2026-09-16T15:45:00.000Z",
+          "interviewStartAt": null,
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0029005496",
+          "receivedAt": "2026-09-15T12:32:00.000Z",
+          "receivedDate": "2026-09-15",
+          "shopId": "1106630",
+          "shopName": "Winスクール 草津校",
+          "shopShortName": "草津校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "2",
+          "statusName": "面接予約待ち",
+          "statusUpdatedAt": "2026-09-15T13:55:00.000Z",
+          "interviewStartAt": null,
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0028999891",
+          "receivedAt": "2026-09-15T07:26:00.000Z",
+          "receivedDate": "2026-09-15",
+          "shopId": "1106562",
+          "shopName": "Winスクール 北千住校",
+          "shopShortName": "北千住校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "2",
+          "statusName": "面接予約待ち",
+          "statusUpdatedAt": "2026-09-15T11:47:00.000Z",
+          "interviewStartAt": null,
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0028963308",
+          "receivedAt": "2026-09-13T18:29:00.000Z",
+          "receivedDate": "2026-09-13",
+          "shopId": "1106565",
+          "shopName": "Winスクール 船橋駅前校",
+          "shopShortName": "船橋駅前校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "2",
+          "statusName": "面接予約待ち",
+          "statusUpdatedAt": "2026-09-14T10:21:00.000Z",
+          "interviewStartAt": null,
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0028963111",
+          "receivedAt": "2026-09-13T18:19:00.000Z",
+          "receivedDate": "2026-09-13",
+          "shopId": "1106631",
+          "shopName": "Winスクール 広島本校",
+          "shopShortName": "広島本校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "2",
+          "statusName": "面接予約待ち",
+          "statusUpdatedAt": "2026-09-14T10:16:00.000Z",
+          "interviewStartAt": null,
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0028962927",
+          "receivedAt": "2026-09-13T18:10:00.000Z",
+          "receivedDate": "2026-09-13",
+          "shopId": "1106583",
+          "shopName": "Winスクール 宇都宮校",
+          "shopShortName": "宇都宮校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "2",
+          "statusName": "面接予約待ち",
+          "statusUpdatedAt": "2026-09-14T10:16:00.000Z",
+          "interviewStartAt": null,
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0028932607",
+          "receivedAt": "2026-09-12T05:58:00.000Z",
+          "receivedDate": "2026-09-12",
+          "shopId": "814614",
+          "shopName": "Winスクール 北九州小倉校",
+          "shopShortName": "北九州小倉校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "2",
+          "statusName": "面接予約待ち",
+          "statusUpdatedAt": "2026-09-14T10:10:00.000Z",
+          "interviewStartAt": null,
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0028928827",
+          "receivedAt": "2026-09-11T22:44:00.000Z",
+          "receivedDate": "2026-09-11",
+          "shopId": "1106565",
+          "shopName": "Winスクール 船橋駅前校",
+          "shopShortName": "船橋駅前校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "2",
+          "statusName": "面接予約待ち",
+          "statusUpdatedAt": "2026-09-14T10:07:00.000Z",
+          "interviewStartAt": null,
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0028911914",
+          "receivedAt": "2026-09-11T10:46:00.000Z",
+          "receivedDate": "2026-09-11",
+          "shopId": "1106565",
+          "shopName": "Winスクール 船橋駅前校",
+          "shopShortName": "船橋駅前校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "2",
+          "statusName": "面接予約待ち",
+          "statusUpdatedAt": "2026-09-11T16:36:00.000Z",
+          "interviewStartAt": null,
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0028903890",
+          "receivedAt": "2026-09-10T22:20:00.000Z",
+          "receivedDate": "2026-09-10",
+          "shopId": "598778",
+          "shopName": "Winスクール 京都駅前校",
+          "shopShortName": "京都駅前校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "2",
+          "statusName": "面接予約待ち",
+          "statusUpdatedAt": "2026-09-11T16:36:00.000Z",
+          "interviewStartAt": null,
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0028893094",
+          "receivedAt": "2026-09-10T15:46:00.000Z",
+          "receivedDate": "2026-09-10",
+          "shopId": "1106565",
+          "shopName": "Winスクール 船橋駅前校",
+          "shopShortName": "船橋駅前校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "2",
+          "statusName": "面接予約待ち",
+          "statusUpdatedAt": "2026-09-10T16:34:00.000Z",
+          "interviewStartAt": null,
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0028874457",
+          "receivedAt": "2026-09-09T21:55:00.000Z",
+          "receivedDate": "2026-09-09",
+          "shopId": "1106565",
+          "shopName": "Winスクール 船橋駅前校",
+          "shopShortName": "船橋駅前校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "2",
+          "statusName": "面接予約待ち",
+          "statusUpdatedAt": "2026-09-14T09:59:00.000Z",
+          "interviewStartAt": null,
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0028850037",
+          "receivedAt": "2026-09-08T23:12:00.000Z",
+          "receivedDate": "2026-09-08",
+          "shopId": "713883",
+          "shopName": "Winスクール 横浜校",
+          "shopShortName": "横浜校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "2",
+          "statusName": "面接予約待ち",
+          "statusUpdatedAt": "2026-09-09T08:57:00.000Z",
+          "interviewStartAt": null,
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0028826537",
+          "receivedAt": "2026-09-08T05:52:00.000Z",
+          "receivedDate": "2026-09-08",
+          "shopId": "598765",
+          "shopName": "Winスクール 銀座校",
+          "shopShortName": "銀座校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "2",
+          "statusName": "面接予約待ち",
+          "statusUpdatedAt": "2026-09-08T09:13:00.000Z",
+          "interviewStartAt": null,
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0028647025",
+          "receivedAt": "2026-08-31T21:52:00.000Z",
+          "receivedDate": "2026-08-31",
+          "shopId": "752682",
+          "shopName": "Winスクール 高崎校",
+          "shopShortName": "高崎校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "3",
+          "statusName": "面接待ち",
+          "statusUpdatedAt": "2026-09-08T20:04:00.000Z",
+          "interviewStartAt": "2026-09-09T16:00:00.000Z",
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0028630791",
+          "receivedAt": "2026-08-31T10:36:00.000Z",
+          "receivedDate": "2026-08-31",
+          "shopId": "1106585",
+          "shopName": "Winスクール 浜松校",
+          "shopShortName": "浜松校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "3",
+          "statusName": "面接待ち",
+          "statusUpdatedAt": "2026-09-08T20:05:00.000Z",
+          "interviewStartAt": "2026-09-10T13:00:00.000Z",
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0028541557",
+          "receivedAt": "2026-08-26T21:48:00.000Z",
+          "receivedDate": "2026-08-26",
+          "shopId": "713883",
+          "shopName": "Winスクール 横浜校",
+          "shopShortName": "横浜校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "2",
+          "statusName": "面接予約待ち",
+          "statusUpdatedAt": "2026-08-27T09:50:00.000Z",
+          "interviewStartAt": null,
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        },
+        {
+          "applicationId": "0028515279",
+          "receivedAt": "2026-08-25T19:19:00.000Z",
+          "receivedDate": "2026-08-25",
+          "shopId": "598779",
+          "shopName": "Winスクール 福岡天神校",
+          "shopShortName": "福岡天神校",
+          "employmentType": "業務委託",
+          "employmentTypeCode": "9",
+          "statusId": "3",
+          "statusName": "面接待ち",
+          "statusUpdatedAt": "2026-09-08T20:07:00.000Z",
+          "interviewStartAt": "2026-09-24T11:00:00.000Z",
+          "rejectReason": null,
+          "media": "ジョブオプ採用管理（Indeed PLUS）",
+          "route": "WEB",
+          "jobTitle": "パソコンスクール講師",
+          "age": null,
+          "gender": null
+        }
+      ]
+    }
+  ],
+  "plan": {
+    "labels": {
+      "groupA": "既存",
+      "groupB": "新規採用",
+      "groupC": "不足",
+      "sub": [
+        "朝昼",
+        "夜",
+        "土日"
+      ],
+      "shortage": "最小採用人数 （全分野充足）",
+      "deadline": "社員最終勤務日",
+      "flag": "元社員PT",
+      "note": "応援PT"
+    },
+    "rows": [
+      {
+        "id": "存続校舎|札幌駅前|IT",
+        "phase": "存続校舎",
+        "shopShortName": "札幌駅前",
+        "category": "IT",
+        "groupA": [
+          1,
+          2,
+          3
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          0,
+          0
+        ],
+        "shortage": 1,
+        "deadline": "-",
+        "flag": "◯",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|札幌駅前|D/W",
+        "phase": "存続校舎",
+        "shopShortName": "札幌駅前",
+        "category": "D/W",
+        "groupA": [
+          1,
+          1,
+          2
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          0,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|札幌駅前|C",
+        "phase": "存続校舎",
+        "shopShortName": "札幌駅前",
+        "category": "C",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|仙台駅前|IT",
+        "phase": "存続校舎",
+        "shopShortName": "仙台駅前",
+        "category": "IT",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": 3,
+        "deadline": "2026/10/31",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|仙台駅前|D/W",
+        "phase": "存続校舎",
+        "shopShortName": "仙台駅前",
+        "category": "D/W",
+        "groupA": [
+          1,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|仙台駅前|C",
+        "phase": "存続校舎",
+        "shopShortName": "仙台駅前",
+        "category": "C",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|高崎|IT",
+        "phase": "存続校舎",
+        "shopShortName": "高崎",
+        "category": "IT",
+        "groupA": [
+          1,
+          0,
+          1
+        ],
+        "groupB": [
+          1,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          1,
+          0
+        ],
+        "shortage": 0,
+        "deadline": "2026/10/31",
+        "flag": "",
+        "note": "イイヅ（大宮）"
+      },
+      {
+        "id": "存続校舎|高崎|D/W",
+        "phase": "存続校舎",
+        "shopShortName": "高崎",
+        "category": "D/W",
+        "groupA": [
+          1,
+          0,
+          1
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          1,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|高崎|C",
+        "phase": "存続校舎",
+        "shopShortName": "高崎",
+        "category": "C",
+        "groupA": [
+          1,
+          0,
+          1
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          1,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|新宿本|IT",
+        "phase": "存続校舎",
+        "shopShortName": "新宿本",
+        "category": "IT",
+        "groupA": [
+          3,
+          1,
+          2
+        ],
+        "groupB": [
+          1,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          0,
+          0
+        ],
+        "shortage": 0,
+        "deadline": "2026/12/31",
+        "flag": "◯",
+        "note": "オガ裕（北千住）、セキネ（池袋）、クメ健（町田）、シュン（町田）、ホリ美（町田）、イノ朋（銀座）、ヒタニ（銀座）"
+      },
+      {
+        "id": "存続校舎|新宿本|D/W",
+        "phase": "存続校舎",
+        "shopShortName": "新宿本",
+        "category": "D/W",
+        "groupA": [
+          3,
+          1,
+          2
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          0,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "３月まで",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|新宿本|C",
+        "phase": "存続校舎",
+        "shopShortName": "新宿本",
+        "category": "C",
+        "groupA": [
+          2,
+          1,
+          2
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          0,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|町田|IT",
+        "phase": "存続校舎",
+        "shopShortName": "町田",
+        "category": "IT",
+        "groupA": [
+          1,
+          1,
+          1
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          0,
+          0
+        ],
+        "shortage": 0,
+        "deadline": "-",
+        "flag": "◯",
+        "note": "イタ本（立川）、ヤナセ（藤沢）"
+      },
+      {
+        "id": "存続校舎|町田|D/W",
+        "phase": "存続校舎",
+        "shopShortName": "町田",
+        "category": "D/W",
+        "groupA": [
+          1,
+          1,
+          1
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          0,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|町田|C",
+        "phase": "存続校舎",
+        "shopShortName": "町田",
+        "category": "C",
+        "groupA": [
+          1,
+          1,
+          1
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          0,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|横浜|IT",
+        "phase": "存続校舎",
+        "shopShortName": "横浜",
+        "category": "IT",
+        "groupA": [
+          1,
+          1,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          1
+        ],
+        "groupC": [
+          0,
+          0,
+          0
+        ],
+        "shortage": 0,
+        "deadline": "-",
+        "flag": "",
+        "note": "クメ健（町田）、シュン（町田）、ホリ美（町田）、ミズシ（藤沢）、ヤナセ（藤沢）"
+      },
+      {
+        "id": "存続校舎|横浜|D/W",
+        "phase": "存続校舎",
+        "shopShortName": "横浜",
+        "category": "D/W",
+        "groupA": [
+          2,
+          1,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          0,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|横浜|C",
+        "phase": "存続校舎",
+        "shopShortName": "横浜",
+        "category": "C",
+        "groupA": [
+          2,
+          1,
+          1
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          0,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|浜松|IT",
+        "phase": "存続校舎",
+        "shopShortName": "浜松",
+        "category": "IT",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": 3,
+        "deadline": "2026/01/31",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|浜松|D/W",
+        "phase": "存続校舎",
+        "shopShortName": "浜松",
+        "category": "D/W",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|浜松|C",
+        "phase": "存続校舎",
+        "shopShortName": "浜松",
+        "category": "C",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|名古屋|IT",
+        "phase": "存続校舎",
+        "shopShortName": "名古屋",
+        "category": "IT",
+        "groupA": [
+          1,
+          0,
+          1
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          1,
+          0
+        ],
+        "shortage": 1,
+        "deadline": "-",
+        "flag": "",
+        "note": "イトウ（栄）、タナ俊（豊田）"
+      },
+      {
+        "id": "存続校舎|名古屋|D/W",
+        "phase": "存続校舎",
+        "shopShortName": "名古屋",
+        "category": "D/W",
+        "groupA": [
+          2,
+          1,
+          2
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          0,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|名古屋|C",
+        "phase": "存続校舎",
+        "shopShortName": "名古屋",
+        "category": "C",
+        "groupA": [
+          2,
+          1,
+          2
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          0,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|豊田|IT",
+        "phase": "存続校舎",
+        "shopShortName": "豊田",
+        "category": "IT",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": 2,
+        "deadline": "2026/12/31",
+        "flag": "◯",
+        "note": "イトウ（栄）"
+      },
+      {
+        "id": "存続校舎|豊田|D/W",
+        "phase": "存続校舎",
+        "shopShortName": "豊田",
+        "category": "D/W",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|豊田|C",
+        "phase": "存続校舎",
+        "shopShortName": "豊田",
+        "category": "C",
+        "groupA": [
+          1,
+          1,
+          1
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          0,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|草津|IT",
+        "phase": "存続校舎",
+        "shopShortName": "草津",
+        "category": "IT",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": 3,
+        "deadline": "2026/12/31",
+        "flag": "",
+        "note": "タテイ（四条）"
+      },
+      {
+        "id": "存続校舎|草津|D/W",
+        "phase": "存続校舎",
+        "shopShortName": "草津",
+        "category": "D/W",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|草津|C",
+        "phase": "存続校舎",
+        "shopShortName": "草津",
+        "category": "C",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|京都駅前|IT",
+        "phase": "存続校舎",
+        "shopShortName": "京都駅前",
+        "category": "IT",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": 3,
+        "deadline": "2026/12/31",
+        "flag": "",
+        "note": "タテイ（四条）、クニ亮（梅田）"
+      },
+      {
+        "id": "存続校舎|京都駅前|D/W",
+        "phase": "存続校舎",
+        "shopShortName": "京都駅前",
+        "category": "D/W",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|京都駅前|C",
+        "phase": "存続校舎",
+        "shopShortName": "京都駅前",
+        "category": "C",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|梅田|IT",
+        "phase": "存続校舎",
+        "shopShortName": "梅田",
+        "category": "IT",
+        "groupA": [
+          2,
+          0,
+          1
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          1,
+          0
+        ],
+        "shortage": 3,
+        "deadline": "2026/12/31",
+        "flag": "",
+        "note": "タテイ（四条）、サイ（神戸三宮）、ナカノ（神戸三宮）"
+      },
+      {
+        "id": "存続校舎|梅田|D/W",
+        "phase": "存続校舎",
+        "shopShortName": "梅田",
+        "category": "D/W",
+        "groupA": [
+          2,
+          0,
+          1
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          1,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|梅田|C",
+        "phase": "存続校舎",
+        "shopShortName": "梅田",
+        "category": "C",
+        "groupA": [
+          2,
+          0,
+          2
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          1,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|広島本|IT",
+        "phase": "存続校舎",
+        "shopShortName": "広島本",
+        "category": "IT",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": 3,
+        "deadline": "2026/10/31",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|広島本|D/W",
+        "phase": "存続校舎",
+        "shopShortName": "広島本",
+        "category": "D/W",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|広島本|C",
+        "phase": "存続校舎",
+        "shopShortName": "広島本",
+        "category": "C",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|福岡天神|IT",
+        "phase": "存続校舎",
+        "shopShortName": "福岡天神",
+        "category": "IT",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          1,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          1,
+          1
+        ],
+        "shortage": 3,
+        "deadline": "2026/10/31",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|福岡天神|D/W",
+        "phase": "存続校舎",
+        "shopShortName": "福岡天神",
+        "category": "D/W",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|福岡天神|C",
+        "phase": "存続校舎",
+        "shopShortName": "福岡天神",
+        "category": "C",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|北九州小倉|IT",
+        "phase": "存続校舎",
+        "shopShortName": "北九州小倉",
+        "category": "IT",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": 3,
+        "deadline": "即日",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|北九州小倉|D/W",
+        "phase": "存続校舎",
+        "shopShortName": "北九州小倉",
+        "category": "D/W",
+        "groupA": [
+          0,
+          0,
+          1
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "存続校舎|北九州小倉|C",
+        "phase": "存続校舎",
+        "shopShortName": "北九州小倉",
+        "category": "C",
+        "groupA": [
+          0,
+          0,
+          1
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|水戸|IT",
+        "phase": "FY28判断校舎",
+        "shopShortName": "水戸",
+        "category": "IT",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": 3,
+        "deadline": "2026/12/31",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|水戸|D/W",
+        "phase": "FY28判断校舎",
+        "shopShortName": "水戸",
+        "category": "D/W",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|水戸|C",
+        "phase": "FY28判断校舎",
+        "shopShortName": "水戸",
+        "category": "C",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|宇都宮|IT",
+        "phase": "FY28判断校舎",
+        "shopShortName": "宇都宮",
+        "category": "IT",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": 3,
+        "deadline": "2026/12/31",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|宇都宮|D/W",
+        "phase": "FY28判断校舎",
+        "shopShortName": "宇都宮",
+        "category": "D/W",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|宇都宮|C",
+        "phase": "FY28判断校舎",
+        "shopShortName": "宇都宮",
+        "category": "C",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|大宮|IT",
+        "phase": "FY28判断校舎",
+        "shopShortName": "大宮",
+        "category": "IT",
+        "groupA": [
+          1,
+          0,
+          1
+        ],
+        "groupB": [
+          0,
+          0,
+          1
+        ],
+        "groupC": [
+          0,
+          1,
+          0
+        ],
+        "shortage": 3,
+        "deadline": "2026/10/31",
+        "flag": "",
+        "note": "セキネ（池袋）、イノ朋（銀座）"
+      },
+      {
+        "id": "FY28判断校舎|大宮|D/W",
+        "phase": "FY28判断校舎",
+        "shopShortName": "大宮",
+        "category": "D/W",
+        "groupA": [
+          1,
+          0,
+          1
+        ],
+        "groupB": [
+          0,
+          0,
+          1
+        ],
+        "groupC": [
+          0,
+          1,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|大宮|C",
+        "phase": "FY28判断校舎",
+        "shopShortName": "大宮",
+        "category": "C",
+        "groupA": [
+          1,
+          0,
+          1
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          1,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|船橋駅前|IT",
+        "phase": "FY28判断校舎",
+        "shopShortName": "船橋駅前",
+        "category": "IT",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": 3,
+        "deadline": "2026/12/31",
+        "flag": "",
+        "note": "カイホ（千葉）、ハギ利（千葉）、ミヤハラ（千葉）"
+      },
+      {
+        "id": "FY28判断校舎|船橋駅前|D/W",
+        "phase": "FY28判断校舎",
+        "shopShortName": "船橋駅前",
+        "category": "D/W",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|船橋駅前|C",
+        "phase": "FY28判断校舎",
+        "shopShortName": "船橋駅前",
+        "category": "C",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|銀座|IT",
+        "phase": "FY28判断校舎",
+        "shopShortName": "銀座",
+        "category": "IT",
+        "groupA": [
+          0,
+          1,
+          0
+        ],
+        "groupB": [
+          0,
+          1,
+          1
+        ],
+        "groupC": [
+          1,
+          0,
+          0
+        ],
+        "shortage": 1,
+        "deadline": "2026/12/31",
+        "flag": "",
+        "note": "サト寿（新宿本）、ミヤ和（新宿本）、カネ稜（池袋）、イト憲（秋葉原）、カワ祐（船橋駅前）"
+      },
+      {
+        "id": "FY28判断校舎|銀座|D/W",
+        "phase": "FY28判断校舎",
+        "shopShortName": "銀座",
+        "category": "D/W",
+        "groupA": [
+          1,
+          1,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          0,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|銀座|C",
+        "phase": "FY28判断校舎",
+        "shopShortName": "銀座",
+        "category": "C",
+        "groupA": [
+          1,
+          1,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          0,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|北千住|IT",
+        "phase": "FY28判断校舎",
+        "shopShortName": "北千住",
+        "category": "IT",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": 3,
+        "deadline": "2026/12/31",
+        "flag": "",
+        "note": "サト寿（新宿本）、オカ暢（柏）、クサ薙（秋葉原）、ハタノ（秋葉原）、カワ祐（船橋駅前）"
+      },
+      {
+        "id": "FY28判断校舎|北千住|D/W",
+        "phase": "FY28判断校舎",
+        "shopShortName": "北千住",
+        "category": "D/W",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|北千住|C",
+        "phase": "FY28判断校舎",
+        "shopShortName": "北千住",
+        "category": "C",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|立川|IT",
+        "phase": "FY28判断校舎",
+        "shopShortName": "立川",
+        "category": "IT",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": 3,
+        "deadline": "2026/12/31",
+        "flag": "",
+        "note": "ウエダ（新宿本）、ナガ浩（新宿本）、クメ健（町田）、シュン（町田）、ホリ美（町田）"
+      },
+      {
+        "id": "FY28判断校舎|立川|D/W",
+        "phase": "FY28判断校舎",
+        "shopShortName": "立川",
+        "category": "D/W",
+        "groupA": [
+          1,
+          1,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          0,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|立川|C",
+        "phase": "FY28判断校舎",
+        "shopShortName": "立川",
+        "category": "C",
+        "groupA": [
+          1,
+          1,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          0,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|栄|IT",
+        "phase": "FY28判断校舎",
+        "shopShortName": "栄",
+        "category": "IT",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": 3,
+        "deadline": "2026/12/31",
+        "flag": "",
+        "note": "アサ沼（名古屋）、アサ美（名古屋）、イサミ（名古屋）"
+      },
+      {
+        "id": "FY28判断校舎|栄|D/W",
+        "phase": "FY28判断校舎",
+        "shopShortName": "栄",
+        "category": "D/W",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|栄|C",
+        "phase": "FY28判断校舎",
+        "shopShortName": "栄",
+        "category": "C",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|天王寺|IT",
+        "phase": "FY28判断校舎",
+        "shopShortName": "天王寺",
+        "category": "IT",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": 2,
+        "deadline": "2026/10/31",
+        "flag": "",
+        "note": "タテイ（四条）、クニ亮（梅田）、コジマ（梅田）、ナカノ（神戸三宮）"
+      },
+      {
+        "id": "FY28判断校舎|天王寺|D/W",
+        "phase": "FY28判断校舎",
+        "shopShortName": "天王寺",
+        "category": "D/W",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          1,
+          1
+        ],
+        "groupC": [
+          1,
+          0,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|天王寺|C",
+        "phase": "FY28判断校舎",
+        "shopShortName": "天王寺",
+        "category": "C",
+        "groupA": [
+          0,
+          0,
+          0
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          1,
+          1,
+          1
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|神戸三宮|IT",
+        "phase": "FY28判断校舎",
+        "shopShortName": "神戸三宮",
+        "category": "IT",
+        "groupA": [
+          1,
+          0,
+          1
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          1,
+          0
+        ],
+        "shortage": 2,
+        "deadline": "-",
+        "flag": "",
+        "note": "クニ亮（梅田）"
+      },
+      {
+        "id": "FY28判断校舎|神戸三宮|D/W",
+        "phase": "FY28判断校舎",
+        "shopShortName": "神戸三宮",
+        "category": "D/W",
+        "groupA": [
+          2,
+          0,
+          1
+        ],
+        "groupB": [
+          0,
+          1,
+          1
+        ],
+        "groupC": [
+          0,
+          0,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      },
+      {
+        "id": "FY28判断校舎|神戸三宮|C",
+        "phase": "FY28判断校舎",
+        "shopShortName": "神戸三宮",
+        "category": "C",
+        "groupA": [
+          2,
+          0,
+          1
+        ],
+        "groupB": [
+          0,
+          0,
+          0
+        ],
+        "groupC": [
+          0,
+          1,
+          0
+        ],
+        "shortage": null,
+        "deadline": "",
+        "flag": "",
+        "note": ""
+      }
+    ],
+    "updatedAt": "2026-09-18T08:02:41.597Z"
+  }
+}

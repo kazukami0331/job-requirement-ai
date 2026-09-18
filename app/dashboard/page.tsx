@@ -23,6 +23,8 @@ import { buildWorkbookSheets, downloadJson, downloadWorkbook } from "@/lib/recru
 import {
   deletePlan,
   deleteSnapshot,
+  loadSeedIfEmpty,
+  markSeedLoaded,
   exportBackup,
   importBackup,
   listSnapshots,
@@ -54,9 +56,17 @@ export default function DashboardPage() {
   useEffect(() => {
     (async () => {
       try {
+        // 保存先がブラウザごとなので、初回は同梱してある受領済みデータを入れる
+        const seeded = await loadSeedIfEmpty();
         const [s, p] = await Promise.all([listSnapshots(), loadPlan()]);
         setSnapshots(s);
         setPlan(p);
+        if (seeded) {
+          setMessage({
+            kind: "info",
+            text: "すでにお預かりしている分を初期データとして読み込みました。次の週からは「応募データを取り込む」で追加してください。",
+          });
+        }
       } catch {
         setMessage({ kind: "error", text: "保存データの読み込みに失敗しました。" });
       } finally {
@@ -187,6 +197,8 @@ export default function DashboardPage() {
 
   const handleDeleteSnapshot = useCallback(async (id: string) => {
     await deleteSnapshot(id);
+    // 消したものが次に開いたときに初期データとして戻ってこないようにする
+    await markSeedLoaded();
     setSnapshots(await listSnapshots());
   }, []);
 
@@ -235,6 +247,8 @@ export default function DashboardPage() {
         <EmptyState title="まだデータがありません">
           上の「応募データを取り込む」から、ジョブオプの応募エクスポート（.xls / .xlsx / .csv）を選んでください。
           毎週同じ操作をするたびにその週の断面が履歴として積み上がり、週次の推移が見られるようになります。
+          データはこのブラウザの中に保存されるので、端末やブラウザを変えると引き継がれません。
+          その場合は「バックアップ（.json）」で書き出したファイルを「バックアップを復元」から読み込んでください。
         </EmptyState>
       ) : (
         <div className="space-y-5">

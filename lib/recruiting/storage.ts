@@ -86,6 +86,46 @@ export async function exportBackup(): Promise<Backup> {
   return { version: 1, exportedAt: new Date().toISOString(), snapshots, plan };
 }
 
+/**
+ * 同梱してある初期データを、保存領域が空のときだけ読み込む。
+ *
+ * 保存先がブラウザごとなので、何もしないと初めて開いた人の画面は空になる。
+ * すでに受け取っている分をアプリに同梱しておき、URLを開いた時点で中身が見える状態にする。
+ * 一度でも取り込み・削除の操作をしたブラウザでは二度と入れない。
+ */
+const SEED_DONE_KEY = "seedLoaded";
+
+export async function loadSeedIfEmpty(): Promise<boolean> {
+  const done = await tx<boolean | undefined>(SETTING_STORE, "readonly", (s) => s.get(SEED_DONE_KEY));
+  if (done) return false;
+
+  const existing = await listSnapshots();
+  if (existing.length > 0) {
+    await tx(SETTING_STORE, "readwrite", (s) => s.put(true, SEED_DONE_KEY) as IDBRequest<IDBValidKey>);
+    return false;
+  }
+
+  try {
+    const res = await fetch("/seed/initial.json", { cache: "no-store" });
+    if (!res.ok) return false;
+    const backup: Backup = await res.json();
+    if (backup?.version !== 1 || !Array.isArray(backup.snapshots)) return false;
+
+    for (const snapshot of backup.snapshots) await saveSnapshot(snapshot);
+    if (backup.plan) await savePlan(backup.plan);
+    await tx(SETTING_STORE, "readwrite", (s) => s.put(true, SEED_DONE_KEY) as IDBRequest<IDBValidKey>);
+    return backup.snapshots.length > 0;
+  } catch {
+    // 初期データが無くても空の状態で使えればよいので、失敗は握りつぶす
+    return false;
+  }
+}
+
+/** 初期データを読み込み済みにして、以後の自動読み込みを止める */
+export async function markSeedLoaded(): Promise<void> {
+  await tx(SETTING_STORE, "readwrite", (s) => s.put(true, SEED_DONE_KEY) as IDBRequest<IDBValidKey>);
+}
+
 /** バックアップを取り込む。同じIDのスナップショットは上書きする。 */
 export async function importBackup(backup: Backup): Promise<{ snapshots: number }> {
   if (backup?.version !== 1 || !Array.isArray(backup.snapshots)) {
