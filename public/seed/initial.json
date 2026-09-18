@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "exportedAt": "2026-09-18T08:02:41.597Z",
+  "exportedAt": "2026-09-18T08:20:05.328Z",
   "snapshots": [
     {
       "id": "seed-21",
@@ -469,7 +469,8 @@
         "shortage": 1,
         "deadline": "-",
         "flag": "◯",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "存続校舎|札幌駅前|D/W",
@@ -494,7 +495,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "存続校舎|札幌駅前|C",
@@ -519,7 +521,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "存続校舎|仙台駅前|IT",
@@ -544,7 +547,8 @@
         "shortage": 3,
         "deadline": "2026/10/31",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|仙台駅前|D/W",
@@ -569,7 +573,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|仙台駅前|C",
@@ -594,7 +599,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|高崎|IT",
@@ -619,7 +625,8 @@
         "shortage": 0,
         "deadline": "2026/10/31",
         "flag": "",
-        "note": "イイヅ（大宮）"
+        "note": "イイヅ（大宮）",
+        "urgent": false
       },
       {
         "id": "存続校舎|高崎|D/W",
@@ -644,7 +651,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "存続校舎|高崎|C",
@@ -669,7 +677,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "存続校舎|新宿本|IT",
@@ -694,7 +703,8 @@
         "shortage": 0,
         "deadline": "2026/12/31",
         "flag": "◯",
-        "note": "オガ裕（北千住）、セキネ（池袋）、クメ健（町田）、シュン（町田）、ホリ美（町田）、イノ朋（銀座）、ヒタニ（銀座）"
+        "note": "オガ裕（北千住）、セキネ（池袋）、クメ健（町田）、シュン（町田）、ホリ美（町田）、イノ朋（銀座）、ヒタニ（銀座）",
+        "urgent": false
       },
       {
         "id": "存続校舎|新宿本|D/W",
@@ -719,7 +729,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "３月まで",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "存続校舎|新宿本|C",
@@ -744,7 +755,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "存続校舎|町田|IT",
@@ -769,7 +781,8 @@
         "shortage": 0,
         "deadline": "-",
         "flag": "◯",
-        "note": "イタ本（立川）、ヤナセ（藤沢）"
+        "note": "イタ本（立川）、ヤナセ（藤沢）",
+        "urgent": false
       },
       {
         "id": "存続校舎|町田|D/W",
@@ -794,7 +807,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "存続校舎|町田|C",
@@ -819,7 +833,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "存続校舎|横浜|IT",
@@ -844,7 +859,8 @@
         "shortage": 0,
         "deadline": "-",
         "flag": "",
-        "note": "クメ健（町田）、シュン（町田）、ホリ美（町田）、ミズシ（藤沢）、ヤナセ（藤沢）"
+        "note": "クメ健（町田）、シュン（町田）、ホリ美（町田）、ミズシ（藤沢）、ヤナセ（藤沢）",
+        "urgent": false
       },
       {
         "id": "存続校舎|横浜|D/W",
@@ -869,7 +885,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "存続校舎|横浜|C",
@@ -894,7 +911,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "存続校舎|浜松|IT",
@@ -919,7 +937,8 @@
         "shortage": 3,
         "deadline": "2026/01/31",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|浜松|D/W",
@@ -944,7 +963,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|浜松|C",
@@ -969,7 +989,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|名古屋|IT",
@@ -994,7 +1015,8 @@
         "shortage": 1,
         "deadline": "-",
         "flag": "",
-        "note": "イトウ（栄）、タナ俊（豊田）"
+        "note": "イトウ（栄）、タナ俊（豊田）",
+        "urgent": false
       },
       {
         "id": "存続校舎|名古屋|D/W",
@@ -1019,7 +1041,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "存続校舎|名古屋|C",
@@ -1044,7 +1067,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "存続校舎|豊田|IT",
@@ -1069,7 +1093,8 @@
         "shortage": 2,
         "deadline": "2026/12/31",
         "flag": "◯",
-        "note": "イトウ（栄）"
+        "note": "イトウ（栄）",
+        "urgent": true
       },
       {
         "id": "存続校舎|豊田|D/W",
@@ -1094,7 +1119,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|豊田|C",
@@ -1119,7 +1145,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|草津|IT",
@@ -1144,7 +1171,8 @@
         "shortage": 3,
         "deadline": "2026/12/31",
         "flag": "",
-        "note": "タテイ（四条）"
+        "note": "タテイ（四条）",
+        "urgent": true
       },
       {
         "id": "存続校舎|草津|D/W",
@@ -1169,7 +1197,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|草津|C",
@@ -1194,7 +1223,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|京都駅前|IT",
@@ -1219,7 +1249,8 @@
         "shortage": 3,
         "deadline": "2026/12/31",
         "flag": "",
-        "note": "タテイ（四条）、クニ亮（梅田）"
+        "note": "タテイ（四条）、クニ亮（梅田）",
+        "urgent": true
       },
       {
         "id": "存続校舎|京都駅前|D/W",
@@ -1244,7 +1275,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|京都駅前|C",
@@ -1269,7 +1301,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|梅田|IT",
@@ -1294,7 +1327,8 @@
         "shortage": 3,
         "deadline": "2026/12/31",
         "flag": "",
-        "note": "タテイ（四条）、サイ（神戸三宮）、ナカノ（神戸三宮）"
+        "note": "タテイ（四条）、サイ（神戸三宮）、ナカノ（神戸三宮）",
+        "urgent": false
       },
       {
         "id": "存続校舎|梅田|D/W",
@@ -1319,7 +1353,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "存続校舎|梅田|C",
@@ -1344,7 +1379,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "存続校舎|広島本|IT",
@@ -1369,7 +1405,8 @@
         "shortage": 3,
         "deadline": "2026/10/31",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|広島本|D/W",
@@ -1394,7 +1431,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|広島本|C",
@@ -1419,7 +1457,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|福岡天神|IT",
@@ -1444,7 +1483,8 @@
         "shortage": 3,
         "deadline": "2026/10/31",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|福岡天神|D/W",
@@ -1469,7 +1509,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|福岡天神|C",
@@ -1494,7 +1535,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|北九州小倉|IT",
@@ -1519,7 +1561,8 @@
         "shortage": 3,
         "deadline": "即日",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|北九州小倉|D/W",
@@ -1544,7 +1587,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "存続校舎|北九州小倉|C",
@@ -1569,7 +1613,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "FY28判断校舎|水戸|IT",
@@ -1594,7 +1639,8 @@
         "shortage": 3,
         "deadline": "2026/12/31",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "FY28判断校舎|水戸|D/W",
@@ -1619,7 +1665,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "FY28判断校舎|水戸|C",
@@ -1644,7 +1691,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "FY28判断校舎|宇都宮|IT",
@@ -1669,7 +1717,8 @@
         "shortage": 3,
         "deadline": "2026/12/31",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "FY28判断校舎|宇都宮|D/W",
@@ -1694,7 +1743,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "FY28判断校舎|宇都宮|C",
@@ -1719,7 +1769,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "FY28判断校舎|大宮|IT",
@@ -1744,7 +1795,8 @@
         "shortage": 3,
         "deadline": "2026/10/31",
         "flag": "",
-        "note": "セキネ（池袋）、イノ朋（銀座）"
+        "note": "セキネ（池袋）、イノ朋（銀座）",
+        "urgent": false
       },
       {
         "id": "FY28判断校舎|大宮|D/W",
@@ -1769,7 +1821,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "FY28判断校舎|大宮|C",
@@ -1794,7 +1847,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "FY28判断校舎|船橋駅前|IT",
@@ -1819,7 +1873,8 @@
         "shortage": 3,
         "deadline": "2026/12/31",
         "flag": "",
-        "note": "カイホ（千葉）、ハギ利（千葉）、ミヤハラ（千葉）"
+        "note": "カイホ（千葉）、ハギ利（千葉）、ミヤハラ（千葉）",
+        "urgent": true
       },
       {
         "id": "FY28判断校舎|船橋駅前|D/W",
@@ -1844,7 +1899,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "FY28判断校舎|船橋駅前|C",
@@ -1869,7 +1925,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "FY28判断校舎|銀座|IT",
@@ -1894,7 +1951,8 @@
         "shortage": 1,
         "deadline": "2026/12/31",
         "flag": "",
-        "note": "サト寿（新宿本）、ミヤ和（新宿本）、カネ稜（池袋）、イト憲（秋葉原）、カワ祐（船橋駅前）"
+        "note": "サト寿（新宿本）、ミヤ和（新宿本）、カネ稜（池袋）、イト憲（秋葉原）、カワ祐（船橋駅前）",
+        "urgent": false
       },
       {
         "id": "FY28判断校舎|銀座|D/W",
@@ -1919,7 +1977,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "FY28判断校舎|銀座|C",
@@ -1944,7 +2003,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "FY28判断校舎|北千住|IT",
@@ -1969,7 +2029,8 @@
         "shortage": 3,
         "deadline": "2026/12/31",
         "flag": "",
-        "note": "サト寿（新宿本）、オカ暢（柏）、クサ薙（秋葉原）、ハタノ（秋葉原）、カワ祐（船橋駅前）"
+        "note": "サト寿（新宿本）、オカ暢（柏）、クサ薙（秋葉原）、ハタノ（秋葉原）、カワ祐（船橋駅前）",
+        "urgent": true
       },
       {
         "id": "FY28判断校舎|北千住|D/W",
@@ -1994,7 +2055,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "FY28判断校舎|北千住|C",
@@ -2019,7 +2081,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "FY28判断校舎|立川|IT",
@@ -2044,7 +2107,8 @@
         "shortage": 3,
         "deadline": "2026/12/31",
         "flag": "",
-        "note": "ウエダ（新宿本）、ナガ浩（新宿本）、クメ健（町田）、シュン（町田）、ホリ美（町田）"
+        "note": "ウエダ（新宿本）、ナガ浩（新宿本）、クメ健（町田）、シュン（町田）、ホリ美（町田）",
+        "urgent": false
       },
       {
         "id": "FY28判断校舎|立川|D/W",
@@ -2069,7 +2133,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "FY28判断校舎|立川|C",
@@ -2094,7 +2159,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "FY28判断校舎|栄|IT",
@@ -2119,7 +2185,8 @@
         "shortage": 3,
         "deadline": "2026/12/31",
         "flag": "",
-        "note": "アサ沼（名古屋）、アサ美（名古屋）、イサミ（名古屋）"
+        "note": "アサ沼（名古屋）、アサ美（名古屋）、イサミ（名古屋）",
+        "urgent": true
       },
       {
         "id": "FY28判断校舎|栄|D/W",
@@ -2144,7 +2211,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "FY28判断校舎|栄|C",
@@ -2169,7 +2237,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": true
       },
       {
         "id": "FY28判断校舎|天王寺|IT",
@@ -2194,7 +2263,8 @@
         "shortage": 2,
         "deadline": "2026/10/31",
         "flag": "",
-        "note": "タテイ（四条）、クニ亮（梅田）、コジマ（梅田）、ナカノ（神戸三宮）"
+        "note": "タテイ（四条）、クニ亮（梅田）、コジマ（梅田）、ナカノ（神戸三宮）",
+        "urgent": false
       },
       {
         "id": "FY28判断校舎|天王寺|D/W",
@@ -2219,7 +2289,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "FY28判断校舎|天王寺|C",
@@ -2244,7 +2315,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "FY28判断校舎|神戸三宮|IT",
@@ -2269,7 +2341,8 @@
         "shortage": 2,
         "deadline": "-",
         "flag": "",
-        "note": "クニ亮（梅田）"
+        "note": "クニ亮（梅田）",
+        "urgent": false
       },
       {
         "id": "FY28判断校舎|神戸三宮|D/W",
@@ -2294,7 +2367,8 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       },
       {
         "id": "FY28判断校舎|神戸三宮|C",
@@ -2319,9 +2393,10 @@
         "shortage": null,
         "deadline": "",
         "flag": "",
-        "note": ""
+        "note": "",
+        "urgent": false
       }
     ],
-    "updatedAt": "2026-09-18T08:02:41.597Z"
+    "updatedAt": "2026-09-18T08:20:05.328Z"
   }
 }

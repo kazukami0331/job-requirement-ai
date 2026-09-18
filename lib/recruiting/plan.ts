@@ -94,11 +94,29 @@ function readLabels(grid: unknown[][]): PlanLabels {
   };
 }
 
+/**
+ * セルに色が塗られているかどうか。
+ *
+ * 元シートでは緊急度の高い校舎の校舎名セルがオレンジで塗られている。
+ * 色そのものを条件にすると塗り色を変えたときに拾えなくなるので、
+ * 「白以外の solid 塗りつぶしがある」ことだけを条件にしている。
+ */
+function isFilled(sheet: XLSX.WorkSheet, address: string): boolean {
+  const style = (sheet[address] as { s?: { patternType?: string; fgColor?: { rgb?: string } } } | undefined)?.s;
+  if (!style || style.patternType !== "solid") return false;
+
+  const raw = String(style.fgColor?.rgb ?? "").toUpperCase();
+  if (!raw) return false;
+  // ARGB(8桁)で来ることがあるのでRGBに揃える
+  const hex = raw.length === 8 ? raw.slice(2) : raw;
+  return !/^(FFFFFF|000000)$/.test(hex);
+}
+
 /** 採用計画のCSV / Excelを取り込む */
 export function parsePlanFile(fileName: string, buf: ArrayBuffer): HiringPlan {
   const wb = /\.(csv|txt|tsv)$/i.test(fileName)
     ? XLSX.read(decodeText(buf), { type: "string", raw: true })
-    : XLSX.read(new Uint8Array(buf), { type: "array", codepage: 932, cellDates: true });
+    : XLSX.read(new Uint8Array(buf), { type: "array", codepage: 932, cellDates: true, cellStyles: true });
 
   // 「不足人数管理表」があればそれを、無ければ先頭シートを使う
   const named = wb.SheetNames.find((n) => n.includes("不足人数"));
@@ -108,16 +126,26 @@ export function parsePlanFile(fileName: string, buf: ArrayBuffer): HiringPlan {
   const labels = readLabels(grid);
   const rows: PlanRow[] = [];
 
+  // grid の添字はシートの範囲の左上が基準なので、セル番地に直すための原点を取る
+  const origin = XLSX.utils.decode_range(sheet["!ref"] ?? "A1");
+
   // 結合セルで空になっている校舎名・フェーズ・校舎計を前方補完する
   let phase = "";
   let shop = "";
+  let urgent = false;
 
-  for (const raw of grid) {
+  for (let i = 0; i < grid.length; i++) {
+    const raw = grid[i];
     const category = cell(raw, 2);
     if (!CATEGORY_SET.has(category)) continue;
 
     if (cell(raw, 0)) phase = cell(raw, 0);
-    if (cell(raw, 1)) shop = cell(raw, 1);
+    if (cell(raw, 1)) {
+      shop = cell(raw, 1);
+      // 校舎名が入っている行＝その校舎の先頭行。色の有無もここで拾って3行に配る
+      const address = XLSX.utils.encode_cell({ r: origin.s.r + i, c: origin.s.c + 1 });
+      urgent = isFilled(sheet, address);
+    }
     if (!shop) continue;
 
     const shortageCell = cell(raw, 12);
@@ -134,6 +162,7 @@ export function parsePlanFile(fileName: string, buf: ArrayBuffer): HiringPlan {
       deadline: dateCell(raw[13]),
       flag: cell(raw, 14),
       note: cell(raw, 15),
+      urgent,
     });
   }
 
@@ -157,6 +186,7 @@ export function emptyPlan(phase = "今期"): HiringPlan {
         deadline: "",
         flag: "",
         note: "",
+        urgent: false,
       });
     }
   }
@@ -179,6 +209,7 @@ export function planToGrid(plan: HiringPlan): unknown[][] {
       labels.deadline,
       labels.flag,
       labels.note,
+      "緊急",
     ],
   ];
 
@@ -194,6 +225,7 @@ export function planToGrid(plan: HiringPlan): unknown[][] {
       r.deadline,
       r.flag,
       r.note,
+      r.urgent ? "緊急" : "",
     ]);
   }
   return grid;
@@ -202,6 +234,8 @@ export function planToGrid(plan: HiringPlan): unknown[][] {
 export interface ShopShortage {
   shopShortName: string;
   phase: string;
+  /** 緊急度が高い校舎（元シートで色が塗られている） */
+  urgent: boolean;
   /** 校舎計の不足人数（IT行の値、無ければグループCの合計） */
   shortage: number;
   /** 講座区分ごとのグループC合計 */
@@ -220,6 +254,7 @@ export function shortageByShop(plan: HiringPlan): ShopShortage[] {
       entry = {
         shopShortName: r.shopShortName,
         phase: r.phase,
+        urgent: false,
         shortage: 0,
         byCategory: { IT: 0, "D/W": 0, C: 0 },
         deadline: "",
@@ -227,6 +262,7 @@ export function shortageByShop(plan: HiringPlan): ShopShortage[] {
       };
       map.set(r.shopShortName, entry);
     }
+    if (r.urgent) entry.urgent = true;
     entry.byCategory[r.category] += r.groupC.reduce((a, b) => a + b, 0);
     if (r.shortage !== null) entry.shortage += r.shortage;
     if (r.deadline) entry.deadline = r.deadline;
@@ -241,7 +277,12 @@ export function shortageByShop(plan: HiringPlan): ShopShortage[] {
     }
   }
 
-  return [...map.values()].sort((a, b) => b.shortage - a.shortage || a.shopShortName.localeCompare(b.shopShortName, "ja"));
+  return [...map.values()].sort(
+    (a, b) =>
+      Number(b.urgent) - Number(a.urgent) ||
+      b.shortage - a.shortage ||
+      a.shopShortName.localeCompare(b.shopShortName, "ja")
+  );
 }
 
 /** 応募データ側の校舎名 → 採用計画の不足人数 を引けるMapを作る */

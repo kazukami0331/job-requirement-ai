@@ -126,7 +126,7 @@ export function detailGrid(apps: Application[]): unknown[][] {
 /** 採用計画 vs 応募実績シート */
 export function planVsActualGrid(apps: Application[], plan: HiringPlan | null): unknown[][] {
   const grid: unknown[][] = [
-    ["校舎", "不足人数", "累計応募", "選考中プール", "採用", "残不足", "充足率", "期限", "備考"],
+    ["校舎", "緊急", "不足人数", "累計応募", "選考中プール", "採用", "残不足", "充足率", "期限", "備考"],
   ];
   if (!plan) return grid;
 
@@ -146,6 +146,7 @@ export function planVsActualGrid(apps: Application[], plan: HiringPlan | null): 
     const actual = byShop.get(key) ?? { applied: 0, pool: 0, hired: 0 };
     grid.push([
       s.shopShortName,
+      s.urgent ? "緊急" : "",
       s.shortage,
       actual.applied,
       actual.pool,

@@ -100,6 +100,11 @@ export interface PlanRow {
   flag: string;
   /** 備考 */
   note: string;
+  /**
+   * 緊急度が高い校舎か。
+   * 元シートで校舎名セルに色が塗られているものを取り込み時に拾っている。
+   */
+  urgent: boolean;
 }
 
 export type PlanCategory = "IT" | "D/W" | "C";

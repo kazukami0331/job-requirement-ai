@@ -28,12 +28,15 @@ function niceMax(value: number): number {
  * 週次の応募数。1系列なのでタイトルが系列名を兼ね、凡例は置かない。
  * 数字はホバーで読ませ、直接ラベルは最新週だけに絞る。
  */
-export function WeeklyTrendChart({ points, height = 220 }: { points: WeeklyPoint[]; height?: number }) {
+export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
   const { ref, width } = useMeasuredWidth<HTMLDivElement>();
   const [tip, setTip] = useState<TooltipState | null>(null);
 
   if (points.length === 0) return null;
 
+  // 狭い画面では背を低くして、1画面に入る量を増やす
+  const narrow = width < 480;
+  const height = narrow ? 180 : 220;
   const plotW = Math.max(width - AXIS_W - PAD_R, 40);
   const plotH = height - PAD_T - AXIS_H;
   const max = niceMax(Math.max(...points.map((p) => p.applied), 1));
@@ -60,6 +63,20 @@ export function WeeklyTrendChart({ points, height = 220 }: { points: WeeklyPoint
         })}
 
         {points.map((p, i) => {
+          const show = () =>
+            setTip({
+              x: AXIS_W + i * slot + slot / 2,
+              y: Math.max(PAD_T + plotH - (p.applied / max) * plotH, PAD_T + 12),
+              title: `${p.week.start} 〜 ${p.week.end}`,
+              rows: [
+                { label: "応募", value: `${p.applied}件` },
+                { label: "面接設定", value: `${p.scheduled}件` },
+                { label: "面接実施", value: `${p.interviewed}件` },
+                { label: "採用", value: `${p.hired}件` },
+                { label: "選考中", value: `${p.activePool}件` },
+              ],
+            });
+
           const h = (p.applied / max) * plotH;
           const x = AXIS_W + i * slot + (slot - barW) / 2;
           const y = PAD_T + plotH - h;
@@ -74,21 +91,14 @@ export function WeeklyTrendChart({ points, height = 220 }: { points: WeeklyPoint
                 width={slot}
                 height={plotH}
                 fill="transparent"
-                onMouseEnter={() =>
-                  setTip({
-                    x: AXIS_W + i * slot + slot / 2,
-                    y: Math.max(y, PAD_T + 12),
-                    title: `${p.week.start} 〜 ${p.week.end}`,
-                    rows: [
-                      { label: "応募", value: `${p.applied}件` },
-                      { label: "面接設定", value: `${p.scheduled}件` },
-                      { label: "面接実施", value: `${p.interviewed}件` },
-                      { label: "採用", value: `${p.hired}件` },
-                      { label: "選考中", value: `${p.activePool}件` },
-                    ],
-                  })
-                }
-                onMouseLeave={() => setTip(null)}
+                // マウスはホバーで、タッチはタップで出す（タップ時は離しても消さない）
+                onPointerEnter={(e) => {
+                  if (e.pointerType === "mouse") show();
+                }}
+                onPointerLeave={(e) => {
+                  if (e.pointerType === "mouse") setTip(null);
+                }}
+                onPointerDown={show}
               />
               {p.applied > 0 && (
                 <rect
@@ -161,8 +171,15 @@ export function StagePoolChart({
   return (
     <ul className="space-y-2">
       {rows.map((r) => (
-        <li key={r.stage} className="grid grid-cols-[9.5rem_1fr_4.5rem] items-center gap-2 sm:grid-cols-[11rem_1fr_5rem]">
-          <span className="truncate text-xs" style={{ color: "var(--text-secondary)" }} title={r.label}>
+        <li
+          key={r.stage}
+          className="grid grid-cols-[1fr_5rem] items-center gap-x-2 gap-y-1 sm:grid-cols-[11rem_1fr_5rem]"
+        >
+          <span
+            className="col-span-2 truncate text-xs sm:col-span-1"
+            style={{ color: "var(--text-secondary)" }}
+            title={r.label}
+          >
             {r.label}
           </span>
           <span className="flex h-4 items-center" style={{ background: "var(--gridline)", borderRadius: RADIUS }}>

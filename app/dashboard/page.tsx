@@ -41,6 +41,15 @@ type Message = { kind: "info" | "error"; text: string } | null;
 
 const DIMENSIONS: Dimension[] = ["shopShortName", "employmentType", "media", "route", "jobTitle"];
 
+type SectionKey = "summary" | "shops" | "plan" | "activity";
+
+const SECTIONS: { key: SectionKey; label: string }[] = [
+  { key: "summary", label: "サマリー" },
+  { key: "shops", label: "校舎別" },
+  { key: "plan", label: "充足状況" },
+  { key: "activity", label: "動き" },
+];
+
 function readFile(file: File): Promise<ArrayBuffer> {
   return file.arrayBuffer();
 }
@@ -52,6 +61,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [dimension, setDimension] = useState<Dimension>("shopShortName");
   const [employmentFilter, setEmploymentFilter] = useState<string>("すべて");
+  // スマホでは縦に長くなりすぎるのでセクションを切り替える。画面が広いときは全部並べる。
+  const [section, setSection] = useState<SectionKey>("summary");
 
   useEffect(() => {
     (async () => {
@@ -123,6 +134,7 @@ export default function DashboardPage() {
         const a = actual.get(key);
         return {
           shopShortName: s.shopShortName,
+          urgent: s.urgent,
           shortage: s.shortage,
           applied: a?.applied ?? 0,
           pool: a?.pool ?? 0,
@@ -133,7 +145,13 @@ export default function DashboardPage() {
         };
       })
       .filter((r) => r.shortage > 0 || r.applied > 0)
-      .sort((a, b) => b.remaining - a.remaining || b.shortage - a.shortage);
+      // 緊急の校舎を最優先、その中では残不足が多い順
+      .sort(
+        (a, b) =>
+          Number(b.urgent) - Number(a.urgent) ||
+          b.remaining - a.remaining ||
+          b.shortage - a.shortage
+      );
   }, [apps, plan]);
 
   const handleUploadApplications = useCallback(async (file: File) => {
@@ -209,6 +227,14 @@ export default function DashboardPage() {
     setMessage({ kind: "info", text: "採用計画をクリアしました。応募データの履歴はそのままです。" });
   }, []);
 
+  /** 緊急の校舎のうち、まだ充足していないもの */
+  const urgentOpen = useMemo(
+    () => planVsActual.filter((r) => r.urgent && r.remaining > 0),
+    [planVsActual]
+  );
+  /** 緊急なのに選考中が1人もいない校舎 */
+  const urgentNoPool = useMemo(() => urgentOpen.filter((r) => r.pool === 0), [urgentOpen]);
+
   const latest = snapshots[snapshots.length - 1];
   const lastWeekLabel = trend[trend.length - 1]?.week.label ?? "";
 
@@ -251,147 +277,245 @@ export default function DashboardPage() {
           その場合は「バックアップ（.json）」で書き出したファイルを「バックアップを復元」から読み込んでください。
         </EmptyState>
       ) : (
-        <div className="space-y-5">
-          {/* 絞り込み（チャートの上に1行でまとめる） */}
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="text-xs" style={{ color: "var(--text-secondary)" }}>
-              雇用形態
-            </label>
-            <select
-              value={employmentFilter}
-              onChange={(e) => setEmploymentFilter(e.target.value)}
-              className="rounded-lg border px-2 py-1 text-xs"
-              style={{ background: "var(--surface-1)", borderColor: "var(--hairline)", color: "var(--text-primary)" }}
+        <div className="space-y-4 sm:space-y-5">
+          {/* 絞り込みとセクション切り替え */}
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-xs" style={{ color: "var(--text-secondary)" }} htmlFor="employment-filter">
+                雇用形態
+              </label>
+              <select
+                id="employment-filter"
+                value={employmentFilter}
+                onChange={(e) => setEmploymentFilter(e.target.value)}
+                className="rounded-lg border px-2 py-1.5 text-xs"
+                style={{ background: "var(--surface-1)", borderColor: "var(--hairline)", color: "var(--text-primary)" }}
+              >
+                {employmentTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              <span className="hidden text-xs sm:inline" style={{ color: "var(--text-muted)" }}>
+                正社員を扱い始めたら、ここで切り替えて同じ画面で見られます
+              </span>
+            </div>
+
+            {/* セクションタブはスマホ幅のときだけ。広い画面では全セクションを並べる。 */}
+            <div
+              className="-mx-4 flex gap-1 overflow-x-auto px-4 sm:hidden"
+              role="tablist"
+              aria-label="表示するセクション"
             >
-              {employmentTypes.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-              正社員を扱い始めたら、ここで切り替えて同じ画面で見られます
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <StatTile
-              label={`直近週の応募（${lastWeekLabel}）`}
-              value={summary.lastWeekApplied}
-              unit="件"
-              delta={summary.wowDelta}
-              deltaLabel="前週差"
-            />
-            <StatTile label="4週平均の応募" value={summary.avg4w.toFixed(1)} unit="件/週" />
-            <StatTile label="選考中プール" value={summary.activePool} unit="件" hint="未対応〜面接結果待ち" />
-            <StatTile label="面接待ち" value={summary.interviewScheduled} unit="件" hint="日程確定済み" />
-            <StatTile
-              label="採用"
-              value={summary.hired}
-              unit="件"
-              tone={summary.hired > 0 ? "good" : "neutral"}
-              hint={`応募からの採用率 ${(summary.hireRate * 100).toFixed(1)}%`}
-            />
-          </div>
-
-          <Card
-            title="週次の応募数"
-            subtitle="応募受付日ベース。棒にカーソルを合わせるとその週の内訳が出ます。"
-          >
-            <WeeklyTrendChart points={trend} />
-          </Card>
-
-          <div className="grid gap-5 lg:grid-cols-2">
-            <Card title="いまのプール（選考ステータス別）" subtitle="各段階に何人溜まっているか">
-              <StagePoolChart rows={pool} total={apps.length} />
-            </Card>
-
-            <Card title="通過ファネル" subtitle="応募がどこで落ちているか">
-              <FunnelChart steps={funnelSteps} />
-            </Card>
-          </div>
-
-          <Card
-            title={`${DIMENSION_LABEL[dimension]}ごとの週次推移`}
-            subtitle="直近12週。色が濃いほど応募が多い週です。"
-            actions={
-              <div className="flex flex-wrap gap-1">
-                {DIMENSIONS.map((d) => (
+              {SECTIONS.map((s) => {
+                const active = s.key === section;
+                return (
                   <button
-                    key={d}
-                    onClick={() => setDimension(d)}
+                    key={s.key}
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setSection(s.key)}
+                    className="shrink-0 rounded-full border px-3 py-1.5 text-xs"
+                    style={{
+                      borderColor: active ? "var(--series-1)" : "var(--hairline)",
+                      color: active ? "#ffffff" : "var(--text-secondary)",
+                      background: active ? "var(--series-1)" : "transparent",
+                      fontWeight: active ? 600 : 400,
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 緊急の校舎は最初に目に入る位置へ */}
+          {urgentOpen.length > 0 && (
+            <div
+              className="rounded-xl border p-4"
+              style={{
+                background: "color-mix(in srgb, var(--status-warning) 12%, var(--surface-1))",
+                borderColor: "color-mix(in srgb, var(--status-warning) 45%, transparent)",
+              }}
+            >
+              <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                ⚠ 緊急対応の校舎 {urgentOpen.length}件
+              </h2>
+              <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                不足人数マスタで色を付けていた校舎のうち、まだ充足していないものです。
+                {urgentNoPool.length > 0 && (
+                  <>
+                    {" "}
+                    このうち<strong style={{ color: "var(--status-critical)" }}>{urgentNoPool.length}校舎は選考中が0人</strong>
+                    なので、先に母集団を作る必要があります。
+                  </>
+                )}
+              </p>
+              <ul className="mt-2.5 flex flex-wrap gap-1.5">
+                {urgentOpen.map((r) => (
+                  <li
+                    key={r.shopShortName}
                     className="rounded-lg border px-2 py-1 text-xs"
                     style={{
-                      borderColor: d === dimension ? "var(--series-1)" : "var(--hairline)",
-                      color: d === dimension ? "var(--series-1)" : "var(--text-secondary)",
-                      fontWeight: d === dimension ? 600 : 400,
+                      background: "var(--surface-1)",
+                      borderColor: r.pool === 0 ? "var(--status-critical)" : "var(--hairline)",
+                      color: "var(--text-primary)",
                     }}
-                    aria-pressed={d === dimension}
                   >
-                    {DIMENSION_LABEL[d]}
-                  </button>
-                ))}
-              </div>
-            }
-          >
-            <WeeklyMatrixTable matrix={matrix} dimensionLabel={DIMENSION_LABEL[dimension]} />
-          </Card>
-
-          <Card title={`${DIMENSION_LABEL[dimension]}ごとの選考状況`} subtitle="累計と直近週、そして選考のどこまで進んでいるか">
-            <BreakdownTable rows={rows} dimensionLabel={DIMENSION_LABEL[dimension]} />
-          </Card>
-
-          {plan && planVsActual.length > 0 && (
-            <Card
-              title="不足人数に対する充足状況"
-              subtitle={`計画上の不足 計${totalShortage(plan)}名。残不足が多く、選考中が0の校舎から手を打つ必要があります。`}
-            >
-              <PlanVsActualTable rows={planVsActual} />
-            </Card>
-          )}
-
-          {movements.length > 0 && (
-            <Card title="前回取り込み以降に動いた選考" subtitle={`${movements.length}件のステータスが変わりました`}>
-              <ul className="space-y-1">
-                {movements.slice(0, 30).map((m) => (
-                  <li key={m.app.applicationId} className="flex flex-wrap items-center gap-2 text-xs">
-                    <span style={{ color: "var(--text-primary)" }}>{m.app.shopShortName}</span>
-                    <span style={{ color: "var(--text-muted)" }}>{m.app.receivedDate} 応募</span>
-                    <span style={{ color: "var(--text-secondary)" }}>
-                      {m.from} → <strong style={{ color: "var(--text-primary)" }}>{m.to}</strong>
+                    {r.shopShortName}
+                    <span className="ml-1 tabular" style={{ color: "var(--text-secondary)" }}>
+                      残{r.remaining}
                     </span>
+                    {r.pool === 0 && (
+                      <span className="ml-1" style={{ color: "var(--status-critical)" }}>
+                        ・選考中0
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
-            </Card>
-          )}
-
-          {reasons.length > 0 && (
-            <Card title="不採用・辞退の理由" subtitle="どこで取りこぼしているかの手掛かり">
-              <ul className="space-y-1">
-                {reasons.map((r) => (
-                  <li key={r.reason} className="flex justify-between text-xs">
-                    <span style={{ color: "var(--text-primary)" }}>{r.reason}</span>
-                    <span className="tabular" style={{ color: "var(--text-secondary)" }}>
-                      {r.count}件
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
-
-          <Card title="凡例">
-            <Legend items={pool.map((p) => ({ label: p.label, color: p.color }))} />
-            <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              「選考中プール」は 未対応・面接調整中・面接待ち・面接結果待ち の合計です。
-              「面接設定」は面接日が確定した以降（面接前の不採用・辞退は含みません）、
-              「面接実施」は面接結果待ち以降を指します。
-            </p>
-            <div className="mt-3">
-              <Button onClick={handleExportWorkbook}>この内容をスプレッドシートに書き出す</Button>
             </div>
-          </Card>
+          )}
+
+          {/* サマリー */}
+          <div className={`space-y-4 sm:space-y-5 ${section === "summary" ? "" : "hidden sm:block"}`}>
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-5">
+              <StatTile
+                label={`直近週の応募（${lastWeekLabel}）`}
+                value={summary.lastWeekApplied}
+                unit="件"
+                delta={summary.wowDelta}
+                deltaLabel="前週差"
+              />
+              <StatTile label="4週平均の応募" value={summary.avg4w.toFixed(1)} unit="件/週" />
+              <StatTile label="選考中プール" value={summary.activePool} unit="件" hint="未対応〜面接結果待ち" />
+              <StatTile label="面接待ち" value={summary.interviewScheduled} unit="件" hint="日程確定済み" />
+              <StatTile
+                label="採用"
+                value={summary.hired}
+                unit="件"
+                tone={summary.hired > 0 ? "good" : "neutral"}
+                hint={`応募からの採用率 ${(summary.hireRate * 100).toFixed(1)}%`}
+                className="col-span-2 lg:col-span-1"
+              />
+            </div>
+
+            <Card title="週次の応募数" subtitle="応募受付日ベース。棒に触れるとその週の内訳が出ます。">
+              <WeeklyTrendChart points={trend} />
+            </Card>
+
+            <div className="grid gap-4 sm:gap-5 lg:grid-cols-2">
+              <Card title="いまのプール（選考ステータス別）" subtitle="各段階に何人溜まっているか">
+                <StagePoolChart rows={pool} total={apps.length} />
+              </Card>
+
+              <Card title="通過ファネル" subtitle="応募がどこで落ちているか">
+                <FunnelChart steps={funnelSteps} />
+              </Card>
+            </div>
+          </div>
+
+          {/* 校舎別 */}
+          <div className={`space-y-4 sm:space-y-5 ${section === "shops" ? "" : "hidden sm:block"}`}>
+            <Card
+              title={`${DIMENSION_LABEL[dimension]}ごとの週次推移`}
+              subtitle="直近12週。色が濃いほど応募が多い週です。"
+              actions={
+                <div className="-mx-1 flex gap-1 overflow-x-auto px-1">
+                  {DIMENSIONS.map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setDimension(d)}
+                      className="shrink-0 rounded-lg border px-2 py-1 text-xs"
+                      style={{
+                        borderColor: d === dimension ? "var(--series-1)" : "var(--hairline)",
+                        color: d === dimension ? "var(--series-1)" : "var(--text-secondary)",
+                        fontWeight: d === dimension ? 600 : 400,
+                      }}
+                      aria-pressed={d === dimension}
+                    >
+                      {DIMENSION_LABEL[d]}
+                    </button>
+                  ))}
+                </div>
+              }
+            >
+              <WeeklyMatrixTable matrix={matrix} dimensionLabel={DIMENSION_LABEL[dimension]} />
+            </Card>
+
+            <Card title={`${DIMENSION_LABEL[dimension]}ごとの選考状況`} subtitle="累計と直近週、そして選考のどこまで進んでいるか">
+              <BreakdownTable rows={rows} dimensionLabel={DIMENSION_LABEL[dimension]} />
+            </Card>
+          </div>
+
+          {/* 充足状況 */}
+          <div className={`space-y-4 sm:space-y-5 ${section === "plan" ? "" : "hidden sm:block"}`}>
+            {plan && planVsActual.length > 0 ? (
+              <Card
+                title="不足人数に対する充足状況"
+                subtitle={`計画上の不足 計${totalShortage(plan)}名。⚠緊急の校舎を先頭に、残不足が多い順に並べています。`}
+              >
+                <PlanVsActualTable rows={planVsActual} />
+              </Card>
+            ) : (
+              <Card title="不足人数に対する充足状況">
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  不足人数マスタが未登録です。上の「不足人数マスタを取り込む」から読み込むと、校舎ごとの残不足が出ます。
+                </p>
+              </Card>
+            )}
+          </div>
+
+          {/* 動き */}
+          <div className={`space-y-4 sm:space-y-5 ${section === "activity" ? "" : "hidden sm:block"}`}>
+            {movements.length > 0 && (
+              <Card title="前回取り込み以降に動いた選考" subtitle={`${movements.length}件のステータスが変わりました`}>
+                <ul className="space-y-1.5">
+                  {movements.slice(0, 30).map((m) => (
+                    <li key={m.app.applicationId} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                      <span style={{ color: "var(--text-primary)" }}>{m.app.shopShortName}</span>
+                      <span style={{ color: "var(--text-muted)" }}>{m.app.receivedDate} 応募</span>
+                      <span style={{ color: "var(--text-secondary)" }}>
+                        {m.from} → <strong style={{ color: "var(--text-primary)" }}>{m.to}</strong>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
+
+            {reasons.length > 0 && (
+              <Card title="不採用・辞退の理由" subtitle="どこで取りこぼしているかの手掛かり">
+                <ul className="space-y-1">
+                  {reasons.map((r) => (
+                    <li key={r.reason} className="flex justify-between gap-3 text-xs">
+                      <span style={{ color: "var(--text-primary)" }}>{r.reason}</span>
+                      <span className="tabular" style={{ color: "var(--text-secondary)" }}>
+                        {r.count}件
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
+
+            <Card title="凡例">
+              <Legend items={pool.map((p) => ({ label: p.label, color: p.color }))} />
+              <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                「選考中プール」は 未対応・面接調整中・面接待ち・面接結果待ち の合計です。
+                「面接設定」は面接日が確定した以降（面接前の不採用・辞退は含みません）、
+                「面接実施」は面接結果待ち以降を指します。
+                <br />
+                <span style={{ color: "var(--text-secondary)" }}>⚠ 緊急</span>
+                は、不足人数マスタで校舎名セルに色を付けていた校舎です。ファイルを更新すれば自動で追随します。
+              </p>
+              <div className="mt-3">
+                <Button onClick={handleExportWorkbook}>この内容をスプレッドシートに書き出す</Button>
+              </div>
+            </Card>
+          </div>
         </div>
       )}
     </main>

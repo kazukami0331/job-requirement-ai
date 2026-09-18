@@ -67,16 +67,30 @@ export function DataPanel({
   onResetPlan: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  // スマホでは取り込み欄そのものを畳んでおき、ダッシュボード本体を先に見せる。
+  // 画面が広いときは sm: 側の指定で常に開いた状態になる。
+  const [expanded, setExpanded] = useState(false);
+  const collapsible = expanded ? "" : "hidden sm:block";
 
   return (
     <Card
       title="データの取り込みと書き出し"
-      subtitle="毎週このエクセルを投げ込むと、その週の断面が履歴に積み上がります"
+      subtitle="毎週このエクセルを投げ込むと、その週の断面が履歴に積み上がります。データはこのブラウザの中だけに保存されます。"
       actions={
-        <Button onClick={() => setOpen((v) => !v)}>{open ? "閉じる" : `履歴 ${snapshots.length}件`}</Button>
+        <span className="flex items-center gap-1.5">
+          <span className="sm:hidden">
+            <Button onClick={() => setExpanded((v) => !v)}>{expanded ? "閉じる" : "開く"}</Button>
+          </span>
+          <span className="hidden sm:inline">
+            <Button onClick={() => setOpen((v) => !v)}>{open ? "履歴を閉じる" : `履歴 ${snapshots.length}件`}</Button>
+          </span>
+          <span className={`sm:hidden ${collapsible}`}>
+            <Button onClick={() => setOpen((v) => !v)}>{open ? "履歴を閉じる" : `履歴 ${snapshots.length}件`}</Button>
+          </span>
+        </span>
       }
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className={`${collapsible} flex flex-wrap items-center gap-2`}>
         <FilePicker
           label="応募データを取り込む（.xls / .xlsx / .csv）"
           accept=".xls,.xlsx,.csv,.txt"
@@ -95,7 +109,7 @@ export function DataPanel({
 
       {message && (
         <p
-          className="mt-3 text-xs"
+          className="mt-3 text-xs leading-relaxed"
           style={{ color: message.kind === "error" ? "var(--status-critical)" : "var(--text-secondary)" }}
           role={message.kind === "error" ? "alert" : "status"}
         >
@@ -103,13 +117,13 @@ export function DataPanel({
         </p>
       )}
 
-      <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+      <p className="mt-3 hidden text-xs leading-relaxed sm:block" style={{ color: "var(--text-muted)" }}>
         データはこのブラウザの中だけに保存されます（サーバーには送られません）。
         別の端末やメンバーと共有するときは「バックアップ」で書き出したJSONを渡してください。
       </p>
 
       {open && (
-        <div className="mt-4 border-t pt-3" style={{ borderColor: "var(--gridline)" }}>
+        <div className={`${collapsible} mt-4 border-t pt-3`} style={{ borderColor: "var(--gridline)" }}>
           <h3 className="mb-2 text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
             取り込み履歴
           </h3>

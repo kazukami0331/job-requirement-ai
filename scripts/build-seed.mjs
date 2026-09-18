@@ -96,6 +96,7 @@ function parseApplications(file) {
 }
 
 const CATEGORIES = new Set(["IT", "D/W", "C"]);
+const sheet_ref = (wb, name) => wb.Sheets[name]["!ref"] ?? "A1";
 const cell = (r, i) => String(r[i] ?? "").trim();
 const toNum = (v) => { const n = Number(String(v ?? "").trim()); return Number.isFinite(n) ? n : 0; };
 
@@ -108,8 +109,17 @@ function dateCell(v) {
   return String(v ?? "").trim();
 }
 
+function isFilled(sheet, address) {
+  const style = sheet[address]?.s;
+  if (!style || style.patternType !== "solid") return false;
+  const raw = String(style.fgColor?.rgb ?? "").toUpperCase();
+  if (!raw) return false;
+  const hex = raw.length === 8 ? raw.slice(2) : raw;
+  return !/^(FFFFFF|000000)$/.test(hex);
+}
+
 function parsePlan(file) {
-  const wb = XLSX.read(new Uint8Array(readFileSync(file)), { type: "array", codepage: 932, cellDates: true });
+  const wb = XLSX.read(new Uint8Array(readFileSync(file)), { type: "array", codepage: 932, cellDates: true, cellStyles: true });
   const name = wb.SheetNames.find((n) => n.includes("不足人数")) ?? wb.SheetNames[0];
   const grid = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: "" });
 
@@ -127,12 +137,18 @@ function parsePlan(file) {
   };
 
   const rows = [];
-  let phase = "", shop = "";
-  for (const raw of grid) {
+  const origin = XLSX.utils.decode_range(sheet_ref(wb, name));
+  let phase = "", shop = "", urgent = false;
+  for (let i = 0; i < grid.length; i++) {
+    const raw = grid[i];
     const category = cell(raw, 2);
     if (!CATEGORIES.has(category)) continue;
     if (cell(raw, 0)) phase = cell(raw, 0);
-    if (cell(raw, 1)) shop = cell(raw, 1);
+    if (cell(raw, 1)) {
+      shop = cell(raw, 1);
+      // 校舎名セルに色が付いている＝緊急度が高い校舎
+      urgent = isFilled(wb.Sheets[name], XLSX.utils.encode_cell({ r: origin.s.r + i, c: origin.s.c + 1 }));
+    }
     if (!shop) continue;
     const sc = cell(raw, 12);
     rows.push({
@@ -147,6 +163,7 @@ function parsePlan(file) {
       deadline: dateCell(raw[13]),
       flag: cell(raw, 14),
       note: cell(raw, 15),
+      urgent,
     });
   }
   return { labels, rows, updatedAt: new Date().toISOString() };

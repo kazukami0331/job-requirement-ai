@@ -17,7 +17,7 @@ export function Card({
 }) {
   return (
     <section
-      className={`rounded-xl border p-4 sm:p-5 ${className}`}
+      className={`rounded-xl border p-3.5 sm:p-5 ${className}`}
       style={{ background: "var(--surface-1)", borderColor: "var(--hairline)" }}
     >
       {(title || actions) && (
@@ -51,6 +51,7 @@ export function StatTile({
   deltaLabel,
   hint,
   tone = "neutral",
+  className = "",
 }: {
   label: string;
   value: string | number;
@@ -60,20 +61,21 @@ export function StatTile({
   deltaLabel?: string;
   hint?: string;
   tone?: "neutral" | "good" | "critical";
+  className?: string;
 }) {
   const toneColor =
     tone === "good" ? "var(--status-good)" : tone === "critical" ? "var(--status-critical)" : "var(--text-primary)";
 
   return (
     <div
-      className="rounded-xl border p-4"
+      className={`rounded-xl border p-3 sm:p-4 ${className}`}
       style={{ background: "var(--surface-1)", borderColor: "var(--hairline)" }}
     >
-      <div className="text-xs" style={{ color: "var(--text-secondary)" }}>
+      <div className="text-[11px] leading-snug sm:text-xs" style={{ color: "var(--text-secondary)" }}>
         {label}
       </div>
       <div className="mt-1 flex items-baseline gap-1">
-        <span className="text-2xl font-semibold tracking-tight" style={{ color: toneColor }}>
+        <span className="text-xl font-semibold tracking-tight sm:text-2xl" style={{ color: toneColor }}>
           {value}
         </span>
         {unit && (
@@ -141,7 +143,7 @@ export interface TooltipState {
 export function ChartTooltip({ state, containerWidth }: { state: TooltipState | null; containerWidth: number }) {
   if (!state) return null;
   // 右端でカードからはみ出さないよう、位置を内側に寄せる
-  const clampedLeft = Math.min(Math.max(state.x, 70), Math.max(containerWidth - 70, 70));
+  const clampedLeft = Math.min(Math.max(state.x, 76), Math.max(containerWidth - 76, 76));
 
   return (
     <div
@@ -210,7 +212,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className="rounded-lg border px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
+      className="min-h-9 rounded-lg border px-3 py-2 text-xs font-medium transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0 sm:py-1.5"
       style={styles}
     >
       {children}
