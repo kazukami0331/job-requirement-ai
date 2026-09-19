@@ -236,39 +236,22 @@ export interface PlanVsActualRow {
   matched: boolean;
 }
 
-/** 「1 / 3」と充足率を並べて、何に対して何人採れたのかを一目で出す */
+/** 校舎名のすぐ横に出す充足率。採用数/目標数と、その割合。 */
 function Fill({ row }: { row: PlanVsActualRow }) {
-  const done = row.rate !== null && row.rate >= 1;
+  const pct = row.rate === null ? null : Math.round(row.rate * 100);
+  const done = pct !== null && pct >= 100;
   return (
-    <span className="tabular" style={{ color: done ? "var(--status-good)" : "var(--text-primary)" }}>
-      {done && "✓ "}
-      <strong>{row.hired}</strong>
-      <span style={{ color: "var(--text-muted)" }}> / {row.target}</span>
-    </span>
-  );
-}
-
-function Rate({ row }: { row: PlanVsActualRow }) {
-  if (row.rate === null) return <span style={{ color: "var(--text-muted)" }}>–</span>;
-  const pct = Math.round(row.rate * 100);
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span
-        className="h-1.5 w-10 shrink-0 overflow-hidden rounded-full"
-        style={{ background: "var(--gridline)" }}
-        aria-hidden
-      >
-        <span
-          className="block h-1.5 rounded-full"
-          style={{
-            width: `${Math.min(pct, 100)}%`,
-            background: pct >= 100 ? "var(--status-good)" : "var(--series-1)",
-          }}
-        />
+    <span className="ml-1.5 whitespace-nowrap align-middle text-xs tabular">
+      <span style={{ color: done ? "var(--status-good)" : "var(--text-primary)" }}>
+        {done && "✓ "}
+        <strong>{row.hired}</strong>
+        <span style={{ color: "var(--text-muted)" }}>/{row.target}</span>
       </span>
-      <span className="tabular" style={{ color: "var(--text-primary)" }}>
-        {pct}%
-      </span>
+      {pct !== null && (
+        <span className="ml-1" style={{ color: done ? "var(--status-good)" : "var(--text-secondary)" }}>
+          （{pct}%）
+        </span>
+      )}
     </span>
   );
 }
@@ -292,12 +275,11 @@ export function PlanVsActualTable({ rows }: { rows: PlanVsActualRow[] }) {
             title={
               <>
                 {r.shopShortName}
+                <Fill row={r} />
                 {!r.matched && <Unmatched />}
               </>
             }
             items={[
-              { label: "採用 / 目標", value: <Fill row={r} /> },
-              { label: "充足率", value: <Rate row={r} /> },
               { label: "選考中", value: r.pool },
               { label: "累計応募", value: r.applied },
             ]}
@@ -309,9 +291,7 @@ export function PlanVsActualTable({ rows }: { rows: PlanVsActualRow[] }) {
         <table className="w-full border-collapse">
           <thead>
             <tr style={{ borderBottom: "1px solid var(--gridline)" }}>
-              <Th>校舎</Th>
-              <Th align="right">採用 / 目標</Th>
-              <Th align="right">充足率</Th>
+              <Th>校舎（採用 / 目標）</Th>
               <Th align="right">選考中</Th>
               <Th align="right">累計応募</Th>
             </tr>
@@ -321,14 +301,9 @@ export function PlanVsActualTable({ rows }: { rows: PlanVsActualRow[] }) {
               <tr key={r.shopShortName} style={{ borderBottom: "1px solid var(--gridline)" }}>
                 <th scope="row" className={`${cellBase} text-left font-normal`} style={{ color: "var(--text-primary)" }}>
                   {r.shopShortName}
+                  <Fill row={r} />
                   {!r.matched && <Unmatched />}
                 </th>
-                <td className={`${cellBase} text-right`}>
-                  <Fill row={r} />
-                </td>
-                <td className={`${cellBase} text-right`}>
-                  <Rate row={r} />
-                </td>
                 <td className={`${cellBase} text-right tabular`} style={{ color: "var(--text-primary)" }}>{r.pool}</td>
                 <td className={`${cellBase} text-right tabular`} style={{ color: "var(--text-primary)" }}>{r.applied}</td>
               </tr>
