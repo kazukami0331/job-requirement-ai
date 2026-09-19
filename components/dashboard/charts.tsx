@@ -43,6 +43,8 @@ export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
   const slot = plotW / points.length;
   const barW = Math.min(Math.max(slot - BAR_GAP, 2), MAX_BAR_W);
   const ticks = [0, max / 2, max];
+  // 全週に件数を出す。週が増えたら文字を詰めて重ならないようにする。
+  const valueSize = Math.max(9, Math.min(11, slot * 0.42));
 
   // 週が多いときは軸ラベルを間引く
   const labelStep = Math.ceil(points.length / Math.max(Math.floor(plotW / 46), 1));
@@ -80,7 +82,6 @@ export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
           const h = (p.applied / max) * plotH;
           const x = AXIS_W + i * slot + (slot - barW) / 2;
           const y = PAD_T + plotH - h;
-          const isLast = i === points.length - 1;
 
           return (
             <g key={p.week.key}>
@@ -111,12 +112,12 @@ export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
                   pointerEvents="none"
                 />
               )}
-              {isLast && p.applied > 0 && (
+              {p.applied > 0 && (
                 <text
                   x={x + barW / 2}
                   y={y - 5}
                   textAnchor="middle"
-                  fontSize={11}
+                  fontSize={valueSize}
                   fontWeight={600}
                   fill="var(--text-primary)"
                   className="tabular"

@@ -193,12 +193,19 @@ export function Button({
   variant = "secondary",
   disabled,
   type = "button",
+  block = false,
+  "aria-expanded": ariaExpanded,
+  "aria-haspopup": ariaHasPopup,
 }: {
   children: ReactNode;
   onClick?: () => void;
   variant?: "primary" | "secondary" | "danger";
   disabled?: boolean;
   type?: "button" | "submit";
+  /** メニュー内など、横幅いっぱいに広げたいとき */
+  block?: boolean;
+  "aria-expanded"?: boolean;
+  "aria-haspopup"?: boolean | "menu";
 }) {
   const styles =
     variant === "primary"
@@ -212,7 +219,9 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className="min-h-9 rounded-lg border px-3 py-2 text-xs font-medium transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0 sm:py-1.5"
+      aria-expanded={ariaExpanded}
+      aria-haspopup={ariaHasPopup}
+      className={`min-h-9 whitespace-nowrap rounded-lg border px-3 py-2 text-xs font-medium transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0 sm:py-1.5 ${block ? "w-full text-left" : ""}`}
       style={styles}
     >
       {children}

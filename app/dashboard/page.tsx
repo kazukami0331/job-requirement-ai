@@ -35,7 +35,7 @@ import {
 import { Button, Card, EmptyState, Legend, StatTile } from "@/components/dashboard/ui";
 import { FunnelChart, StagePoolChart, WeeklyTrendChart } from "@/components/dashboard/charts";
 import { BreakdownTable, PlanVsActualRow, PlanVsActualTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
-import { DataPanel } from "@/components/dashboard/DataPanel";
+import { DataMenu } from "@/components/dashboard/DataPanel";
 
 type Message = { kind: "info" | "error"; text: string } | null;
 
@@ -132,26 +132,20 @@ export default function DashboardPage() {
     return [...lookup.entries()]
       .map(([key, s]) => {
         const a = actual.get(key);
+        const hired = a?.hired ?? 0;
         return {
           shopShortName: s.shopShortName,
-          urgent: s.urgent,
-          shortage: s.shortage,
+          target: s.shortage,
+          hired,
           applied: a?.applied ?? 0,
           pool: a?.pool ?? 0,
-          hired: a?.hired ?? 0,
-          remaining: Math.max(0, s.shortage - (a?.hired ?? 0)),
-          deadline: s.deadline,
+          rate: s.shortage > 0 ? hired / s.shortage : null,
           matched: a !== undefined,
         };
       })
-      .filter((r) => r.shortage > 0 || r.applied > 0)
-      // 緊急の校舎を最優先、その中では残不足が多い順
-      .sort(
-        (a, b) =>
-          Number(b.urgent) - Number(a.urgent) ||
-          b.remaining - a.remaining ||
-          b.shortage - a.shortage
-      );
+      .filter((r) => r.target > 0 || r.applied > 0)
+      // 充足率が低い校舎から。同率なら目標が大きい方を先に。
+      .sort((a, b) => (a.rate ?? 1) - (b.rate ?? 1) || b.target - a.target);
   }, [apps, plan]);
 
   const handleUploadApplications = useCallback(async (file: File) => {
@@ -227,34 +221,25 @@ export default function DashboardPage() {
     setMessage({ kind: "info", text: "採用計画をクリアしました。応募データの履歴はそのままです。" });
   }, []);
 
-  /** 緊急の校舎のうち、まだ充足していないもの */
-  const urgentOpen = useMemo(
-    () => planVsActual.filter((r) => r.urgent && r.remaining > 0),
-    [planVsActual]
-  );
-  /** 緊急なのに選考中が1人もいない校舎 */
-  const urgentNoPool = useMemo(() => urgentOpen.filter((r) => r.pool === 0), [urgentOpen]);
-
-  const latest = snapshots[snapshots.length - 1];
   const lastWeekLabel = trend[trend.length - 1]?.week.label ?? "";
 
+  /** 集計している期間。ファネルなどが何を対象にしているかを示すのに使う。 */
+  const periodLabel = useMemo(() => {
+    if (apps.length === 0) return "全期間";
+    const dates = apps.map((a) => a.receivedDate).sort();
+    const j = (d: string) => d.replace(/^\d{4}-/, "").replace("-", "/");
+    return `${j(dates[0])}〜${j(dates[dates.length - 1])}`;
+  }, [apps]);
+
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:py-8">
-      <header className="mb-5">
+    <main className="mx-auto w-full max-w-6xl px-4 py-5 sm:py-8">
+      <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
           採用モニタリング
         </h1>
-        <p className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-          ジョブオプの応募エクスポートを毎週取り込んで、週次の応募状況・各ファネルのプール・校舎ごとの充足状況を見ます。
-          {latest && ` 最新データ: ${new Date(latest.takenAt).toLocaleString("ja-JP")} 時点`}
-        </p>
-      </header>
-
-      <div className="mb-5">
-        <DataPanel
+        <DataMenu
           snapshots={snapshots}
           plan={plan}
-          message={message}
           onUploadApplications={handleUploadApplications}
           onUploadPlan={handleUploadPlan}
           onImportBackup={handleImportBackup}
@@ -263,7 +248,20 @@ export default function DashboardPage() {
           onDeleteSnapshot={handleDeleteSnapshot}
           onResetPlan={handleResetPlan}
         />
-      </div>
+      </header>
+
+      {message && (
+        <p
+          className="mb-4 rounded-lg px-3 py-2 text-xs leading-relaxed"
+          style={{
+            background: "var(--surface-1)",
+            color: message.kind === "error" ? "var(--status-critical)" : "var(--text-secondary)",
+          }}
+          role={message.kind === "error" ? "alert" : "status"}
+        >
+          {message.text}
+        </p>
+      )}
 
       {loading ? (
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -331,54 +329,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* 緊急の校舎は最初に目に入る位置へ */}
-          {urgentOpen.length > 0 && (
-            <div
-              className="rounded-xl border p-4"
-              style={{
-                background: "color-mix(in srgb, var(--status-warning) 12%, var(--surface-1))",
-                borderColor: "color-mix(in srgb, var(--status-warning) 45%, transparent)",
-              }}
-            >
-              <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                ⚠ 緊急対応の校舎 {urgentOpen.length}件
-              </h2>
-              <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                不足人数マスタで色を付けていた校舎のうち、まだ充足していないものです。
-                {urgentNoPool.length > 0 && (
-                  <>
-                    {" "}
-                    このうち<strong style={{ color: "var(--status-critical)" }}>{urgentNoPool.length}校舎は選考中が0人</strong>
-                    なので、先に母集団を作る必要があります。
-                  </>
-                )}
-              </p>
-              <ul className="mt-2.5 flex flex-wrap gap-1.5">
-                {urgentOpen.map((r) => (
-                  <li
-                    key={r.shopShortName}
-                    className="rounded-lg border px-2 py-1 text-xs"
-                    style={{
-                      background: "var(--surface-1)",
-                      borderColor: r.pool === 0 ? "var(--status-critical)" : "var(--hairline)",
-                      color: "var(--text-primary)",
-                    }}
-                  >
-                    {r.shopShortName}
-                    <span className="ml-1 tabular" style={{ color: "var(--text-secondary)" }}>
-                      残{r.remaining}
-                    </span>
-                    {r.pool === 0 && (
-                      <span className="ml-1" style={{ color: "var(--status-critical)" }}>
-                        ・選考中0
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
           {/* サマリー */}
           <div className={`space-y-4 sm:space-y-5 ${section === "summary" ? "" : "hidden sm:block"}`}>
             <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-5">
@@ -411,7 +361,7 @@ export default function DashboardPage() {
                 <StagePoolChart rows={pool} total={apps.length} />
               </Card>
 
-              <Card title="通過ファネル" subtitle="応募がどこで落ちているか">
+              <Card title="通過ファネル" subtitle={`応募がどこで落ちているか（${periodLabel}の全応募 ${apps.length}件）`}>
                 <FunnelChart steps={funnelSteps} />
               </Card>
             </div>
@@ -454,15 +404,15 @@ export default function DashboardPage() {
           <div className={`space-y-4 sm:space-y-5 ${section === "plan" ? "" : "hidden sm:block"}`}>
             {plan && planVsActual.length > 0 ? (
               <Card
-                title="不足人数に対する充足状況"
-                subtitle={`計画上の不足 計${totalShortage(plan)}名。⚠緊急の校舎を先頭に、残不足が多い順に並べています。`}
+                title="校舎ごとの充足状況"
+                subtitle={`採用目標 計${totalShortage(plan)}名に対する採用実績。充足率が低い校舎から並べています。`}
               >
                 <PlanVsActualTable rows={planVsActual} />
               </Card>
             ) : (
-              <Card title="不足人数に対する充足状況">
+              <Card title="校舎ごとの充足状況">
                 <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  不足人数マスタが未登録です。上の「不足人数マスタを取り込む」から読み込むと、校舎ごとの残不足が出ます。
+                  不足人数マスタが未登録です。右上の「その他」から読み込むと、校舎ごとの充足率が出ます。
                 </p>
               </Card>
             )}
@@ -508,8 +458,7 @@ export default function DashboardPage() {
                 「面接設定」は面接日が確定した以降（面接前の不採用・辞退は含みません）、
                 「面接実施」は面接結果待ち以降を指します。
                 <br />
-                <span style={{ color: "var(--text-secondary)" }}>⚠ 緊急</span>
-                は、不足人数マスタで校舎名セルに色を付けていた校舎です。ファイルを更新すれば自動で追随します。
+                「充足率」は、不足人数マスタの採用目標に対して採用まで至った人数の割合です。
               </p>
               <div className="mt-3">
                 <Button onClick={handleExportWorkbook}>この内容をスプレッドシートに書き出す</Button>

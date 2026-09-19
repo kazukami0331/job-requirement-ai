@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { HiringPlan, Snapshot } from "@/types/recruiting";
-import { Button, Card } from "./ui";
+import { Button } from "./ui";
 
 function fmt(iso: string) {
   const d = new Date(iso);
@@ -15,16 +15,18 @@ function FilePicker({
   accept,
   onPick,
   variant = "secondary",
+  block = false,
 }: {
   label: string;
   accept: string;
   onPick: (file: File) => void;
   variant?: "primary" | "secondary";
+  block?: boolean;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   return (
     <>
-      <Button variant={variant} onClick={() => ref.current?.click()}>
+      <Button variant={variant} onClick={() => ref.current?.click()} block={block}>
         {label}
       </Button>
       <input
@@ -43,10 +45,13 @@ function FilePicker({
   );
 }
 
-export function DataPanel({
+/**
+ * 画面右上に置くデータ操作。
+ * 普段は「取り込み」だけを出し、書き出しや履歴はメニューに畳んでおく。
+ */
+export function DataMenu({
   snapshots,
   plan,
-  message,
   onUploadApplications,
   onUploadPlan,
   onImportBackup,
@@ -57,7 +62,6 @@ export function DataPanel({
 }: {
   snapshots: Snapshot[];
   plan: HiringPlan | null;
-  message: { kind: "info" | "error"; text: string } | null;
   onUploadApplications: (file: File) => void;
   onUploadPlan: (file: File) => void;
   onImportBackup: (file: File) => void;
@@ -67,111 +71,90 @@ export function DataPanel({
   onResetPlan: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  // スマホでは取り込み欄そのものを畳んでおき、ダッシュボード本体を先に見せる。
-  // 画面が広いときは sm: 側の指定で常に開いた状態になる。
-  const [expanded, setExpanded] = useState(false);
-  const collapsible = expanded ? "" : "hidden sm:block";
+  const box = useRef<HTMLDivElement>(null);
+
+  // メニューの外を触ったら閉じる
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
 
   return (
-    <Card
-      title="データの取り込みと書き出し"
-      subtitle="毎週このエクセルを投げ込むと、その週の断面が履歴に積み上がります。データはこのブラウザの中だけに保存されます。"
-      actions={
-        <span className="flex items-center gap-1.5">
-          <span className="sm:hidden">
-            <Button onClick={() => setExpanded((v) => !v)}>{expanded ? "閉じる" : "開く"}</Button>
-          </span>
-          <span className="hidden sm:inline">
-            <Button onClick={() => setOpen((v) => !v)}>{open ? "履歴を閉じる" : `履歴 ${snapshots.length}件`}</Button>
-          </span>
-          <span className={`sm:hidden ${collapsible}`}>
-            <Button onClick={() => setOpen((v) => !v)}>{open ? "履歴を閉じる" : `履歴 ${snapshots.length}件`}</Button>
-          </span>
-        </span>
-      }
-    >
-      <div className={`${collapsible} flex flex-wrap items-center gap-2`}>
-        <FilePicker
-          label="応募データを取り込む（.xls / .xlsx / .csv）"
-          accept=".xls,.xlsx,.csv,.txt"
-          onPick={onUploadApplications}
-          variant="primary"
-        />
-        <FilePicker label="不足人数マスタを取り込む" accept=".csv,.xls,.xlsx" onPick={onUploadPlan} />
-        <Button onClick={onExportWorkbook} disabled={snapshots.length === 0}>
-          スプレッドシートに書き出す（.xlsx）
-        </Button>
-        <Button onClick={onExportBackup} disabled={snapshots.length === 0}>
-          バックアップ（.json）
-        </Button>
-        <FilePicker label="バックアップを復元" accept=".json" onPick={onImportBackup} />
-      </div>
-
-      {message && (
-        <p
-          className="mt-3 text-xs leading-relaxed"
-          style={{ color: message.kind === "error" ? "var(--status-critical)" : "var(--text-secondary)" }}
-          role={message.kind === "error" ? "alert" : "status"}
-        >
-          {message.text}
-        </p>
-      )}
-
-      <p className="mt-3 hidden text-xs leading-relaxed sm:block" style={{ color: "var(--text-muted)" }}>
-        データはこのブラウザの中だけに保存されます（サーバーには送られません）。
-        別の端末やメンバーと共有するときは「バックアップ」で書き出したJSONを渡してください。
-      </p>
+    <div className="relative flex items-center gap-1.5" ref={box}>
+      <FilePicker
+        label="データ取り込み"
+        accept=".xls,.xlsx,.csv,.txt"
+        onPick={onUploadApplications}
+        variant="primary"
+      />
+      <Button onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-haspopup="menu">
+        その他 ▾
+      </Button>
 
       {open && (
-        <div className={`${collapsible} mt-4 border-t pt-3`} style={{ borderColor: "var(--gridline)" }}>
-          <h3 className="mb-2 text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
-            取り込み履歴
-          </h3>
-          {snapshots.length === 0 ? (
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              まだ取り込まれていません。
-            </p>
-          ) : (
-            <ul className="space-y-1">
-              {[...snapshots].reverse().map((s) => (
-                <li
-                  key={s.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-xs"
-                  style={{ background: "var(--background)" }}
-                >
-                  <span style={{ color: "var(--text-primary)" }}>
-                    {fmt(s.takenAt)} 時点 ・ {s.applications.length}件
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span className="max-w-[16rem] truncate" style={{ color: "var(--text-muted)" }}>
-                      {s.sourceFileName}
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-30 mt-1.5 w-72 rounded-xl border p-3 shadow-lg"
+          style={{ background: "var(--surface-1)", borderColor: "var(--hairline)" }}
+        >
+          <div className="space-y-1.5">
+            <FilePicker label="不足人数マスタを取り込む" accept=".csv,.xls,.xlsx" onPick={onUploadPlan} block />
+            <Button onClick={onExportWorkbook} disabled={snapshots.length === 0} block>
+              スプレッドシートに書き出す（.xlsx）
+            </Button>
+            <Button onClick={onExportBackup} disabled={snapshots.length === 0} block>
+              バックアップ（.json）
+            </Button>
+            <FilePicker label="バックアップを復元" accept=".json" onPick={onImportBackup} block />
+          </div>
+
+          <div className="mt-3 border-t pt-2.5" style={{ borderColor: "var(--gridline)" }}>
+            <h3 className="mb-1.5 text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+              取り込み履歴 {snapshots.length}件
+            </h3>
+            {snapshots.length === 0 ? (
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                まだ取り込まれていません。
+              </p>
+            ) : (
+              <ul className="max-h-48 space-y-1 overflow-y-auto">
+                {[...snapshots].reverse().map((s) => (
+                  <li
+                    key={s.id}
+                    className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-xs"
+                    style={{ background: "var(--background)" }}
+                  >
+                    <span className="min-w-0" style={{ color: "var(--text-primary)" }}>
+                      <span className="block truncate">{fmt(s.takenAt)} 時点</span>
+                      <span style={{ color: "var(--text-muted)" }}>{s.applications.length}件</span>
                     </span>
                     <Button variant="danger" onClick={() => onDeleteSnapshot(s.id)}>
                       削除
                     </Button>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+                  </li>
+                ))}
+              </ul>
+            )}
 
-          <h3 className="mb-2 mt-4 text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
-            採用計画（不足人数マスタ）
-          </h3>
-          <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
-            <span>
-              {plan
-                ? `${plan.rows.length}行 ・ 最終更新 ${fmt(plan.updatedAt)}`
-                : "未登録（校舎ごとの不足人数を取り込むと、計画対比が出せます）"}
-            </span>
             {plan && (
-              <Button variant="danger" onClick={onResetPlan}>
-                計画をクリア
-              </Button>
+              <div className="mt-2 flex items-center justify-between gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                <span>採用計画 {plan.rows.length}行</span>
+                <Button variant="danger" onClick={onResetPlan}>
+                  計画をクリア
+                </Button>
+              </div>
             )}
           </div>
+
+          <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            データはこのブラウザの中だけに保存されます。別の端末と共有するときはバックアップのJSONを渡してください。
+          </p>
         </div>
       )}
-    </Card>
+    </div>
   );
 }

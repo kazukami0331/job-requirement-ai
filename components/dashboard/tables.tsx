@@ -17,50 +17,26 @@ function Th({ children, align = "left" }: { children: ReactNode; align?: "left" 
   );
 }
 
-/** 色だけに意味を持たせないよう、必ずラベルと記号をセットで出す */
-export function UrgentBadge() {
-  return (
-    <span
-      className="ml-1 inline-flex shrink-0 items-center gap-0.5 rounded px-1 py-px text-[10px] font-semibold align-middle"
-      style={{
-        background: "color-mix(in srgb, var(--status-warning) 28%, transparent)",
-        color: "var(--text-primary)",
-      }}
-    >
-      ⚠ 緊急
-    </span>
-  );
-}
-
 /** スマホ用のカード。値は見出しと縦に並べる */
 function MobileCard({
   title,
   badge,
   items,
-  accent = false,
 }: {
   title: ReactNode;
   badge?: ReactNode;
   items: { label: string; value: ReactNode }[];
-  /** 緊急の校舎は左に色の帯を付けて、スクロール中でも拾えるようにする */
-  accent?: boolean;
 }) {
   return (
     <li
       className="overflow-hidden rounded-lg border px-3 py-2"
-      style={{
-        borderColor: accent ? "color-mix(in srgb, var(--status-warning) 55%, transparent)" : "var(--gridline)",
-        background: accent
-          ? "color-mix(in srgb, var(--status-warning) 8%, var(--background))"
-          : "var(--background)",
-        boxShadow: accent ? "inset 3px 0 0 0 var(--status-warning)" : undefined,
-      }}
+      style={{ borderColor: "var(--gridline)", background: "var(--background)" }}
     >
       <div className="mb-1.5 flex flex-wrap items-center gap-x-1 text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
         {title}
         {badge}
       </div>
-      <dl className="grid grid-cols-3 gap-x-2 gap-y-1.5">
+      <dl className={`grid gap-x-2 gap-y-1.5 ${items.length % 3 === 0 ? "grid-cols-3" : "grid-cols-2"}`}>
         {items.map((it) => (
           <div key={it.label}>
             <dt className="text-[10px]" style={{ color: "var(--text-muted)" }}>
@@ -249,23 +225,50 @@ export function BreakdownTable({ rows, dimensionLabel }: { rows: BreakdownRow[];
 
 export interface PlanVsActualRow {
   shopShortName: string;
-  /** 緊急度が高い校舎（元シートで色が塗られている） */
-  urgent: boolean;
-  shortage: number;
+  /** 採用したい人数（不足人数マスタの値） */
+  target: number;
+  /** 採用できた人数 */
+  hired: number;
   applied: number;
   pool: number;
-  hired: number;
-  remaining: number;
-  deadline: string;
+  /** 採用 ÷ 目標。目標0なら null */
+  rate: number | null;
   matched: boolean;
 }
 
-function Remaining({ row }: { row: PlanVsActualRow }) {
-  if (row.remaining === 0) return <span style={{ color: "var(--status-good)" }}>✓ 充足</span>;
+/** 「1 / 3」と充足率を並べて、何に対して何人採れたのかを一目で出す */
+function Fill({ row }: { row: PlanVsActualRow }) {
+  const done = row.rate !== null && row.rate >= 1;
   return (
-    <span style={{ color: row.pool === 0 ? "var(--status-critical)" : "var(--text-primary)" }}>
-      {row.pool === 0 ? "⚠ " : ""}
-      {row.remaining}
+    <span className="tabular" style={{ color: done ? "var(--status-good)" : "var(--text-primary)" }}>
+      {done && "✓ "}
+      <strong>{row.hired}</strong>
+      <span style={{ color: "var(--text-muted)" }}> / {row.target}</span>
+    </span>
+  );
+}
+
+function Rate({ row }: { row: PlanVsActualRow }) {
+  if (row.rate === null) return <span style={{ color: "var(--text-muted)" }}>–</span>;
+  const pct = Math.round(row.rate * 100);
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        className="h-1.5 w-10 shrink-0 overflow-hidden rounded-full"
+        style={{ background: "var(--gridline)" }}
+        aria-hidden
+      >
+        <span
+          className="block h-1.5 rounded-full"
+          style={{
+            width: `${Math.min(pct, 100)}%`,
+            background: pct >= 100 ? "var(--status-good)" : "var(--series-1)",
+          }}
+        />
+      </span>
+      <span className="tabular" style={{ color: "var(--text-primary)" }}>
+        {pct}%
+      </span>
     </span>
   );
 }
@@ -278,33 +281,25 @@ function Unmatched() {
   );
 }
 
-/** 不足人数（採用計画）に対して、いま応募がどれだけ積み上がっているか */
+/** 採用計画の目標に対して、いまどこまで採れているか */
 export function PlanVsActualTable({ rows }: { rows: PlanVsActualRow[] }) {
-  // 緊急の校舎は左に色の帯を足して、一覧の中で先に目に入るようにする
-  const urgentEdge = (urgent: boolean) =>
-    urgent ? { boxShadow: "inset 3px 0 0 0 var(--status-warning)" } : undefined;
-
   return (
     <>
       <ul className="space-y-2 sm:hidden">
         {rows.map((r) => (
           <MobileCard
             key={r.shopShortName}
-            accent={r.urgent}
             title={
               <>
                 {r.shopShortName}
                 {!r.matched && <Unmatched />}
               </>
             }
-            badge={r.urgent ? <UrgentBadge /> : undefined}
             items={[
-              { label: "不足人数", value: r.shortage },
-              { label: "累計応募", value: r.applied },
+              { label: "採用 / 目標", value: <Fill row={r} /> },
+              { label: "充足率", value: <Rate row={r} /> },
               { label: "選考中", value: r.pool },
-              { label: "採用", value: r.hired },
-              { label: "残不足", value: <Remaining row={r} /> },
-              { label: "期限", value: r.deadline || "–" },
+              { label: "累計応募", value: r.applied },
             ]}
           />
         ))}
@@ -315,30 +310,27 @@ export function PlanVsActualTable({ rows }: { rows: PlanVsActualRow[] }) {
           <thead>
             <tr style={{ borderBottom: "1px solid var(--gridline)" }}>
               <Th>校舎</Th>
-              <Th align="right">不足人数</Th>
-              <Th align="right">累計応募</Th>
+              <Th align="right">採用 / 目標</Th>
+              <Th align="right">充足率</Th>
               <Th align="right">選考中</Th>
-              <Th align="right">採用</Th>
-              <Th align="right">残不足</Th>
-              <Th align="right">期限</Th>
+              <Th align="right">累計応募</Th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.shopShortName} style={{ borderBottom: "1px solid var(--gridline)", ...urgentEdge(r.urgent) }}>
+              <tr key={r.shopShortName} style={{ borderBottom: "1px solid var(--gridline)" }}>
                 <th scope="row" className={`${cellBase} text-left font-normal`} style={{ color: "var(--text-primary)" }}>
                   {r.shopShortName}
-                  {r.urgent && <UrgentBadge />}
                   {!r.matched && <Unmatched />}
                 </th>
-                <td className={`${cellBase} text-right tabular`} style={{ color: "var(--text-primary)" }}>{r.shortage}</td>
-                <td className={`${cellBase} text-right tabular`} style={{ color: "var(--text-primary)" }}>{r.applied}</td>
-                <td className={`${cellBase} text-right tabular`} style={{ color: "var(--text-primary)" }}>{r.pool}</td>
-                <td className={`${cellBase} text-right tabular`} style={{ color: "var(--text-primary)" }}>{r.hired}</td>
-                <td className={`${cellBase} text-right font-semibold tabular`}>
-                  <Remaining row={r} />
+                <td className={`${cellBase} text-right`}>
+                  <Fill row={r} />
                 </td>
-                <td className={`${cellBase} text-right`} style={{ color: "var(--text-secondary)" }}>{r.deadline || "–"}</td>
+                <td className={`${cellBase} text-right`}>
+                  <Rate row={r} />
+                </td>
+                <td className={`${cellBase} text-right tabular`} style={{ color: "var(--text-primary)" }}>{r.pool}</td>
+                <td className={`${cellBase} text-right tabular`} style={{ color: "var(--text-primary)" }}>{r.applied}</td>
               </tr>
             ))}
           </tbody>
