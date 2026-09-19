@@ -34,6 +34,10 @@
   --delta-up: #006300;
   --delta-down: #d03b3b;
 
+  /* 不足人数管理表でオレンジに塗られている（緊急度が高い）校舎のマーカー */
+  --urgent-mark: #fbd5a5;
+  --urgent-mark-text: #0b0b0b;
+
   /* ヒートマップ（連続量）の青ランプ */
   --heat-0: #f2f2ef;
   --heat-1: #cde2fb;
@@ -71,6 +75,9 @@
 
     --delta-up: #0ca30c;
     --delta-down: #e66767;
+
+    --urgent-mark: #7a4a12;
+    --urgent-mark-text: #ffffff;
 
     --heat-0: #232322;
     --heat-1: #0d366b;

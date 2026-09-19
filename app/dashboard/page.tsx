@@ -18,7 +18,8 @@ import {
 } from "@/lib/recruiting/aggregate";
 import { parsePlanFile, shortageLookup, totalShortage } from "@/lib/recruiting/plan";
 import { normalizeShopKey } from "@/lib/recruiting/shops";
-import { ACTIVE_STAGES, stageOf } from "@/lib/recruiting/status";
+import { ACTIVE_STAGES, FUNNEL_STEPS, stageOf } from "@/lib/recruiting/status";
+import { weekOfIso } from "@/lib/recruiting/week";
 import { buildWorkbookSheets, downloadJson, downloadWorkbook } from "@/lib/recruiting/export";
 import {
   deletePlan,
@@ -45,8 +46,8 @@ type SectionKey = "summary" | "shops" | "plan" | "activity";
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: "summary", label: "サマリー" },
-  { key: "shops", label: "校舎別" },
   { key: "plan", label: "充足状況" },
+  { key: "shops", label: "校舎別応募" },
   { key: "activity", label: "動き" },
 ];
 
@@ -117,15 +118,31 @@ export default function DashboardPage() {
   const planVsActual: PlanVsActualRow[] = useMemo(() => {
     if (!plan) return [];
     const lookup = shortageLookup(plan);
-    const actual = new Map<string, { applied: number; pool: number; hired: number }>();
+    type Actual = {
+      applied: number;
+      lastWeekApplied: number;
+      prevWeekApplied: number;
+      pool: number;
+      scheduled: number;
+      hired: number;
+    };
+    const actual = new Map<string, Actual>();
 
     for (const a of apps) {
       const key = normalizeShopKey(a.shopShortName);
-      const e = actual.get(key) ?? { applied: 0, pool: 0, hired: 0 };
+      const e: Actual =
+        actual.get(key) ?? { applied: 0, lastWeekApplied: 0, prevWeekApplied: 0, pool: 0, scheduled: 0, hired: 0 };
       const stage = stageOf(a.statusId);
       e.applied++;
       if (ACTIVE_STAGES.includes(stage)) e.pool++;
+      // 面接日が確定した、もしくはその先に進んだもの（面接前の不採用・辞退は含めない）
+      if (FUNNEL_STEPS[1].reached(stage)) e.scheduled++;
       if (stage === "hired") e.hired++;
+
+      const wk = weekOfIso(a.receivedAt).key;
+      if (weekKeys.lastWeekKey && wk === weekKeys.lastWeekKey) e.lastWeekApplied++;
+      if (weekKeys.prevWeekKey && wk === weekKeys.prevWeekKey) e.prevWeekApplied++;
+
       actual.set(key, e);
     }
 
@@ -137,16 +154,20 @@ export default function DashboardPage() {
           shopShortName: s.shopShortName,
           target: s.shortage,
           hired,
-          applied: a?.applied ?? 0,
-          pool: a?.pool ?? 0,
           rate: s.shortage > 0 ? hired / s.shortage : null,
+          urgent: s.urgent,
+          applied: a?.applied ?? 0,
+          lastWeekApplied: a?.lastWeekApplied ?? 0,
+          prevWeekApplied: a?.prevWeekApplied ?? 0,
+          pool: a?.pool ?? 0,
+          scheduled: a?.scheduled ?? 0,
           matched: a !== undefined,
         };
       })
       .filter((r) => r.target > 0 || r.applied > 0)
       // 充足率が低い校舎から。同率なら目標が大きい方を先に。
       .sort((a, b) => (a.rate ?? 1) - (b.rate ?? 1) || b.target - a.target);
-  }, [apps, plan]);
+  }, [apps, plan, weekKeys]);
 
   const handleUploadApplications = useCallback(async (file: File) => {
     try {
@@ -367,7 +388,25 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* 校舎別 */}
+          {/* 充足状況 */}
+          <div className={`space-y-4 sm:space-y-5 ${section === "plan" ? "" : "hidden sm:block"}`}>
+            {plan && planVsActual.length > 0 ? (
+              <Card
+                title="校舎ごとの充足状況"
+                subtitle={`採用目標 計${totalShortage(plan)}名に対する採用実績。充足率が低い校舎から並べています。`}
+              >
+                <PlanVsActualTable rows={planVsActual} />
+              </Card>
+            ) : (
+              <Card title="校舎ごとの充足状況">
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  不足人数マスタが未登録です。右上の「その他」から読み込むと、校舎ごとの充足率が出ます。
+                </p>
+              </Card>
+            )}
+          </div>
+
+          {/* 校舎別応募 */}
           <div className={`space-y-4 sm:space-y-5 ${section === "shops" ? "" : "hidden sm:block"}`}>
             <Card
               title={`${DIMENSION_LABEL[dimension]}ごとの週次推移`}
@@ -398,24 +437,6 @@ export default function DashboardPage() {
             <Card title={`${DIMENSION_LABEL[dimension]}ごとの選考状況`} subtitle="累計と直近週、そして選考のどこまで進んでいるか">
               <BreakdownTable rows={rows} dimensionLabel={DIMENSION_LABEL[dimension]} />
             </Card>
-          </div>
-
-          {/* 充足状況 */}
-          <div className={`space-y-4 sm:space-y-5 ${section === "plan" ? "" : "hidden sm:block"}`}>
-            {plan && planVsActual.length > 0 ? (
-              <Card
-                title="校舎ごとの充足状況"
-                subtitle={`採用目標 計${totalShortage(plan)}名に対する採用実績。充足率が低い校舎から並べています。`}
-              >
-                <PlanVsActualTable rows={planVsActual} />
-              </Card>
-            ) : (
-              <Card title="校舎ごとの充足状況">
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  不足人数マスタが未登録です。右上の「その他」から読み込むと、校舎ごとの充足率が出ます。
-                </p>
-              </Card>
-            )}
           </div>
 
           {/* 動き */}

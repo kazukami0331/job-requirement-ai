@@ -229,10 +229,15 @@ export interface PlanVsActualRow {
   target: number;
   /** 採用できた人数 */
   hired: number;
-  applied: number;
-  pool: number;
   /** 採用 ÷ 目標。目標0なら null */
   rate: number | null;
+  /** 不足人数管理表でオレンジに塗られている＝緊急度が高い校舎 */
+  urgent: boolean;
+  applied: number;
+  lastWeekApplied: number;
+  prevWeekApplied: number;
+  pool: number;
+  scheduled: number;
   matched: boolean;
 }
 
@@ -256,6 +261,24 @@ function Fill({ row }: { row: PlanVsActualRow }) {
   );
 }
 
+/**
+ * 校舎名。緊急度が高い校舎は、元の不足人数管理表と同じようにオレンジで塗る。
+ * 画面に記号は足さない指定なので、色を読めない場合向けの断りは読み上げ用にだけ置く。
+ */
+function ShopName({ row }: { row: PlanVsActualRow }) {
+  if (!row.urgent) return <>{row.shopShortName}</>;
+  return (
+    <span
+      className="rounded px-1 py-0.5"
+      style={{ background: "var(--urgent-mark)", color: "var(--urgent-mark-text)" }}
+      title="緊急度が高い校舎"
+    >
+      {row.shopShortName}
+      <span className="sr-only">（緊急度が高い校舎）</span>
+    </span>
+  );
+}
+
 function Unmatched() {
   return (
     <span className="text-[10px] font-normal" style={{ color: "var(--text-muted)" }}>
@@ -263,6 +286,16 @@ function Unmatched() {
     </span>
   );
 }
+
+/** 校舎ごとに並べる指標。スマホのカードとPCの表で順番を揃える。 */
+const PLAN_METRICS: { label: string; value: (r: PlanVsActualRow) => ReactNode }[] = [
+  { label: "累計応募", value: (r) => r.applied },
+  { label: "直近週応募", value: (r) => r.lastWeekApplied },
+  { label: "前週差", value: (r) => <Delta value={r.lastWeekApplied - r.prevWeekApplied} /> },
+  { label: "選考中", value: (r) => r.pool },
+  { label: "面談設定", value: (r) => r.scheduled },
+  { label: "内定", value: (r) => r.hired },
+];
 
 /** 採用計画の目標に対して、いまどこまで採れているか */
 export function PlanVsActualTable({ rows }: { rows: PlanVsActualRow[] }) {
@@ -274,15 +307,12 @@ export function PlanVsActualTable({ rows }: { rows: PlanVsActualRow[] }) {
             key={r.shopShortName}
             title={
               <>
-                {r.shopShortName}
+                <ShopName row={r} />
                 <Fill row={r} />
                 {!r.matched && <Unmatched />}
               </>
             }
-            items={[
-              { label: "選考中", value: r.pool },
-              { label: "累計応募", value: r.applied },
-            ]}
+            items={PLAN_METRICS.map((m) => ({ label: m.label, value: m.value(r) }))}
           />
         ))}
       </ul>
@@ -292,20 +322,30 @@ export function PlanVsActualTable({ rows }: { rows: PlanVsActualRow[] }) {
           <thead>
             <tr style={{ borderBottom: "1px solid var(--gridline)" }}>
               <Th>校舎（採用 / 目標）</Th>
-              <Th align="right">選考中</Th>
-              <Th align="right">累計応募</Th>
+              {PLAN_METRICS.map((m) => (
+                <Th key={m.label} align="right">
+                  {m.label}
+                </Th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.shopShortName} style={{ borderBottom: "1px solid var(--gridline)" }}>
                 <th scope="row" className={`${cellBase} text-left font-normal`} style={{ color: "var(--text-primary)" }}>
-                  {r.shopShortName}
+                  <ShopName row={r} />
                   <Fill row={r} />
                   {!r.matched && <Unmatched />}
                 </th>
-                <td className={`${cellBase} text-right tabular`} style={{ color: "var(--text-primary)" }}>{r.pool}</td>
-                <td className={`${cellBase} text-right tabular`} style={{ color: "var(--text-primary)" }}>{r.applied}</td>
+                {PLAN_METRICS.map((m) => (
+                  <td
+                    key={m.label}
+                    className={`${cellBase} text-right tabular`}
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    {m.value(r)}
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>

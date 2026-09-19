@@ -1,7 +1,8 @@
 import * as XLSX from "xlsx";
 import { Application, HiringPlan } from "@/types/recruiting";
-import { STAGES, stageOf } from "./status";
-import { Dimension, DIMENSION_LABEL, funnel, weeklyMatrix, weeklyTrend } from "./aggregate";
+import { ACTIVE_STAGES, FUNNEL_STEPS, STAGES, stageOf } from "./status";
+import { Dimension, DIMENSION_LABEL, funnel, recentWeekKeys, weeklyMatrix, weeklyTrend } from "./aggregate";
+import { weekOfIso } from "./week";
 import { planToGrid, shortageByShop } from "./plan";
 
 export interface SheetSpec {
@@ -125,34 +126,74 @@ export function detailGrid(apps: Application[]): unknown[][] {
 
 /** 採用計画 vs 応募実績シート */
 export function planVsActualGrid(apps: Application[], plan: HiringPlan | null): unknown[][] {
+  // 画面の「校舎ごとの充足状況」と同じ並びにしておく
   const grid: unknown[][] = [
-    ["校舎", "緊急", "不足人数", "累計応募", "選考中プール", "採用", "残不足", "充足率", "期限", "備考"],
+    [
+      "校舎",
+      "緊急",
+      "目標",
+      "採用",
+      "充足率",
+      "累計応募",
+      "直近週応募",
+      "前週差",
+      "選考中",
+      "面談設定",
+      "期限",
+      "備考",
+    ],
   ];
   if (!plan) return grid;
 
-  const byShop = new Map<string, { applied: number; pool: number; hired: number }>();
+  type Actual = {
+    applied: number;
+    lastWeekApplied: number;
+    prevWeekApplied: number;
+    pool: number;
+    scheduled: number;
+    hired: number;
+  };
+  const empty = (): Actual => ({
+    applied: 0,
+    lastWeekApplied: 0,
+    prevWeekApplied: 0,
+    pool: 0,
+    scheduled: 0,
+    hired: 0,
+  });
+
+  const weeks = recentWeekKeys(apps);
+  const byShop = new Map<string, Actual>();
   for (const a of apps) {
     const key = a.shopShortName.replace(/[\s　]/g, "").replace(/校$/, "");
-    const e = byShop.get(key) ?? { applied: 0, pool: 0, hired: 0 };
+    const e = byShop.get(key) ?? empty();
     const stage = stageOf(a.statusId);
     e.applied++;
-    if (["untouched", "scheduling", "interviewScheduled", "interviewed"].includes(stage)) e.pool++;
+    if (ACTIVE_STAGES.includes(stage)) e.pool++;
+    if (FUNNEL_STEPS[1].reached(stage)) e.scheduled++;
     if (stage === "hired") e.hired++;
+
+    const wk = weekOfIso(a.receivedAt).key;
+    if (weeks.lastWeekKey && wk === weeks.lastWeekKey) e.lastWeekApplied++;
+    if (weeks.prevWeekKey && wk === weeks.prevWeekKey) e.prevWeekApplied++;
+
     byShop.set(key, e);
   }
 
   for (const s of shortageByShop(plan)) {
     const key = s.shopShortName.replace(/[\s　]/g, "").replace(/校$/, "");
-    const actual = byShop.get(key) ?? { applied: 0, pool: 0, hired: 0 };
+    const actual = byShop.get(key) ?? empty();
     grid.push([
       s.shopShortName,
       s.urgent ? "緊急" : "",
       s.shortage,
-      actual.applied,
-      actual.pool,
       actual.hired,
-      Math.max(0, s.shortage - actual.hired),
       s.shortage > 0 ? pct(actual.hired / s.shortage) : "",
+      actual.applied,
+      actual.lastWeekApplied,
+      actual.lastWeekApplied - actual.prevWeekApplied,
+      actual.pool,
+      actual.scheduled,
       s.deadline,
       s.note,
     ]);
