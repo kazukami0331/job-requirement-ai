@@ -232,6 +232,21 @@ test("氏名が一致していれば合格のまま", () => {
   assert.equal(a.candidate.nameMismatch, false);
 });
 
+test("定期実行の間隔：指定できる値はそのまま使う", () => {
+  assert.equal(rules.resolveTriggerHours("12").hours, 12);
+  assert.equal(rules.resolveTriggerHours("1").hours, 1);
+  assert.equal(rules.resolveTriggerHours(6).hours, 6);
+  assert.equal(rules.resolveTriggerHours("12").warning, "");
+});
+
+test("定期実行の間隔：指定できない値は12時間に倒して理由を返す", () => {
+  for (const bad of ["5", "7", "24", "0", "-1", "abc", "", null]) {
+    const r = rules.resolveTriggerHours(bad);
+    assert.equal(r.hours, 12, `${bad} は12に倒れるべき`);
+    assert.match(r.warning, /TRIGGER_INTERVAL_HOURS/);
+  }
+});
+
 test("ドライブURLからフォルダIDを取り出す", () => {
   assert.equal(
     rules.folderIdFromUrl("https://drive.google.com/drive/folders/1ZowhopNqFMpUoJP86f5qC0jTMkwpBjbt?usp=drive_link"),

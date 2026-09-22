@@ -267,6 +267,23 @@ function isNameMismatch(subjectName, documentName) {
   return true;
 }
 
+// Apps Script の everyHours() で安定して扱える間隔（24を割り切れる値）
+var ALLOWED_TRIGGER_HOURS = [1, 2, 3, 4, 6, 8, 12];
+
+/**
+ * 定期実行の間隔を決める。指定できない値なら12時間に倒して理由を返す。
+ * @return {{hours: number, warning: string}}
+ */
+function resolveTriggerHours(configured) {
+  var n = parseInt(configured, 10);
+  if (ALLOWED_TRIGGER_HOURS.indexOf(n) >= 0) return { hours: n, warning: '' };
+  return {
+    hours: 12,
+    warning: 'TRIGGER_INTERVAL_HOURS に指定できるのは ' + ALLOWED_TRIGGER_HOURS.join(' / ') +
+      ' です（指定値: ' + configured + '）。12時間で登録します。'
+  };
+}
+
 /**
  * Google ドライブのフォルダURLからフォルダIDを取り出す。
  * ID をそのまま渡された場合はそれを返す。取り出せなければ null。
@@ -379,6 +396,7 @@ if (typeof module !== 'undefined' && module.exports) {
     nameFromSubject: nameFromSubject,
     normalizeNameForCompare: normalizeNameForCompare,
     isNameMismatch: isNameMismatch,
+    resolveTriggerHours: resolveTriggerHours,
     folderIdFromUrl: folderIdFromUrl,
     resolveNotifyChannels: resolveNotifyChannels,
     estimateCost: estimateCost,

@@ -28,6 +28,12 @@ var CONFIG_DEFAULTS = {
   LABEL_ERROR: 'selection-ai/error',
   MAX_MESSAGES: '10',               // 1回の実行で処理する最大メール数
 
+  // 定期実行の間隔（時間）。installTrigger() がこの値を見てトリガーを登録する。
+  // 指定できるのは 1 / 2 / 3 / 4 / 6 / 8 / 12。
+  // 短いほど応募から判定までのリードタイムが縮む。メールが無ければ何もせず終わるので
+  // 間隔を短くしてもコストは増えない。
+  TRIGGER_INTERVAL_HOURS: '12',
+
   // 判定
   AGE_LIMIT: '70',                  // これを超えたら不合格
   AGE_CONCERN_FROM: '55',           // これ以上なら懸念として通知

@@ -78,10 +78,19 @@ function findOrCreateRootFolder_() {
   return it.hasNext() ? it.next() : DriveApp.createFolder(ROOT_FOLDER_NAME);
 }
 
+/**
+ * 定期実行を登録する。間隔は TRIGGER_INTERVAL_HOURS（時間）で決まる。
+ * Apps Script には「メール受信時に実行」というトリガーが無いため、時間ベースで回す。
+ */
 function installTrigger() {
+  var resolved = resolveTriggerHours(cfg('TRIGGER_INTERVAL_HOURS'));
+  if (resolved.warning) log_(resolved.warning);
+
   removeTriggers();
-  ScriptApp.newTrigger('run').timeBased().everyMinutes(15).create();
-  log_('15分ごとの定期実行を登録しました。');
+  ScriptApp.newTrigger('run').timeBased().everyHours(resolved.hours).create();
+  log_(resolved.hours + '時間ごとの定期実行を登録しました。');
+  log_('間隔を変えたい場合は TRIGGER_INTERVAL_HOURS を ' + ALLOWED_TRIGGER_HOURS.join(' / ') +
+    ' のいずれかにして、もう一度 installTrigger() を実行してください。');
 }
 
 function removeTriggers() {
