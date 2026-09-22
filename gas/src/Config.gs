@@ -29,7 +29,9 @@ var CONFIG_DEFAULTS = {
   MAX_ATTACHMENT_MB: '15',          // 1ファイルあたりの上限
   MAX_TOTAL_UPLOAD_MB: '25',        // 1候補者あたり Claude に送る合計の上限
 
-  DRY_RUN: 'false'                  // true ならメール送信・ラベル付けをせずログ出力のみ
+  // true なら Drive 保存・台帳記録・通知・ラベル付けを一切せず、判定結果をログに出すだけ。
+  // 台帳に書かないので同じメールを何度でも試せる。
+  DRY_RUN: 'false'
 };
 
 var REQUIRED_CONFIG_KEYS = ['ANTHROPIC_API_KEY', 'DRIVE_ROOT_FOLDER_ID', 'LEDGER_SPREADSHEET_ID'];
