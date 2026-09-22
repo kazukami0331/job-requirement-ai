@@ -176,6 +176,16 @@ test("AIが何も返せなかった場合も落ちずに判定できる", () => 
   assert.equal(a.verdict, "fail"); // 求人適合が none なので不合格
 });
 
+test("件名から氏名を取り出す：【Winスクール応募】氏名（大文字小文字は問わない）", () => {
+  assert.equal(rules.nameFromSubject("【Winスクール応募】山田太郎"), "山田太郎");
+  assert.equal(rules.nameFromSubject("【WINスクール応募】山田太郎"), "山田太郎");
+  assert.equal(rules.nameFromSubject("【winスクール応募】山田 太郎"), "山田 太郎");
+  assert.equal(rules.nameFromSubject("Fwd: 【Winスクール応募】山田太郎"), "山田太郎");
+  assert.equal(rules.nameFromSubject("[Winスクール応募] 山田太郎"), "山田太郎");
+  assert.equal(rules.nameFromSubject("【Winスクール応募】山田太郎様"), "山田太郎");
+  assert.equal(rules.nameFromSubject("Winスクール応募　山田太郎"), "山田太郎");
+});
+
 test("件名から氏名を取り出す（転送・括弧・全角の揺れを吸収）", () => {
   assert.equal(rules.nameFromSubject("【応募】山田太郎"), "山田太郎");
   assert.equal(rules.nameFromSubject("【応募】山田 太郎"), "山田 太郎");

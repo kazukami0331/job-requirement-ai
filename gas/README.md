@@ -29,7 +29,7 @@
 ## 処理の流れ
 
 ```
-Gmail（件名に「応募」＋添付あり。処理済みラベルは除外）
+Gmail（件名「【Winスクール応募】氏名」＋添付あり。処理済みラベルは除外）
   └─ 添付を取り出す（PDF / Word / Excel / 画像 / ZIP）
        └─ Word・Excel は PDF に変換
             └─ Claude（claude-opus-5）に書類を渡して事実を抽出
@@ -84,13 +84,16 @@ clasp を使わない場合は、`script.google.com` で新規プロジェクト
 
 ### 5. 拾うメールの条件
 
-既定の `GMAIL_QUERY` は次のとおりで、**手動のラベル付けは不要**です。
+件名の運用ルールは **`【Winスクール応募】氏名`** です。既定の `GMAIL_QUERY` は次のとおりで、
+**手動のラベル付けは不要**です。
 
 ```
-subject:応募 has:attachment newer_than:7d -label:selection-ai/done -label:selection-ai/error
+subject:(win スクール 応募) has:attachment newer_than:7d -label:selection-ai/done -label:selection-ai/error
 ```
 
-`newer_than:7d` を入れているのは、過去のメールを大量に拾って課金が膨らむのを防ぐためです。
+- Gmail検索は大文字小文字を区別しないので、`Win` / `WIN` / `win` のいずれでもヒットします
+- 1語（`winスクール応募`）で検索すると英字と日本語の区切りで取りこぼすことがあるため、3語のAND条件にしています
+- `newer_than:7d` は、過去のメールを大量に拾って課金が膨らむのを防ぐためです
 
 PCAからの転送が始まったら、件名ではなく**差出人で絞る方が確実**です。
 
@@ -98,7 +101,8 @@ PCAからの転送が始まったら、件名ではなく**差出人で絞る方
 from:kyujin@pcassist.co.jp has:attachment -label:selection-ai/done -label:selection-ai/error
 ```
 
-件名が `【応募】氏名` の形であれば、氏名の**ヒント**として利用します（`nameFromSubject()`）。
+件名から氏名が取れれば、**ヒント**として利用します（`nameFromSubject()`）。
+`【Winスクール応募】氏名` のほか、`【応募】氏名`、`Fwd:` / `Re:` 付き、半角括弧、`様` 付きなどにも対応しています。
 ただし候補者氏名の確定は書類本体の記載を優先し、**件名と書類の氏名が食い違う場合は懸念として通知し、
 判定が「合格」でも「要確認」に落とします**（添付の取り違えを検知するため）。
 

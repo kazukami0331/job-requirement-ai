@@ -10,13 +10,19 @@ var CONFIG_DEFAULTS = {
   USD_JPY: '150',                   // 概算コスト表示に使う為替レート
 
   // Gmail
-  // 手動でのラベル付けを不要にするため、件名に「応募」を含む添付つきメールを直接拾う。
+  // 手動でのラベル付けを不要にするため、件名「【Winスクール応募】氏名」を直接拾う。
+  //
+  // 1語（winスクール応募）で検索すると英字と日本語の区切りで取りこぼすことがあるため、
+  // 3語のAND条件にしている。Gmail検索は大文字小文字を区別しないので
+  // Win / WIN / win のいずれでもヒットする。
+  //
   // 処理済み・エラー済みはスクリプトが付けるラベルで除外するので二重処理にならない。
   // newer_than で範囲を絞っているのは、過去メールを大量に拾って課金が膨らむのを防ぐため。
   //
   // 本番でPCAからの転送が始まったら、件名ではなく差出人で絞る方が確実:
   //   from:kyujin@pcassist.co.jp has:attachment -label:selection-ai/done -label:selection-ai/error
-  GMAIL_QUERY: 'subject:応募 has:attachment newer_than:7d -label:selection-ai/done -label:selection-ai/error',
+  GMAIL_QUERY: 'subject:(win スクール 応募) has:attachment newer_than:7d ' +
+    '-label:selection-ai/done -label:selection-ai/error',
   LABEL_INBOX: 'selection-ai/inbox',
   LABEL_DONE: 'selection-ai/done',
   LABEL_ERROR: 'selection-ai/error',
