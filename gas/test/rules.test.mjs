@@ -232,6 +232,138 @@ test("氏名が一致していれば合格のまま", () => {
   assert.equal(a.candidate.nameMismatch, false);
 });
 
+test("追加条件：有効な行だけを読み込む", () => {
+  const r = rules.parseCustomRules([
+    [true, "不合格条件", "日本語での指導が難しい", "メモ"],
+    [false, "懸念条件", "無効なので読まれない", ""],
+    [true, "補足", "資格より実務年数を重視する", ""],
+  ]);
+  assert.equal(r.rules.length, 2);
+  assert.equal(r.rules[0].kind, "reject");
+  assert.equal(r.rules[0].id, "R2"); // 見出し行のぶん+2
+  assert.equal(r.rules[1].kind, "note");
+  assert.equal(r.rules[1].id, "R4");
+  assert.deepEqual([...r.warnings], []);
+});
+
+test("追加条件：分類が不明・内容が空の行は読み飛ばして理由を返す", () => {
+  const r = rules.parseCustomRules([
+    [true, "よくわからない分類", "内容はある", ""],
+    [true, "懸念条件", "   ", ""],
+    [true, "懸念条件", "これは有効", ""],
+  ]);
+  assert.equal(r.rules.length, 1);
+  assert.equal(r.rules[0].text, "これは有効");
+  assert.equal(r.warnings.length, 2);
+  assert.match(r.warnings[0], /分類/);
+  assert.match(r.warnings[1], /内容が空/);
+});
+
+test("追加条件：チェックボックスが文字列TRUEでも有効とみなす", () => {
+  const r = rules.parseCustomRules([["TRUE", "懸念条件", "文字列のTRUE", ""]]);
+  assert.equal(r.rules.length, 1);
+});
+
+test("追加条件：不合格条件に該当したら不合格に落とす", () => {
+  const ruleSet = rules.parseCustomRules([[true, "不合格条件", "日本語での指導が難しい", ""]]).rules;
+  const r = rules.applyCustomRules("pass", ruleSet, [
+    { id: "R2", matched: "yes", reason: "書類に記載あり" },
+  ]);
+  assert.equal(r.verdict, "fail");
+  assert.match(r.concerns[0], /追加条件・不合格/);
+});
+
+test("追加条件：懸念条件に該当したら合格を要確認に落とす", () => {
+  const ruleSet = rules.parseCustomRules([[true, "懸念条件", "離職期間が1年以上", ""]]).rules;
+  const r = rules.applyCustomRules("pass", ruleSet, [
+    { id: "R2", matched: "yes", reason: "2年の空白" },
+  ]);
+  assert.equal(r.verdict, "review");
+  assert.match(r.concerns[0], /追加条件/);
+});
+
+test("追加条件：該当しなければ判定を変えない", () => {
+  const ruleSet = rules.parseCustomRules([
+    [true, "不合格条件", "条件A", ""],
+    [true, "懸念条件", "条件B", ""],
+  ]).rules;
+  const r = rules.applyCustomRules("pass", ruleSet, [
+    { id: "R2", matched: "no", reason: "" },
+    { id: "R3", matched: "no", reason: "" },
+  ]);
+  assert.equal(r.verdict, "pass");
+  assert.deepEqual([...r.concerns], []);
+});
+
+test("追加条件：判断できない場合は要確認に落とす（見落とさないため）", () => {
+  const ruleSet = rules.parseCustomRules([[true, "不合格条件", "条件A", ""]]).rules;
+  const r = rules.applyCustomRules("pass", ruleSet, [
+    { id: "R2", matched: "unclear", reason: "記載なし" },
+  ]);
+  assert.equal(r.verdict, "review"); // 不合格にはせず人が見る
+  assert.match(r.concerns[0], /要確認/);
+});
+
+test("追加条件：AIが結果を返さなかった条件も要確認として拾う", () => {
+  const ruleSet = rules.parseCustomRules([[true, "懸念条件", "条件A", ""]]).rules;
+  const r = rules.applyCustomRules("pass", ruleSet, []);
+  assert.equal(r.verdict, "review");
+  assert.equal(r.concerns.length, 1);
+});
+
+test("追加条件：補足は判定を変えない", () => {
+  const ruleSet = rules.parseCustomRules([[true, "補足", "実務年数を重視", ""]]).rules;
+  const r = rules.applyCustomRules("pass", ruleSet, [
+    { id: "R2", matched: "unclear", reason: "" },
+  ]);
+  assert.equal(r.verdict, "pass");
+  assert.deepEqual([...r.concerns], []);
+});
+
+test("追加条件：不合格は要確認より優先される", () => {
+  const ruleSet = rules.parseCustomRules([
+    [true, "懸念条件", "条件A", ""],
+    [true, "不合格条件", "条件B", ""],
+  ]).rules;
+  const r = rules.applyCustomRules("pass", ruleSet, [
+    { id: "R2", matched: "yes", reason: "" },
+    { id: "R3", matched: "yes", reason: "" },
+  ]);
+  assert.equal(r.verdict, "fail");
+});
+
+test("追加条件：条件が無ければプロンプトに何も足さない", () => {
+  assert.equal(rules.customRulesAsPromptText([]), "");
+  assert.equal(rules.customRulesAsPromptText(null), "");
+});
+
+test("追加条件：プロンプトにIDと分類つきで並ぶ", () => {
+  const ruleSet = rules.parseCustomRules([
+    [true, "不合格条件", "日本語での指導が難しい", ""],
+    [true, "補足", "実務年数を重視", ""],
+  ]).rules;
+  const text = rules.customRulesAsPromptText(ruleSet);
+  assert.match(text, /R2（不合格条件）：日本語での指導が難しい/);
+  assert.match(text, /R3（補足）：実務年数を重視/);
+  assert.match(text, /unclear/); // 推測させない指示が入っている
+});
+
+test("追加条件：buildAssessment に組み込まれる", () => {
+  const ruleSet = rules.parseCustomRules([[true, "不合格条件", "条件A", ""]]).rules;
+  const a = rules.buildAssessment(
+    { ...aiResult(), customRules: [{ id: "R2", matched: "yes", reason: "該当" }] },
+    { today: TODAY, ageRule: AGE_RULE, customRules: ruleSet },
+  );
+  assert.equal(a.verdict, "fail"); // 3軸は全て◯だが追加条件で不合格
+  assert.ok(a.concerns.some((c) => c.includes("追加条件・不合格")));
+});
+
+test("追加条件：設定が無ければ従来どおりの判定", () => {
+  const a = rules.buildAssessment(aiResult(), { today: TODAY, ageRule: AGE_RULE });
+  assert.equal(a.verdict, "pass");
+  assert.deepEqual([...a.concerns], []);
+});
+
 test("定期実行の時刻：カンマ区切りを解釈する", () => {
   const r = rules.parseTriggerTimes("8:30,17:00");
   assert.deepEqual([...r.times].map((t) => ({ ...t })), [

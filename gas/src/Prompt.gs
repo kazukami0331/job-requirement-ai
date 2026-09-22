@@ -3,8 +3,9 @@
  * 判定の「重み付け」はここではなく Rules.gs で行う。ここは書類からの事実抽出に徹する。
  */
 
-function buildSystemPrompt() {
+function buildSystemPrompt(customRules) {
   var rule = ageRule();
+  var customSection = customRulesAsPromptText(customRules);
   return [
     'あなたはパソコンスクールの講師採用における書類スクリーニングの補助を行います。',
     '応募者から届いた履歴書・職務経歴書を読み、以下の3つの観点について「書類に書かれている事実」を抽出し、評価してください。',
@@ -36,8 +37,9 @@ function buildSystemPrompt() {
     '  差出人名義の不一致を懸念点に挙げないでください（書類そのものの氏名が食い違う場合は別途こちらで検知します）。',
     '- 氏名・年齢・経験以外の属性（性別、国籍、家族構成、健康状態、信条など）は評価の根拠にしないでください。',
     '- concerns には、上記3軸以外で採用担当者が知っておくべき懸念点（例：勤務可能日が極端に限られる、空白期間が長い、書類が一部しか無い等）を日本語で簡潔に列挙してください。無ければ空配列。',
-    '- summary は採用担当者向けに3〜4文で、誰がどの分野の何をやってきた人かを要約してください。'
-  ].join('\n');
+    '- summary は採用担当者向けに3〜4文で、誰がどの分野の何をやってきた人かを要約してください。',
+    customSection ? '\n' + customSection : ''
+  ].join('\n').trim();
 }
 
 /** structured outputs 用の JSON スキーマ。 */
@@ -104,10 +106,28 @@ function buildOutputSchema() {
         required: ['hasPractical', 'years', 'evidence', 'rating', 'reason'],
         additionalProperties: false
       },
+      customRules: {
+        type: 'array',
+        description: '追加の判定条件それぞれについての該当有無。条件が無ければ空配列。',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: '条件のID（R2 など）' },
+            matched: {
+              type: 'string',
+              enum: ['yes', 'no', 'unclear'],
+              description: '当てはまる / 当てはまらない / 書類からは判断できない'
+            },
+            reason: { type: 'string', description: 'そう判断した根拠を1文で。' }
+          },
+          required: ['id', 'matched', 'reason'],
+          additionalProperties: false
+        }
+      },
       concerns: { type: 'array', items: { type: 'string' } },
       summary: { type: 'string' }
     },
-    required: ['candidate', 'age', 'jobMatch', 'practicalExperience', 'concerns', 'summary'],
+    required: ['candidate', 'age', 'jobMatch', 'practicalExperience', 'customRules', 'concerns', 'summary'],
     additionalProperties: false
   };
 }

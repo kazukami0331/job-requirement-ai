@@ -225,11 +225,13 @@ function processMessage_(message, thread, dryRun, modelOverride) {
     throw new Error('添付ファイルを Claude に渡せる形式に変換できませんでした: ' + prepared.skipped.join(', '));
   }
 
-  var evaluated = evaluateWithClaude(prepared.blocks, modelOverride);
+  var customRules = loadCustomRules();
+  var evaluated = evaluateWithClaude(prepared.blocks, modelOverride, customRules);
   var assessment = buildAssessment(evaluated.result, {
     today: new Date(),
     ageRule: ageRule(),
-    subjectName: subjectName
+    subjectName: subjectName,
+    customRules: customRules
   });
 
   var entry = {
