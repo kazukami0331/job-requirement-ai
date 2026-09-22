@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:gas": "node --test gas/test/*.test.mjs"
   },
   "dependencies": {
     "next": "^16.1.1",

@@ -1,0 +1,127 @@
+# 応募書類の自動判定（Gmail → Drive → Claude → 通知）
+
+メールで届いた履歴書・職務経歴書を自動で読み取り、候補者名のフォルダで Google ドライブに保存し、
+要件を満たすかを判定して結果だけをメール（任意で Slack）に通知する Google Apps Script です。
+
+書類そのものは通知に添付しません。**ドライブに保存 → 通知にはリンクと判定だけ** という形にしています。
+
+## 判定する内容
+
+| 軸 | ◯ | △（懸念として通知） | ×（不合格） |
+|---|---|---|---|
+| 1. 年齢 | 54歳以下 | 55〜70歳 / 年齢を読み取れない | 71歳以上 |
+| 2. 求人適合 | 3求人のいずれかの対象ツール・分野の経験がある | 関連はあるが対象ツールそのものではない | いずれの分野にも該当しない |
+| 3. 実務経験 | 該当分野の実務経験がある（年数不問） | 学習・職業訓練・資格のみ / 実務か判別できない | 該当分野の実務経験がない |
+
+総合判定は **×が1つでもあれば「不合格」／すべて◯なら「合格」／それ以外は「要確認」**。
+「要確認」は懸念点つきで通知されるので、そこだけ人が見れば済みます。
+
+対象求人（`src/Jobs.gs` に定義。求人票が変わったらここだけ直す）:
+
+- `cad` CAD講師 — AutoCAD / Jw_cad / Vectorworks / Revit / SolidWorks / CATIA
+- `web` Webデザイン講師 — Illustrator / Photoshop / HTML/CSS / JavaScript / Premiere Pro
+- `it` プログラミング（IT）講師 — Java / Python / C言語 / SQL / ネットワーク / Linux / AWS / Power BI / Power Automate / Excel VBA
+
+判定の重み付けは AI 任せにせず `src/Rules.gs`（純粋関数）で確定させています。
+年齢は生年月日から計算し、「該当求人なし」なら必ず×、「対象ツールが1つも無い」なら◯にしない、といった補正もここで入れています。
+
+## 処理の流れ
+
+```
+Gmail（ラベル selection-ai/inbox）
+  └─ 添付を取り出す（PDF / Word / Excel / 画像 / ZIP）
+       └─ Word・Excel は PDF に変換
+            └─ Claude（claude-opus-5）に書類を渡して事実を抽出
+                 ├─ Drive に <ルート>/<YYYY-MM>/<氏名>_<日時>/ で保存（_評価結果.json も同梱）
+                 ├─ スプレッドシート「判定台帳」に1行追記
+                 └─ 判定結果をメール通知（本文に Drive リンク）
+```
+
+処理したスレッドには `selection-ai/done`、失敗したスレッドには `selection-ai/error` ラベルが付きます。
+同じメールを二重に処理しないよう、台帳のメッセージIDでも重複チェックしています。
+
+## セットアップ
+
+### 1. Apps Script プロジェクトを作る
+
+```bash
+npm install -g @google/clasp
+clasp login
+cd gas
+clasp create --type standalone --title "応募書類 自動判定"   # .clasp.json ができる
+clasp push
+```
+
+既存プロジェクトに入れる場合は `.clasp.json.example` をコピーして `scriptId` を書き換えてから `clasp push`。
+clasp を使わない場合は、`script.google.com` で新規プロジェクトを作り、`src/*.gs` の中身を同名ファイルに貼り付け、
+`appsscript.json`（プロジェクトの設定 → 「appsscript.json マニフェスト ファイルをエディタで表示する」）も置き換えてください。
+
+### 2. Claude の API キーを登録
+
+1. https://console.anthropic.com/ で API キーを発行
+2. Apps Script の「プロジェクトの設定 → スクリプト プロパティ」で `ANTHROPIC_API_KEY` に貼り付け
+
+### 3. 初期化
+
+エディタで `setup()` を実行します（初回は権限の承認が必要）。次のものが自動で用意されます。
+
+- ドライブのルートフォルダ「候補者書類（自動判定）」
+- スプレッドシート「候補者判定台帳」
+- Gmail ラベル `selection-ai/inbox` / `selection-ai/done` / `selection-ai/error`
+- `NOTIFY_EMAIL`（未設定なら実行ユーザー自身のアドレス）
+
+### 4. Gmail フィルタを作る
+
+応募書類が届くメール（求人媒体からの転送など）に `selection-ai/inbox` ラベルが付くようにフィルタを設定します。
+差出人や件名のパターンが読めない場合は、`GMAIL_QUERY` を直接書き換える方法でも動きます（例:
+`from:(ats.jobop.jp) has:attachment -label:selection-ai/done`）。
+
+### 5. 動作確認 → 定期実行
+
+1. `DRY_RUN` を `true` にして `run()` を実行し、実行ログで判定内容を確認
+2. 問題なければ `DRY_RUN` を `false` に戻す
+3. `installTrigger()` を実行（15分ごとに `run()` が走る）
+
+止めるときは `removeTriggers()`。現在の設定は `showConfig()` で確認できます（APIキーは値を表示しません）。
+
+## スクリプト プロパティ
+
+| キー | 既定値 | 説明 |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | （必須） | Claude API キー |
+| `DRIVE_ROOT_FOLDER_ID` | setup() が設定 | 保存先ルートフォルダ |
+| `LEDGER_SPREADSHEET_ID` | setup() が設定 | 判定台帳 |
+| `NOTIFY_EMAIL` | 実行ユーザー | 通知先 |
+| `NOTIFY_VERDICTS` | `pass,review,fail` | 通知する判定。`review,fail` にすれば合格は通知されない |
+| `SLACK_WEBHOOK_URL` | （空） | 設定するとメールに加えて Slack にも通知 |
+| `ANTHROPIC_MODEL` | `claude-opus-5` | 使用モデル |
+| `ANTHROPIC_EFFORT` | `low` | 思考の深さ。判定が甘いと感じたら `medium` |
+| `ANTHROPIC_MAX_TOKENS` | `4000` | 出力上限 |
+| `GMAIL_QUERY` | `label:selection-ai/inbox has:attachment` | 処理対象の検索条件 |
+| `MAX_MESSAGES` | `10` | 1回の実行で処理する最大件数 |
+| `AGE_LIMIT` | `70` | これを超えたら不合格 |
+| `AGE_CONCERN_FROM` | `55` | これ以上なら懸念として通知 |
+| `MAX_ATTACHMENT_MB` | `15` | 1ファイルの上限 |
+| `MAX_TOTAL_UPLOAD_MB` | `25` | 1候補者あたり Claude に送る合計上限 |
+| `DRY_RUN` | `false` | `true` でメール送信・ラベル付けをしない |
+
+## テスト
+
+判定ロジック（`src/Rules.gs` / `src/Jobs.gs`）は GAS の API に依存しないので、ローカルで実行できます。
+
+```bash
+npm run test:gas
+```
+
+## 運用上の注意
+
+- **個人情報**：履歴書・職務経歴書はドライブとスプレッドシートに残ります。保存先フォルダと台帳の共有範囲は
+  自分（と必要な担当者）だけに絞ってください。通知メールには書類を添付せずリンクだけを載せています。
+- **年齢での判定**：今回の3求人は業務委託なので労働施策総合推進法の年齢制限規制の直接の対象外ですが、
+  雇用契約の求人に同じ仕組みを流用する場合は年齢要件の扱いを確認してください。
+  `AGE_LIMIT` / `AGE_CONCERN_FROM` はプロパティで変更でき、軸自体を外すこともできます。
+- **AI の一次判定**：不合格の自動通知は「候補者への自動不採用連絡」ではありません。本システムは通知までで、
+  候補者への連絡は行いません。最終判断は人が行う前提です。
+- **タイムアウト**：Apps Script の UrlFetch には待ち時間の上限があります。添付が多い・重い場合に失敗したら、
+  `ANTHROPIC_EFFORT` を下げるか `MAX_ATTACHMENT_MB` を下げてください。失敗時は `selection-ai/error`
+  ラベルが付き、「判定不可」として通知されるので取りこぼしはありません。
