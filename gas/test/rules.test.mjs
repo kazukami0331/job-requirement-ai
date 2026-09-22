@@ -176,6 +176,52 @@ test("AIが何も返せなかった場合も落ちずに判定できる", () => 
   assert.equal(a.verdict, "fail"); // 求人適合が none なので不合格
 });
 
+test("件名から氏名を取り出す（転送・括弧・全角の揺れを吸収）", () => {
+  assert.equal(rules.nameFromSubject("【応募】山田太郎"), "山田太郎");
+  assert.equal(rules.nameFromSubject("【応募】山田 太郎"), "山田 太郎");
+  assert.equal(rules.nameFromSubject("Fwd: 【応募】山田太郎"), "山田太郎");
+  assert.equal(rules.nameFromSubject("Re: Fwd: [応募] 山田太郎"), "山田太郎");
+  assert.equal(rules.nameFromSubject("応募：山田太郎"), "山田太郎");
+  assert.equal(rules.nameFromSubject("【応募】山田太郎様"), "山田太郎");
+  assert.equal(rules.nameFromSubject("【応募書類】山田太郎（CAD講師）"), "山田太郎");
+});
+
+test("件名が指定の書式でなければ氏名は取らない（書類側に任せる）", () => {
+  assert.equal(rules.nameFromSubject("履歴書を送付いたします"), "");
+  assert.equal(rules.nameFromSubject(""), "");
+  assert.equal(rules.nameFromSubject("【応募】taro.yamada@example.com"), "");
+  assert.equal(rules.nameFromSubject("【応募】" + "あ".repeat(30)), ""); // 氏名にしては長すぎる
+});
+
+test("氏名の一致判定は表記ゆれを吸収し、片方が空なら不一致にしない", () => {
+  assert.equal(rules.isNameMismatch("山田太郎", "山田 太郎"), false);
+  assert.equal(rules.isNameMismatch("山田太郎", "山田太郎（旧姓 佐藤）"), false);
+  assert.equal(rules.isNameMismatch("", "山田太郎"), false);
+  assert.equal(rules.isNameMismatch("山田太郎", ""), false);
+  assert.equal(rules.isNameMismatch("山田太郎", "鈴木花子"), true);
+});
+
+test("件名と書類の氏名が食い違うと、合格でも要確認に落ちる", () => {
+  const a = rules.buildAssessment(aiResult(), {
+    today: TODAY,
+    ageRule: AGE_RULE,
+    subjectName: "鈴木花子",
+  });
+  assert.equal(a.verdict, "review");
+  assert.equal(a.candidate.nameMismatch, true);
+  assert.ok(a.concerns.some((c) => c.startsWith("【氏名】")));
+});
+
+test("氏名が一致していれば合格のまま", () => {
+  const a = rules.buildAssessment(aiResult(), {
+    today: TODAY,
+    ageRule: AGE_RULE,
+    subjectName: "山田 太郎",
+  });
+  assert.equal(a.verdict, "pass");
+  assert.equal(a.candidate.nameMismatch, false);
+});
+
 test("フォルダ名に使えない文字を取り除く", () => {
   assert.equal(rules.sanitizeName("山田/太郎"), "山田太郎");
   assert.equal(rules.sanitizeName("  "), "氏名不明");

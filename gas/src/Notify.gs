@@ -9,7 +9,7 @@ function notifyAssessment(entry) {
     return;
   }
 
-  var subject = '【' + a.verdictLabel + '】' + (a.candidate.name || '氏名不明') +
+  var subject = '【' + a.verdictLabel + '】' + (a.candidate.name || a.candidate.subjectName || '氏名不明') +
     '（' + a.jobName + '）' + (a.axes.age.age === null ? '' : ' / ' + a.axes.age.age + '歳');
   var body = buildNotificationBody(entry);
 
@@ -27,8 +27,9 @@ function buildNotificationBody(entry) {
   var lines = [];
 
   lines.push('■ 総合判定：' + a.verdictLabel);
-  lines.push('■ 候補者：' + (a.candidate.name || '(氏名を読み取れませんでした)') +
-    (a.candidate.nameKana ? '（' + a.candidate.nameKana + '）' : ''));
+  lines.push('■ 候補者：' + (a.candidate.name || a.candidate.subjectName || '(氏名を読み取れませんでした)') +
+    (a.candidate.nameKana ? '（' + a.candidate.nameKana + '）' : '') +
+    (a.candidate.nameMismatch ? '　※件名は「' + a.candidate.subjectName + '」' : ''));
   lines.push('■ 想定求人：' + a.jobName);
   lines.push('');
   lines.push('── 評価軸 ──────────────');

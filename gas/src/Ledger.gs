@@ -40,7 +40,7 @@ function appendLedgerRow(entry) {
   ledgerSheet_().appendRow([
     Utilities.formatDate(new Date(), timezone_(), 'yyyy-MM-dd HH:mm:ss'),
     entry.messageId,
-    a.candidate.name || '(不明)',
+    a.candidate.name || a.candidate.subjectName || '(不明)',
     a.axes.age.age === null ? '不明' : a.axes.age.age,
     ratingSymbol(a.axes.age.rating),
     ratingSymbol(a.axes.jobMatch.rating),

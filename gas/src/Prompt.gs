@@ -116,6 +116,9 @@ function buildUserInstruction(mailMeta) {
     '以下は応募者から届いたメールと添付書類です。評価してください。',
     '',
     '【メール件名】' + (mailMeta.subject || '(なし)'),
+    '【件名から読み取れる氏名】' + (mailMeta.subjectName ||
+      '(件名からは読み取れませんでした)') +
+      ' ※あくまで参考情報です。candidate.name は書類本体の記載から判断してください。',
     '【差出人】' + (mailMeta.from || '(不明)'),
     '【受信日時】' + (mailMeta.date || '(不明)'),
     '【本日の日付】' + mailMeta.today + '（年齢の計算はこの日付を基準にしてください）',

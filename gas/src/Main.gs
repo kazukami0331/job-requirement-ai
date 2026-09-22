@@ -71,8 +71,13 @@ function processInbox_() {
 
 function processMessage_(message, thread) {
   var receivedAt = message.getDate();
+  var subject = message.getSubject();
+  // 件名は「【応募】氏名」の運用だが、その通りに来ないことがある。
+  // 取れたら氏名のヒントとして使い、取れなくても処理は続ける。
+  var subjectName = nameFromSubject(subject);
   var mailMeta = {
-    subject: message.getSubject(),
+    subject: subject,
+    subjectName: subjectName,
     from: message.getFrom(),
     date: Utilities.formatDate(receivedAt, timezone_(), 'yyyy-MM-dd HH:mm'),
     today: Utilities.formatDate(new Date(), timezone_(), 'yyyy-MM-dd'),
@@ -90,10 +95,14 @@ function processMessage_(message, thread) {
   }
 
   var evaluated = evaluateWithClaude(prepared.blocks);
-  var assessment = buildAssessment(evaluated.result, { today: new Date(), ageRule: ageRule() });
+  var assessment = buildAssessment(evaluated.result, {
+    today: new Date(),
+    ageRule: ageRule(),
+    subjectName: subjectName
+  });
 
-  // 氏名が取れない場合は差出人名で代替する（フォルダ名が「氏名不明」ばかりになるのを避ける）
-  var folderName = assessment.candidate.name || senderDisplayName_(mailMeta.from);
+  // フォルダ名は 書類の氏名 → 件名の氏名 → 差出人名 の順で使う
+  var folderName = assessment.candidate.name || subjectName || senderDisplayName_(mailMeta.from);
   var stored = saveCandidateFiles(folderName, attachments, receivedAt);
 
   var entry = {
@@ -126,7 +135,7 @@ function processMessage_(message, thread) {
 function handleFailure_(message, thread, error) {
   var entry = {
     messageId: message.getId(),
-    candidateName: senderDisplayName_(message.getFrom()),
+    candidateName: nameFromSubject(message.getSubject()) || senderDisplayName_(message.getFrom()),
     error: error.message,
     subject: message.getSubject(),
     from: message.getFrom(),

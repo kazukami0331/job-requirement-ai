@@ -187,12 +187,24 @@ function buildAssessment(aiResult, options) {
   if (exp.rating === 'concern') concerns.push('【実務経験】' + (exp.reason || '実務経験かどうか書類から判別できません。'));
 
   var candidate = result.candidate || {};
+  var documentName = candidate.name || '';
+
+  // 件名の氏名と書類の氏名が食い違う場合は、添付の取り違えの可能性があるので人が見る。
+  var nameMismatch = isNameMismatch(opts.subjectName, documentName);
+  if (nameMismatch) {
+    concerns.push('【氏名】件名の氏名「' + opts.subjectName + '」と書類の氏名「' + documentName +
+      '」が一致しません。添付の取り違えの可能性があります。');
+    if (verdict === 'pass') verdict = 'review';
+  }
+
   return {
     verdict: verdict,
     verdictLabel: VERDICT_LABEL[verdict],
     candidate: {
-      name: candidate.name || '',
+      name: documentName,
       nameKana: candidate.nameKana || '',
+      subjectName: opts.subjectName || '',
+      nameMismatch: nameMismatch,
       documentsFound: candidate.documentsFound || []
     },
     axes: {
@@ -205,6 +217,54 @@ function buildAssessment(aiResult, options) {
     concerns: concerns,
     summary: result.summary || ''
   };
+}
+
+/**
+ * メール件名から候補者氏名を取り出す。
+ * 「【応募】山田 太郎」の形を基本に、Fwd:/Re: や括弧の揺れ、全角コロンを吸収する。
+ * 想定の形でなければ '' を返す（件名は氏名の"ヒント"であって、確定は書類側で行う）。
+ */
+function nameFromSubject(subject) {
+  var text = String(subject || '').trim();
+  // 転送・返信のプレフィックスを剥がす（Fwd: Re: 転送: など、重なっていても対応）
+  var prev = null;
+  while (prev !== text) {
+    prev = text;
+    text = text.replace(/^\s*(?:re|fwd?|返信|転送)\s*[:：]\s*/i, '');
+  }
+
+  var m = text.match(/[【\[（(]?\s*応募\s*(?:書類)?\s*[】\]）)]?\s*[:：]?\s*(.+)$/);
+  if (!m) return '';
+
+  var name = m[1]
+    .replace(/[（(].*?[)）]/g, '')                 // 「（CAD講師）」などの補足を落とす
+    .replace(/(様|さん|氏)\s*$/, '')
+    .replace(/(の件|について|です|の応募)\s*$/, '')
+    .trim();
+
+  // メールアドレスや長すぎる文字列は氏名ではないと判断する
+  if (!name || name.length > 20 || name.indexOf('@') >= 0) return '';
+  return name;
+}
+
+/** 氏名の表記ゆれ（空白の有無・全角半角）を吸収して比較する。 */
+function normalizeNameForCompare(name) {
+  return String(name || '')
+    .replace(/[\s　]/g, '')
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, function (c) {
+      return String.fromCharCode(c.charCodeAt(0) - 0xfee0);
+    })
+    .toLowerCase();
+}
+
+/** 両方の氏名が取れていて、かつ食い違う場合のみ true。片方でも空なら false。 */
+function isNameMismatch(subjectName, documentName) {
+  var a = normalizeNameForCompare(subjectName);
+  var b = normalizeNameForCompare(documentName);
+  if (!a || !b) return false;
+  // 旧姓併記や「山田太郎（ヤマダタロウ）」のようにどちらかが含む関係なら一致とみなす
+  if (a.indexOf(b) >= 0 || b.indexOf(a) >= 0) return false;
+  return true;
 }
 
 /** 候補者名をフォルダ名に使える形に整える。 */
@@ -227,6 +287,9 @@ if (typeof module !== 'undefined' && module.exports) {
     rateExperience: rateExperience,
     overallVerdict: overallVerdict,
     buildAssessment: buildAssessment,
+    nameFromSubject: nameFromSubject,
+    normalizeNameForCompare: normalizeNameForCompare,
+    isNameMismatch: isNameMismatch,
     sanitizeName: sanitizeName,
     VERDICT_LABEL: VERDICT_LABEL,
     DEFAULT_AGE_RULE: DEFAULT_AGE_RULE

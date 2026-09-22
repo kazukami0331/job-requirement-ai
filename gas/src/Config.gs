@@ -9,6 +9,8 @@ var CONFIG_DEFAULTS = {
   ANTHROPIC_MAX_TOKENS: '4000',
 
   // Gmail
+  // 件名の書式（【応募】氏名）は守られないことがあるため、検索条件に件名は含めない。
+  // 「応募書類が届くアドレス（からの転送）」＋「添付あり」だけで拾う。
   GMAIL_QUERY: 'label:selection-ai/inbox has:attachment',
   LABEL_INBOX: 'selection-ai/inbox',
   LABEL_DONE: 'selection-ai/done',
