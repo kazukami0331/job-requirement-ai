@@ -30,6 +30,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# clasp (Apps Script プロジェクトIDと認証情報)
+gas/.clasp.json
+.clasprc.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
