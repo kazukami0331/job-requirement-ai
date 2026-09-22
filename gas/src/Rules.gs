@@ -268,6 +268,22 @@ function isNameMismatch(subjectName, documentName) {
 }
 
 /**
+ * Google ドライブのフォルダURLからフォルダIDを取り出す。
+ * ID をそのまま渡された場合はそれを返す。取り出せなければ null。
+ */
+function folderIdFromUrl(urlOrId) {
+  var text = String(urlOrId || '').trim();
+  if (!text) return null;
+
+  var m = text.match(/\/folders\/([A-Za-z0-9_-]+)/);
+  if (m) return m[1];
+
+  // URL ではなく ID をそのまま渡された場合
+  if (/^[A-Za-z0-9_-]{15,}$/.test(text)) return text;
+  return null;
+}
+
+/**
  * 実際に使う通知先を決める。
  * Slack を指定していても Webhook が未設定だと通知が消えてしまうため、その場合はメールに倒す。
  * どこにも送れない設定になった場合もメールに倒す（黙って通知が消えるのが一番まずい）。
@@ -363,6 +379,7 @@ if (typeof module !== 'undefined' && module.exports) {
     nameFromSubject: nameFromSubject,
     normalizeNameForCompare: normalizeNameForCompare,
     isNameMismatch: isNameMismatch,
+    folderIdFromUrl: folderIdFromUrl,
     resolveNotifyChannels: resolveNotifyChannels,
     estimateCost: estimateCost,
     formatUsage: formatUsage,

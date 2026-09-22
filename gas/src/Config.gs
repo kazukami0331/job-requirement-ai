@@ -10,9 +10,13 @@ var CONFIG_DEFAULTS = {
   USD_JPY: '150',                   // 概算コスト表示に使う為替レート
 
   // Gmail
-  // 件名の書式（【応募】氏名）は守られないことがあるため、検索条件に件名は含めない。
-  // 「応募書類が届くアドレス（からの転送）」＋「添付あり」だけで拾う。
-  GMAIL_QUERY: 'label:selection-ai/inbox has:attachment',
+  // 手動でのラベル付けを不要にするため、件名に「応募」を含む添付つきメールを直接拾う。
+  // 処理済み・エラー済みはスクリプトが付けるラベルで除外するので二重処理にならない。
+  // newer_than で範囲を絞っているのは、過去メールを大量に拾って課金が膨らむのを防ぐため。
+  //
+  // 本番でPCAからの転送が始まったら、件名ではなく差出人で絞る方が確実:
+  //   from:kyujin@pcassist.co.jp has:attachment -label:selection-ai/done -label:selection-ai/error
+  GMAIL_QUERY: 'subject:応募 has:attachment newer_than:7d -label:selection-ai/done -label:selection-ai/error',
   LABEL_INBOX: 'selection-ai/inbox',
   LABEL_DONE: 'selection-ai/done',
   LABEL_ERROR: 'selection-ai/error',

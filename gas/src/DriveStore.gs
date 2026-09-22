@@ -1,13 +1,14 @@
 /**
  * 候補者ごとの書類を Google ドライブに保存する。
- * 保存先: <ルートフォルダ>/<YYYY-MM>/<氏名>_<yyyyMMdd-HHmm>/
+ * 保存先: <ルートフォルダ>/<候補者氏名>/
+ *
+ * 同姓同名や再応募の場合は同じフォルダに追加されるので、
+ * 混在が問題になるようなら日付の階層を挟む形に変更する。
  */
 
 function saveCandidateFiles(candidateName, attachments, receivedAt) {
   var root = DriveApp.getFolderById(requireCfg('DRIVE_ROOT_FOLDER_ID'));
-  var monthFolder = getOrCreateChildFolder_(root, Utilities.formatDate(receivedAt, timezone_(), 'yyyy-MM'));
-  var folderName = sanitizeName(candidateName) + '_' + Utilities.formatDate(receivedAt, timezone_(), 'yyyyMMdd-HHmm');
-  var folder = getOrCreateChildFolder_(monthFolder, folderName);
+  var folder = getOrCreateChildFolder_(root, sanitizeName(candidateName));
 
   var saved = [];
   for (var i = 0; i < attachments.length; i++) {
@@ -20,12 +21,16 @@ function saveCandidateFiles(candidateName, attachments, receivedAt) {
   return { folder: folder, url: folder.getUrl(), savedFileNames: saved };
 }
 
-/** 評価結果を JSON としてフォルダ内に残す（後から監査できるように）。 */
-function saveAssessmentJson(folder, payload) {
+/**
+ * 評価結果を JSON としてフォルダ内に残す（後から監査できるように）。
+ * 再応募で同じフォルダに複数入っても区別できるよう、ファイル名に判定日時を入れる。
+ */
+function saveAssessmentJson(folder, payload, evaluatedAt) {
+  var stamp = Utilities.formatDate(evaluatedAt || new Date(), timezone_(), 'yyyyMMdd-HHmm');
   var blob = Utilities.newBlob(
     JSON.stringify(payload, null, 2),
     'application/json',
-    '_評価結果.json'
+    '_評価結果_' + stamp + '.json'
   );
   folder.createFile(blob);
 }

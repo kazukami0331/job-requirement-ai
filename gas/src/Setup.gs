@@ -6,6 +6,37 @@
 var ROOT_FOLDER_NAME = '候補者書類（自動判定）';
 var LEDGER_FILE_NAME = '候補者判定台帳';
 
+/**
+ * 書類の保存先にしたいドライブフォルダ。
+ * 変更したいときはこのURLを差し替えて applyDriveFolder() を実行する。
+ */
+var DRIVE_ROOT_FOLDER_URL = 'https://drive.google.com/drive/folders/1ZowhopNqFMpUoJP86f5qC0jTMkwpBjbt';
+
+/**
+ * DRIVE_ROOT_FOLDER_URL のフォルダを保存先として設定する。
+ * アクセスできるか確認してから書き込むので、URLを間違えていればここで分かる。
+ */
+function applyDriveFolder() {
+  var id = folderIdFromUrl(DRIVE_ROOT_FOLDER_URL);
+  if (!id) {
+    log_('フォルダURLからIDを取り出せませんでした: ' + DRIVE_ROOT_FOLDER_URL);
+    return;
+  }
+
+  var folder;
+  try {
+    folder = DriveApp.getFolderById(id);
+    folder.getName();  // アクセス権が無ければここで例外になる
+  } catch (e) {
+    log_('このフォルダにアクセスできません（IDが違うか権限がありません）: ' + id + ' / ' + e.message);
+    return;
+  }
+
+  scriptProps_().setProperty('DRIVE_ROOT_FOLDER_ID', id);
+  log_('保存先を変更しました: ' + folder.getName() + ' / ' + folder.getUrl());
+  log_('以降、候補者ごとに「' + folder.getName() + '/<候補者氏名>」フォルダを作って保存します。');
+}
+
 function setup() {
   var props = scriptProps_();
 

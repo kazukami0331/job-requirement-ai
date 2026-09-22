@@ -222,6 +222,28 @@ test("氏名が一致していれば合格のまま", () => {
   assert.equal(a.candidate.nameMismatch, false);
 });
 
+test("ドライブURLからフォルダIDを取り出す", () => {
+  assert.equal(
+    rules.folderIdFromUrl("https://drive.google.com/drive/folders/1ZowhopNqFMpUoJP86f5qC0jTMkwpBjbt?usp=drive_link"),
+    "1ZowhopNqFMpUoJP86f5qC0jTMkwpBjbt",
+  );
+  assert.equal(
+    rules.folderIdFromUrl("https://drive.google.com/drive/u/0/folders/1ZowhopNqFMpUoJP86f5qC0jTMkwpBjbt"),
+    "1ZowhopNqFMpUoJP86f5qC0jTMkwpBjbt",
+  );
+  // ID をそのまま渡された場合
+  assert.equal(
+    rules.folderIdFromUrl("1ZowhopNqFMpUoJP86f5qC0jTMkwpBjbt"),
+    "1ZowhopNqFMpUoJP86f5qC0jTMkwpBjbt",
+  );
+});
+
+test("ドライブURL：解釈できない入力は null（誤ったIDを作らない）", () => {
+  assert.equal(rules.folderIdFromUrl(""), null);
+  assert.equal(rules.folderIdFromUrl("https://drive.google.com/drive/my-drive"), null);
+  assert.equal(rules.folderIdFromUrl("短い"), null);
+});
+
 test("通知先：設定どおりに返す", () => {
   assert.deepEqual([...rules.resolveNotifyChannels(["slack"], true).channels], ["slack"]);
   assert.deepEqual([...rules.resolveNotifyChannels(["email"], true).channels], ["email"]);

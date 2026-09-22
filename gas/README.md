@@ -29,17 +29,18 @@
 ## 処理の流れ
 
 ```
-Gmail（ラベル selection-ai/inbox）
+Gmail（件名に「応募」＋添付あり。処理済みラベルは除外）
   └─ 添付を取り出す（PDF / Word / Excel / 画像 / ZIP）
        └─ Word・Excel は PDF に変換
             └─ Claude（claude-opus-5）に書類を渡して事実を抽出
-                 ├─ Drive に <ルート>/<YYYY-MM>/<氏名>_<日時>/ で保存（_評価結果.json も同梱）
+                 ├─ Drive に <ルート>/<候補者氏名>/ で保存（_評価結果_日時.json も同梱）
                  ├─ スプレッドシート「判定台帳」に1行追記
-                 └─ 判定結果をメール通知（本文に Drive リンク）
+                 └─ 判定結果を Slack に投稿（Drive リンク付き）
 ```
 
-処理したスレッドには `selection-ai/done`、失敗したスレッドには `selection-ai/error` ラベルが付きます。
-同じメールを二重に処理しないよう、台帳のメッセージIDでも重複チェックしています。
+**手動のラベル付けは不要です。** 処理したスレッドに `selection-ai/done`、失敗したスレッドに
+`selection-ai/error` ラベルを script 側が付け、検索条件でそれらを除外することで二重処理を防いでいます。
+台帳のメッセージIDでも重複チェックしています。
 
 ## セットアップ
 
@@ -49,9 +50,13 @@ Gmail（ラベル selection-ai/inbox）
 npm install -g @google/clasp
 clasp login
 cd gas
-clasp create --type standalone --title "応募書類 自動判定"   # .clasp.json ができる
-clasp push
+clasp create-script --title "応募書類 自動判定"   # .clasp.json ができる
+clasp push -f
+clasp open-script
 ```
+
+※ clasp v2 では `clasp create` / `clasp open` でした。v3 で `create-script` / `open-script` に変わっています。
+`clasp --version` で確認してください。
 
 既存プロジェクトに入れる場合は `.clasp.json.example` をコピーして `scriptId` を書き換えてから `clasp push`。
 clasp を使わない場合は、`script.google.com` で新規プロジェクトを作り、`src/*.gs` の中身を同名ファイルに貼り付け、
@@ -71,25 +76,33 @@ clasp を使わない場合は、`script.google.com` で新規プロジェクト
 - Gmail ラベル `selection-ai/inbox` / `selection-ai/done` / `selection-ai/error`
 - `NOTIFY_EMAIL`（未設定なら実行ユーザー自身のアドレス）
 
-### 4. Gmail フィルタを作る
+### 4. 保存先フォルダを指定する
 
-応募書類が届くメールに `selection-ai/inbox` ラベルが付くようにフィルタを設定します。
+既定では `setup()` が「候補者書類（自動判定）」フォルダを作りますが、保存先を指定したい場合は
+`src/Setup.gs` の `DRIVE_ROOT_FOLDER_URL` を目的のフォルダURLに書き換えて、`applyDriveFolder()` を実行します。
+アクセスできるか確認したうえでプロパティを更新するので、URLが誤っていればログに出ます。
 
-**条件は「差出人」＋「添付あり」だけにしてください。件名は条件に入れません。**
-運用上は件名を `【応募】氏名` に統一していても、その通りに送られてこないことがあるためです。
+### 5. 拾うメールの条件
+
+既定の `GMAIL_QUERY` は次のとおりで、**手動のラベル付けは不要**です。
 
 ```
-条件: from:(kyujin@pcassist.co.jp) has:attachment
-処理: ラベル「selection-ai/inbox」を付ける
+subject:応募 has:attachment newer_than:7d -label:selection-ai/done -label:selection-ai/error
+```
+
+`newer_than:7d` を入れているのは、過去のメールを大量に拾って課金が膨らむのを防ぐためです。
+
+PCAからの転送が始まったら、件名ではなく**差出人で絞る方が確実**です。
+
+```
+from:kyujin@pcassist.co.jp has:attachment -label:selection-ai/done -label:selection-ai/error
 ```
 
 件名が `【応募】氏名` の形であれば、氏名の**ヒント**として利用します（`nameFromSubject()`）。
 ただし候補者氏名の確定は書類本体の記載を優先し、**件名と書類の氏名が食い違う場合は懸念として通知し、
 判定が「合格」でも「要確認」に落とします**（添付の取り違えを検知するため）。
 
-`GMAIL_QUERY` を直接書き換えてラベルなしで運用することもできます。
-
-### 5. 動作確認 → 定期実行
+### 6. 動作確認 → 定期実行
 
 転送設定を先方に依頼する前に、**自分のアドレスで一通り動かして確認する**ことをおすすめします。
 

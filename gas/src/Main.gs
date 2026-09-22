@@ -189,14 +189,15 @@ function processMessage_(message, thread, dryRun, modelOverride) {
   entry.folderUrl = stored.url;
   entry.savedFileNames = stored.savedFileNames;
 
+  var evaluatedAt = new Date();
   saveAssessmentJson(stored.folder, {
     assessment: assessment,
     raw: evaluated.result,
     mail: { subject: mailMeta.subject, from: mailMeta.from, date: mailMeta.date, messageId: entry.messageId },
     model: evaluated.model,
     usage: evaluated.usage,
-    evaluatedAt: new Date().toISOString()
-  });
+    evaluatedAt: evaluatedAt.toISOString()
+  }, evaluatedAt);
 
   appendLedgerRow(entry);
   notifyAssessment(entry);
