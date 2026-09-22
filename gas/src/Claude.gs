@@ -9,11 +9,12 @@ var ANTHROPIC_VERSION = '2023-06-01';
 /**
  * 書類（PDF/画像のコンテンツブロック）を渡して評価結果 JSON を受け取る。
  * @param {Array} contentBlocks user メッセージの content 配列
+ * @param {string} [modelOverride] このリクエストだけ別のモデルを使う（比較検証用）
  * @return {{result: Object, usage: Object, model: string}}
  */
-function evaluateWithClaude(contentBlocks) {
+function evaluateWithClaude(contentBlocks, modelOverride) {
   var payload = {
-    model: cfg('ANTHROPIC_MODEL'),
+    model: modelOverride || cfg('ANTHROPIC_MODEL'),
     max_tokens: cfgInt('ANTHROPIC_MAX_TOKENS'),
     system: buildSystemPrompt(),
     messages: [{ role: 'user', content: contentBlocks }],

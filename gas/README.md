@@ -113,6 +113,32 @@ preview()                           // GMAIL_QUERY の条件で最新1通
 `DRY_RUN` を `true` にして `run()` を実行すると、検索条件に合うメールをまとめて判定し、
 結果をログに出します。こちらも保存・通知・ラベル付けは行いません。
 
+#### モデルを比べる
+
+同じメールに対して Opus と Sonnet を撃ち比べられます。実行ログにトークン数と概算コストが出ます。
+
+```js
+previewOpus()      // claude-opus-5 で判定
+previewSonnet()    // claude-sonnet-5 で判定
+compareModels()    // 両方を続けて実行して並べる（API を2回叩きます）
+```
+
+納得できるモデルが決まったら、スクリプト プロパティの `ANTHROPIC_MODEL` をその値にします。
+本番運用時のコストは判定台帳の「概算コスト（円）」列に1件ずつ記録されます。
+
+#### Slack に通知する
+
+1. https://api.slack.com/apps → 「Create New App」→「From scratch」
+2. アプリ名とワークスペースを選んで作成
+3. 左メニュー「Incoming Webhooks」→ トグルを **On**
+4. 「Add New Webhook to Workspace」→ **投稿先チャンネルを選ぶ**（例: `#書類選考bot`）
+5. 発行された Webhook URL を、スクリプト プロパティの `SLACK_WEBHOOK_URL` に登録
+6. `testSlack()` を実行して、チャンネルにテスト投稿が届くか確認
+
+投稿先チャンネルは Webhook 作成時に決まります。変更したいときは Webhook を作り直してください。
+
+メール通知が不要なら `NOTIFY_VIA` を `slack` だけにします（既定は `email,slack`）。
+
 #### 本番運用に切り替える
 
 1. `DRY_RUN` を `false` にする
@@ -130,7 +156,9 @@ preview()                           // GMAIL_QUERY の条件で最新1通
 | `LEDGER_SPREADSHEET_ID` | setup() が設定 | 判定台帳 |
 | `NOTIFY_EMAIL` | 実行ユーザー | 通知先 |
 | `NOTIFY_VERDICTS` | `pass,review,fail` | 通知する判定。`review,fail` にすれば合格は通知されない |
-| `SLACK_WEBHOOK_URL` | （空） | 設定するとメールに加えて Slack にも通知 |
+| `NOTIFY_VIA` | `email,slack` | 通知先。`slack` だけにすればメールは送らない |
+| `SLACK_WEBHOOK_URL` | （空） | Slack Incoming Webhook の URL。未設定なら Slack には投稿しない |
+| `USD_JPY` | `150` | 概算コスト表示に使う為替レート |
 | `ANTHROPIC_MODEL` | `claude-opus-5` | 使用モデル |
 | `ANTHROPIC_EFFORT` | `low` | 思考の深さ。判定が甘いと感じたら `medium` |
 | `ANTHROPIC_MAX_TOKENS` | `4000` | 出力上限 |

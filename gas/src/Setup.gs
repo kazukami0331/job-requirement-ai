@@ -62,6 +62,28 @@ function removeTriggers() {
 }
 
 /**
+ * Slack の Webhook が正しく設定されているか確認する。
+ * 設定したチャンネルにテスト投稿が1件流れる。
+ */
+function testSlack() {
+  if (!cfg('SLACK_WEBHOOK_URL')) {
+    log_('SLACK_WEBHOOK_URL が未設定です。スクリプト プロパティに Webhook URL を登録してください。');
+    return;
+  }
+  postToSlack_([
+    {
+      type: 'header',
+      text: { type: 'plain_text', text: '接続テスト', emoji: true }
+    },
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: '応募書類の自動判定から送信しています。これが見えていれば設定は完了です。' }
+    }
+  ], '応募書類 自動判定：接続テスト');
+  log_('Slack にテスト投稿を送信しました。チャンネルを確認してください。');
+}
+
+/**
  * 設定の確認用。API キーは値を表示せず、設定済みかどうかだけを出す。
  */
 function showConfig() {

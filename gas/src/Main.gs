@@ -13,12 +13,12 @@
  * Drive への保存・台帳への記録・メール通知・ラベル付けは一切行わないので、
  * 同じメールで何度でも試せる。
  *
- * 使い方（Apps Script エディタで関数を選んで実行）:
- *   preview()                                  … GMAIL_QUERY の条件で最新1通
- *   preview('from:me has:attachment')          … 自分宛に送ったテストメール
- *   preview('subject:【応募】 has:attachment')  … 件名で絞る
+ * エディタの「実行」ボタンは引数を渡せないため、引数なしで呼ぶと
+ * GMAIL_QUERY の条件・ANTHROPIC_MODEL のモデルで動く。
+ * 別条件で試したいときは previewOpus / previewSonnet を使うか、
+ * スクリプトエディタから preview('from:me has:attachment') のように呼ぶ。
  */
-function preview(query) {
+function preview(query, modelOverride) {
   var q = query || cfg('GMAIL_QUERY');
   var threads = GmailApp.search(q, 0, 10);
 
@@ -29,7 +29,7 @@ function preview(query) {
 
       log_('対象メール: ' + messages[m].getSubject() + ' / ' + messages[m].getFrom());
       try {
-        processMessage_(messages[m], threads[t], true);
+        processMessage_(messages[m], threads[t], true, modelOverride);
       } catch (e) {
         log_('判定できませんでした: ' + e.message + '\n' + (e.stack || ''));
       }
@@ -37,6 +37,27 @@ function preview(query) {
     }
   }
   log_('添付つきのメールが見つかりませんでした。query=' + q);
+}
+
+/** 同じメールを Opus で判定する（モデル比較用）。 */
+function previewOpus() {
+  preview(null, 'claude-opus-5');
+}
+
+/** 同じメールを Sonnet で判定する（モデル比較用）。 */
+function previewSonnet() {
+  preview(null, 'claude-sonnet-5');
+}
+
+/**
+ * 同じメールを Opus と Sonnet の両方で判定して並べる。
+ * 1回の実行で2回 API を叩くので、コストも2回分かかる。
+ */
+function compareModels() {
+  ['claude-opus-5', 'claude-sonnet-5'].forEach(function (model) {
+    log_('\n========== ' + model + ' ==========');
+    preview(null, model);
+  });
 }
 
 function run() {
@@ -108,7 +129,7 @@ function processInbox_() {
  * dryRun のときは Drive 保存・台帳記録・通知を一切行わず、結果をログに出すだけ。
  * 何度でも同じメールで試せるので、本番運用前の検証に使う。
  */
-function processMessage_(message, thread, dryRun) {
+function processMessage_(message, thread, dryRun, modelOverride) {
   var receivedAt = message.getDate();
   var subject = message.getSubject();
   // 件名は「【応募】氏名」の運用だが、その通りに来ないことがある。
@@ -133,7 +154,7 @@ function processMessage_(message, thread, dryRun) {
     throw new Error('添付ファイルを Claude に渡せる形式に変換できませんでした: ' + prepared.skipped.join(', '));
   }
 
-  var evaluated = evaluateWithClaude(prepared.blocks);
+  var evaluated = evaluateWithClaude(prepared.blocks, modelOverride);
   var assessment = buildAssessment(evaluated.result, {
     today: new Date(),
     ageRule: ageRule(),
@@ -156,7 +177,9 @@ function processMessage_(message, thread, dryRun) {
   if (dryRun) {
     entry.folderUrl = '(DRY_RUN のため保存していません)';
     entry.savedFileNames = attachments.map(function (item) { return item.name; });
-    log_('[DRY_RUN] 判定結果 ────────────────\n' + buildNotificationBody(entry));
+    log_('[DRY_RUN] 判定結果 ────────────────\n' + buildNotificationBody(entry) +
+      '\n\n── コスト ──────────────\n' +
+      formatUsage(evaluated.model, evaluated.usage, cfgInt('USD_JPY')));
     return;
   }
 

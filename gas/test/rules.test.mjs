@@ -222,6 +222,54 @@ test("氏名が一致していれば合格のまま", () => {
   assert.equal(a.candidate.nameMismatch, false);
 });
 
+test("コスト計算：モデルごとの単価で入出力トークンから算出する", () => {
+  // Opus 5: 入力 $5 / 出力 $25 （100万トークンあたり）
+  const opus = rules.estimateCost(
+    "claude-opus-5",
+    { input_tokens: 12000, output_tokens: 1500 },
+    150,
+  );
+  assert.equal(Math.round(opus.usd * 10000) / 10000, 0.0975); // 0.06 + 0.0375
+  assert.equal(Math.round(opus.jpy * 100) / 100, 14.63);
+
+  // Sonnet 5: 入力 $2 / 出力 $10 なので Opus の 4割
+  const sonnet = rules.estimateCost(
+    "claude-sonnet-5",
+    { input_tokens: 12000, output_tokens: 1500 },
+    150,
+  );
+  assert.equal(Math.round(sonnet.usd * 10000) / 10000, 0.039);
+});
+
+test("コスト計算：キャッシュ分も入力トークンに含める", () => {
+  const withCache = rules.estimateCost(
+    "claude-opus-5",
+    { input_tokens: 1000, cache_read_input_tokens: 9000, cache_creation_input_tokens: 2000, output_tokens: 0 },
+    150,
+  );
+  assert.equal(Math.round(withCache.usd * 10000) / 10000, 0.06); // 12,000トークン分
+});
+
+test("コスト計算：単価が分からないモデルや実績なしは null（推測しない）", () => {
+  assert.equal(rules.estimateCost("claude-unknown-9", { input_tokens: 100, output_tokens: 10 }, 150), null);
+  assert.equal(rules.estimateCost("claude-opus-5", null, 150), null);
+  assert.equal(rules.estimateCost("claude-opus-5", { input_tokens: 0, output_tokens: 0 }, 150), null);
+});
+
+test("使用量の1行表示にモデル・トークン・概算円が入る", () => {
+  const line = rules.formatUsage("claude-opus-5", { input_tokens: 12000, output_tokens: 1500 }, 150);
+  assert.match(line, /claude-opus-5/);
+  assert.match(line, /入力 12000トークン/);
+  assert.match(line, /出力 1500トークン/);
+  assert.match(line, /約14\.6円/);
+});
+
+test("使用量の1行表示：単価不明のモデルはコストを出さない", () => {
+  const line = rules.formatUsage("claude-unknown-9", { input_tokens: 100, output_tokens: 10 }, 150);
+  assert.match(line, /claude-unknown-9/);
+  assert.doesNotMatch(line, /概算/);
+});
+
 test("フォルダ名に使えない文字を取り除く", () => {
   assert.equal(rules.sanitizeName("山田/太郎"), "山田太郎");
   assert.equal(rules.sanitizeName("  "), "氏名不明");

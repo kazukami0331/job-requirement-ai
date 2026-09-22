@@ -7,6 +7,7 @@ var CONFIG_DEFAULTS = {
   ANTHROPIC_MODEL: 'claude-opus-5',
   ANTHROPIC_EFFORT: 'low',          // low / medium / high / xhigh / max
   ANTHROPIC_MAX_TOKENS: '4000',
+  USD_JPY: '150',                   // 概算コスト表示に使う為替レート
 
   // Gmail
   // 件名の書式（【応募】氏名）は守られないことがあるため、検索条件に件名は含めない。
@@ -23,7 +24,8 @@ var CONFIG_DEFAULTS = {
 
   // 通知
   NOTIFY_VERDICTS: 'pass,review,fail',  // 通知する判定。例: 'review,fail' なら合格は通知しない
-  SLACK_WEBHOOK_URL: '',
+  NOTIFY_VIA: 'email,slack',            // 通知先。'slack' だけにすればメールは送らない
+  SLACK_WEBHOOK_URL: '',                // 未設定なら Slack へは投稿しない
 
   // 添付ファイル
   MAX_ATTACHMENT_MB: '15',          // 1ファイルあたりの上限

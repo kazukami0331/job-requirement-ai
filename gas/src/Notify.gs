@@ -18,8 +18,82 @@ function notifyAssessment(entry) {
     return;
   }
 
-  MailApp.sendEmail({ to: notifyEmail(), subject: subject, body: body });
-  postToSlack_(subject, body);
+  var channels = cfgList('NOTIFY_VIA');
+  if (channels.indexOf('email') >= 0) {
+    MailApp.sendEmail({ to: notifyEmail(), subject: subject, body: body });
+  }
+  if (channels.indexOf('slack') >= 0) {
+    postToSlack_(buildSlackBlocks(entry), subject);
+  }
+}
+
+/** 判定ごとの絵文字。Slack で一覧したときに色で区別できるようにする。 */
+var VERDICT_EMOJI = {
+  pass: ':white_check_mark:',
+  review: ':warning:',
+  fail: ':x:',
+  unknown: ':grey_question:'
+};
+
+/**
+ * Slack 用のメッセージ（Block Kit）を組み立てる。
+ * メール本文をそのまま貼るとチャンネルで読みにくいので、要点だけを構造化する。
+ */
+function buildSlackBlocks(entry) {
+  var a = entry.assessment;
+  var name = a.candidate.name || a.candidate.subjectName || '氏名不明';
+  var age = a.axes.age.age === null ? '不明' : a.axes.age.age + '歳';
+
+  var blocks = [
+    {
+      type: 'header',
+      text: { type: 'plain_text', text: a.verdictLabel + '：' + name, emoji: true }
+    },
+    {
+      type: 'section',
+      fields: [
+        { type: 'mrkdwn', text: '*判定*\n' + VERDICT_EMOJI[a.verdict] + ' ' + a.verdictLabel },
+        { type: 'mrkdwn', text: '*想定求人*\n' + a.jobName },
+        { type: 'mrkdwn', text: '*年齢*\n' + age },
+        {
+          type: 'mrkdwn',
+          text: '*評価軸*\n年齢 ' + ratingSymbol(a.axes.age.rating) +
+            '　適合 ' + ratingSymbol(a.axes.jobMatch.rating) +
+            '　経験 ' + ratingSymbol(a.axes.experience.rating)
+        }
+      ]
+    }
+  ];
+
+  if (a.summary) {
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: '*経歴サマリ*\n' + a.summary }
+    });
+  }
+
+  if (a.concerns.length) {
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: '*懸念点*\n・' + a.concerns.join('\n・') }
+    });
+  }
+
+  blocks.push({
+    type: 'section',
+    text: { type: 'mrkdwn', text: '<' + entry.folderUrl + '|📁 書類を見る（Google ドライブ）>' }
+  });
+
+  blocks.push({
+    type: 'context',
+    elements: [{
+      type: 'mrkdwn',
+      text: '件名: ' + entry.subject + '　|　<' + entry.threadUrl + '|元メール>' +
+        '　|　この判定は書類の記載のみに基づく AI の一次判定です'
+    }]
+  });
+
+  return blocks;
 }
 
 function buildNotificationBody(entry) {
@@ -101,20 +175,52 @@ function notifyError(entry) {
     log_('[DRY_RUN] エラー通知をスキップ\n' + subject + '\n' + body);
     return;
   }
-  MailApp.sendEmail({ to: notifyEmail(), subject: subject, body: body });
-  postToSlack_(subject, body);
+
+  var channels = cfgList('NOTIFY_VIA');
+  if (channels.indexOf('email') >= 0) {
+    MailApp.sendEmail({ to: notifyEmail(), subject: subject, body: body });
+  }
+  if (channels.indexOf('slack') >= 0) {
+    postToSlack_([
+      {
+        type: 'header',
+        text: { type: 'plain_text', text: '判定不可：' + (entry.candidateName || '氏名不明'), emoji: true }
+      },
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text: ':grey_question: 自動判定に失敗しました。手動で確認してください。\n```' + entry.error + '```' }
+      },
+      {
+        type: 'context',
+        elements: [{
+          type: 'mrkdwn',
+          text: '件名: ' + entry.subject + '　|　<' + entry.threadUrl + '|元メール>'
+        }]
+      }
+    ], subject);
+  }
 }
 
-function postToSlack_(title, body) {
+/**
+ * Slack の Incoming Webhook に投稿する。
+ * 投稿先チャンネルは Webhook 作成時に決まるので、ここでは指定しない。
+ * @param {Array} blocks Block Kit のブロック配列
+ * @param {string} fallbackText 通知バナーや未対応クライアント向けのテキスト
+ */
+function postToSlack_(blocks, fallbackText) {
   var url = cfg('SLACK_WEBHOOK_URL');
   if (!url) return;
+
   try {
-    UrlFetchApp.fetch(url, {
+    var response = UrlFetchApp.fetch(url, {
       method: 'post',
       contentType: 'application/json',
-      payload: JSON.stringify({ text: '*' + title + '*\n```' + body + '```' }),
+      payload: JSON.stringify({ text: fallbackText, blocks: blocks }),
       muteHttpExceptions: true
     });
+    if (response.getResponseCode() !== 200) {
+      log_('Slack への通知に失敗: ' + response.getResponseCode() + ' ' + response.getContentText());
+    }
   } catch (e) {
     log_('Slack への通知に失敗: ' + e.message);
   }

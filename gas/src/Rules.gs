@@ -267,6 +267,49 @@ function isNameMismatch(subjectName, documentName) {
   return true;
 }
 
+/**
+ * モデルごとの料金（100万トークンあたりのUSD）。
+ * https://platform.claude.com/ の公開価格に合わせて更新する。
+ */
+var MODEL_PRICES = {
+  'claude-opus-5': { input: 5, output: 25 },
+  'claude-sonnet-5': { input: 2, output: 10 },
+  'claude-haiku-4-5': { input: 1, output: 5 }
+};
+
+/**
+ * 1回の判定にかかったおおよそのコストを出す。
+ * 未知のモデルは料金が分からないので null を返す（勝手に推測しない）。
+ * @return {{usd: number, jpy: number}|null}
+ */
+function estimateCost(model, usage, usdJpy) {
+  var price = MODEL_PRICES[model];
+  if (!price || !usage) return null;
+
+  var input = (usage.input_tokens || 0) +
+    (usage.cache_creation_input_tokens || 0) +
+    (usage.cache_read_input_tokens || 0);
+  var output = usage.output_tokens || 0;
+  if (!input && !output) return null;
+
+  var usd = (input / 1000000) * price.input + (output / 1000000) * price.output;
+  return { usd: usd, jpy: usd * (usdJpy || 150) };
+}
+
+/** 検証ログ用に、モデル・トークン数・概算コストを1行にまとめる。 */
+function formatUsage(model, usage, usdJpy) {
+  var u = usage || {};
+  var parts = ['モデル: ' + (model || '不明')];
+  parts.push('入力 ' + (u.input_tokens || 0) + 'トークン');
+  parts.push('出力 ' + (u.output_tokens || 0) + 'トークン');
+
+  var cost = estimateCost(model, usage, usdJpy);
+  if (cost) {
+    parts.push('概算 $' + cost.usd.toFixed(4) + '（約' + Math.round(cost.jpy * 10) / 10 + '円）');
+  }
+  return parts.join(' / ');
+}
+
 /** 候補者名をフォルダ名に使える形に整える。 */
 function sanitizeName(name) {
   var cleaned = String(name || '').replace(/[\\\/:*?"<>|\r\n\t]/g, '').trim();
@@ -290,6 +333,9 @@ if (typeof module !== 'undefined' && module.exports) {
     nameFromSubject: nameFromSubject,
     normalizeNameForCompare: normalizeNameForCompare,
     isNameMismatch: isNameMismatch,
+    estimateCost: estimateCost,
+    formatUsage: formatUsage,
+    MODEL_PRICES: MODEL_PRICES,
     sanitizeName: sanitizeName,
     VERDICT_LABEL: VERDICT_LABEL,
     DEFAULT_AGE_RULE: DEFAULT_AGE_RULE

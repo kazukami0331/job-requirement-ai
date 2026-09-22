@@ -6,7 +6,7 @@ var LEDGER_SHEET_NAME = '判定台帳';
 var LEDGER_HEADERS = [
   '処理日時', 'メッセージID', '候補者氏名', '年齢', '軸1_年齢', '軸2_求人適合',
   '軸3_実務経験', '想定求人', '総合判定', '懸念点', 'サマリ', 'Driveフォルダ',
-  'メール件名', '差出人', 'モデル', '入力トークン', '出力トークン'
+  'メール件名', '差出人', 'モデル', '入力トークン', '出力トークン', '概算コスト（円）'
 ];
 
 function ledgerSheet_() {
@@ -37,6 +37,7 @@ function processedMessageIds() {
 
 function appendLedgerRow(entry) {
   var a = entry.assessment;
+  var cost = estimateCost(entry.model, entry.usage, cfgInt('USD_JPY'));
   ledgerSheet_().appendRow([
     Utilities.formatDate(new Date(), timezone_(), 'yyyy-MM-dd HH:mm:ss'),
     entry.messageId,
@@ -54,7 +55,8 @@ function appendLedgerRow(entry) {
     entry.from,
     entry.model || '',
     entry.usage && entry.usage.input_tokens ? entry.usage.input_tokens : '',
-    entry.usage && entry.usage.output_tokens ? entry.usage.output_tokens : ''
+    entry.usage && entry.usage.output_tokens ? entry.usage.output_tokens : '',
+    cost ? Math.round(cost.jpy * 100) / 100 : ''
   ]);
 }
 
@@ -68,6 +70,6 @@ function appendErrorRow(entry) {
     '判定不可',
     entry.error,
     '', entry.folderUrl || '',
-    entry.subject, entry.from, '', '', ''
+    entry.subject, entry.from, '', '', '', ''
   ]);
 }
