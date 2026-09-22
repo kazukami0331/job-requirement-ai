@@ -120,6 +120,8 @@ function removeTriggers() {
   for (var i = 0; i < triggers.length; i++) {
     if (triggers[i].getHandlerFunction() === 'run') ScriptApp.deleteTrigger(triggers[i]);
   }
+  // 「続きの実行」用に記録していたIDも消す（対象のトリガーは今ここで削除済み）
+  scriptProps_().deleteProperty(FOLLOWUP_TRIGGER_IDS_KEY);
   log_('既存の定期実行を削除しました。');
 }
 
