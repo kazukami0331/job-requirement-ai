@@ -161,15 +161,18 @@ compareModels()    // 両方を続けて実行して並べる（API を2回叩�
 
 1. `DRY_RUN` を `false` にする
 2. `GMAIL_QUERY` を本番の条件に変える
-3. `installTrigger()` を実行（`TRIGGER_INTERVAL_HOURS` の間隔で `run()` が走る）
+3. `installTrigger()` を実行（`TRIGGER_TIMES` の時刻に `run()` が走る）
 
 **Apps Script には「メール受信時に実行」というトリガーがありません。** Gmail API の `watch()` と
 Cloud Pub/Sub を使えば実現できますが、GCPプロジェクト・Pub/Subトピック・Webアプリ公開に加えて
 7日ごとの購読更新が必要になるため、この規模では時間トリガーを推奨します。
 
-間隔を変えるときは `TRIGGER_INTERVAL_HOURS` を変更して `installTrigger()` を再実行してください
-（既存のトリガーは削除してから登録し直されます）。**メールが無ければ何もせず終わるので、
-間隔を短くしてもAPIコストは増えません**。短いほど応募から判定までのリードタイムが縮みます。
+実行時刻を変えるときは `TRIGGER_TIMES` を `"8:30,17:00"` の形式で設定し、`installTrigger()` を
+再実行してください（既存のトリガーは削除してから登録し直されます）。カンマ区切りで何個でも指定できます。
+
+**Apps Script は分単位の実行を保証せず、指定時刻の前後15分ほどずれます。**
+また、**メールが無ければ何もせず終わるので、時刻を増やしてもAPIコストは増えません**。
+回数が多いほど応募から判定までのリードタイムが縮みます。
 
 止めるときは `removeTriggers()`。現在の設定は `showConfig()` で確認できます（APIキーは値を表示しません）。
 
@@ -190,7 +193,7 @@ Cloud Pub/Sub を使えば実現できますが、GCPプロジェクト・Pub/Su
 | `ANTHROPIC_MAX_TOKENS` | `4000` | 出力上限 |
 | `GMAIL_QUERY` | `label:selection-ai/inbox has:attachment` | 処理対象の検索条件 |
 | `MAX_MESSAGES` | `10` | 1回の実行で処理する最大件数 |
-| `TRIGGER_INTERVAL_HOURS` | `12` | 定期実行の間隔（時間）。`1` / `2` / `3` / `4` / `6` / `8` / `12` |
+| `TRIGGER_TIMES` | `8:30,17:00` | 定期実行の時刻。カンマ区切りで複数指定可（前後15分ほどずれます） |
 | `AGE_LIMIT` | `70` | これを超えたら不合格 |
 | `AGE_CONCERN_FROM` | `55` | これ以上なら懸念として通知 |
 | `MAX_ATTACHMENT_MB` | `15` | 1ファイルの上限 |

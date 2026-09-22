@@ -232,19 +232,51 @@ test("氏名が一致していれば合格のまま", () => {
   assert.equal(a.candidate.nameMismatch, false);
 });
 
-test("定期実行の間隔：指定できる値はそのまま使う", () => {
-  assert.equal(rules.resolveTriggerHours("12").hours, 12);
-  assert.equal(rules.resolveTriggerHours("1").hours, 1);
-  assert.equal(rules.resolveTriggerHours(6).hours, 6);
-  assert.equal(rules.resolveTriggerHours("12").warning, "");
+test("定期実行の時刻：カンマ区切りを解釈する", () => {
+  const r = rules.parseTriggerTimes("8:30,17:00");
+  assert.deepEqual([...r.times].map((t) => ({ ...t })), [
+    { hour: 8, minute: 30 },
+    { hour: 17, minute: 0 },
+  ]);
+  assert.equal(r.warning, "");
 });
 
-test("定期実行の間隔：指定できない値は12時間に倒して理由を返す", () => {
-  for (const bad of ["5", "7", "24", "0", "-1", "abc", "", null]) {
-    const r = rules.resolveTriggerHours(bad);
-    assert.equal(r.hours, 12, `${bad} は12に倒れるべき`);
-    assert.match(r.warning, /TRIGGER_INTERVAL_HOURS/);
+test("定期実行の時刻：表記の揺れを吸収する", () => {
+  // 前後の空白、ゼロ埋め、分の省略
+  const r = rules.parseTriggerTimes(" 08:30 , 17 , 0:05 ");
+  assert.deepEqual([...r.times].map((t) => ({ ...t })), [
+    { hour: 8, minute: 30 },
+    { hour: 17, minute: 0 },
+    { hour: 0, minute: 5 },
+  ]);
+  assert.equal(r.warning, "");
+});
+
+test("定期実行の時刻：解釈できない時刻は読み飛ばして理由を返す", () => {
+  const r = rules.parseTriggerTimes("8:30,25:00,abc,17:70,17:00");
+  assert.deepEqual([...r.times].map((t) => ({ ...t })), [
+    { hour: 8, minute: 30 },
+    { hour: 17, minute: 0 },
+  ]);
+  assert.match(r.warning, /25:00/);
+  assert.match(r.warning, /abc/);
+});
+
+test("定期実行の時刻：有効な時刻が無ければ既定に倒す（定期実行を止めない）", () => {
+  for (const bad of ["", null, "abc", "99:99"]) {
+    const r = rules.parseTriggerTimes(bad);
+    assert.deepEqual([...r.times].map((t) => ({ ...t })), [
+      { hour: 8, minute: 30 },
+      { hour: 17, minute: 0 },
+    ]);
+    assert.match(r.warning, /既定/);
   }
+});
+
+test("定期実行の時刻：表示用の整形", () => {
+  assert.equal(rules.formatTriggerTime({ hour: 8, minute: 30 }), "8:30");
+  assert.equal(rules.formatTriggerTime({ hour: 17, minute: 0 }), "17:00");
+  assert.equal(rules.formatTriggerTime({ hour: 0, minute: 5 }), "0:05");
 });
 
 test("ドライブURLからフォルダIDを取り出す", () => {

@@ -267,21 +267,49 @@ function isNameMismatch(subjectName, documentName) {
   return true;
 }
 
-// Apps Script の everyHours() で安定して扱える間隔（24を割り切れる値）
-var ALLOWED_TRIGGER_HOURS = [1, 2, 3, 4, 6, 8, 12];
+var DEFAULT_TRIGGER_TIMES = [{ hour: 8, minute: 30 }, { hour: 17, minute: 0 }];
 
 /**
- * 定期実行の間隔を決める。指定できない値なら12時間に倒して理由を返す。
- * @return {{hours: number, warning: string}}
+ * 定期実行の時刻設定（"8:30,17:00"）を解釈する。
+ * 解釈できない時刻は読み飛ばして理由を返し、1つも残らなければ既定の時刻に倒す。
+ * （設定ミスで定期実行が止まるのが一番まずいため）
+ * @return {{times: Array<{hour:number, minute:number}>, warning: string}}
  */
-function resolveTriggerHours(configured) {
-  var n = parseInt(configured, 10);
-  if (ALLOWED_TRIGGER_HOURS.indexOf(n) >= 0) return { hours: n, warning: '' };
-  return {
-    hours: 12,
-    warning: 'TRIGGER_INTERVAL_HOURS に指定できるのは ' + ALLOWED_TRIGGER_HOURS.join(' / ') +
-      ' です（指定値: ' + configured + '）。12時間で登録します。'
-  };
+function parseTriggerTimes(configured) {
+  var entries = String(configured || '').split(',');
+  var times = [];
+  var invalid = [];
+
+  for (var i = 0; i < entries.length; i++) {
+    var text = entries[i].trim();
+    if (!text) continue;
+
+    var m = text.match(/^(\d{1,2})(?::(\d{1,2}))?$/);
+    if (!m) { invalid.push(text); continue; }
+
+    var hour = Number(m[1]);
+    var minute = m[2] === undefined ? 0 : Number(m[2]);
+    if (hour > 23 || minute > 59) { invalid.push(text); continue; }
+
+    times.push({ hour: hour, minute: minute });
+  }
+
+  var warning = invalid.length
+    ? 'TRIGGER_TIMES に解釈できない時刻がありました: ' + invalid.join(', ') + '（"8:30,17:00" の形式で指定してください）'
+    : '';
+
+  if (!times.length) {
+    return {
+      times: DEFAULT_TRIGGER_TIMES.slice(),
+      warning: (warning ? warning + ' / ' : '') + '有効な時刻が無いため既定の 8:30 と 17:00 で登録します。'
+    };
+  }
+  return { times: times, warning: warning };
+}
+
+/** 8:30 のような表示用文字列にする。 */
+function formatTriggerTime(time) {
+  return time.hour + ':' + (time.minute < 10 ? '0' : '') + time.minute;
 }
 
 /**
@@ -396,7 +424,8 @@ if (typeof module !== 'undefined' && module.exports) {
     nameFromSubject: nameFromSubject,
     normalizeNameForCompare: normalizeNameForCompare,
     isNameMismatch: isNameMismatch,
-    resolveTriggerHours: resolveTriggerHours,
+    parseTriggerTimes: parseTriggerTimes,
+    formatTriggerTime: formatTriggerTime,
     folderIdFromUrl: folderIdFromUrl,
     resolveNotifyChannels: resolveNotifyChannels,
     estimateCost: estimateCost,

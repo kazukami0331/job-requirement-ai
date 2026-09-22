@@ -79,18 +79,29 @@ function findOrCreateRootFolder_() {
 }
 
 /**
- * 定期実行を登録する。間隔は TRIGGER_INTERVAL_HOURS（時間）で決まる。
- * Apps Script には「メール受信時に実行」というトリガーが無いため、時間ベースで回す。
+ * 定期実行を登録する。実行時刻は TRIGGER_TIMES（例: "8:30,17:00"）で決まる。
+ * Apps Script には「メール受信時に実行」というトリガーが無いため、時刻ベースで回す。
  */
 function installTrigger() {
-  var resolved = resolveTriggerHours(cfg('TRIGGER_INTERVAL_HOURS'));
+  var resolved = parseTriggerTimes(cfg('TRIGGER_TIMES'));
   if (resolved.warning) log_(resolved.warning);
 
   removeTriggers();
-  ScriptApp.newTrigger('run').timeBased().everyHours(resolved.hours).create();
-  log_(resolved.hours + '時間ごとの定期実行を登録しました。');
-  log_('間隔を変えたい場合は TRIGGER_INTERVAL_HOURS を ' + ALLOWED_TRIGGER_HOURS.join(' / ') +
-    ' のいずれかにして、もう一度 installTrigger() を実行してください。');
+  var labels = [];
+  for (var i = 0; i < resolved.times.length; i++) {
+    var time = resolved.times[i];
+    ScriptApp.newTrigger('run')
+      .timeBased()
+      .everyDays(1)
+      .atHour(time.hour)
+      .nearMinute(time.minute)
+      .create();
+    labels.push(formatTriggerTime(time));
+  }
+
+  log_('毎日 ' + labels.join(' と ') + ' に実行するよう登録しました（' + timezone_() + '）。');
+  log_('※ Apps Script は分単位の実行を保証しないため、指定時刻の前後15分ほどずれます。');
+  log_('時刻を変えたい場合は TRIGGER_TIMES を "8:30,17:00" の形式で設定し、installTrigger() を再実行してください。');
 }
 
 function removeTriggers() {
