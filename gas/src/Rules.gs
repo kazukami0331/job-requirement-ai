@@ -268,6 +268,36 @@ function isNameMismatch(subjectName, documentName) {
 }
 
 /**
+ * 実際に使う通知先を決める。
+ * Slack を指定していても Webhook が未設定だと通知が消えてしまうため、その場合はメールに倒す。
+ * どこにも送れない設定になった場合もメールに倒す（黙って通知が消えるのが一番まずい）。
+ * @return {{channels: string[], warning: string}}
+ */
+function resolveNotifyChannels(configured, hasSlackWebhook) {
+  var channels = (configured || []).filter(function (c) {
+    return c === 'email' || c === 'slack';
+  });
+
+  if (channels.indexOf('slack') >= 0 && !hasSlackWebhook) {
+    channels = channels.filter(function (c) { return c !== 'slack'; });
+    if (channels.indexOf('email') < 0) channels.push('email');
+    return {
+      channels: channels,
+      warning: 'SLACK_WEBHOOK_URL が未設定のため、Slack ではなくメールで通知します。'
+    };
+  }
+
+  if (!channels.length) {
+    return {
+      channels: ['email'],
+      warning: 'NOTIFY_VIA の指定が不正です（email / slack のみ有効）。メールで通知します。'
+    };
+  }
+
+  return { channels: channels, warning: '' };
+}
+
+/**
  * モデルごとの料金（100万トークンあたりのUSD）。
  * https://platform.claude.com/ の公開価格に合わせて更新する。
  */
@@ -333,6 +363,7 @@ if (typeof module !== 'undefined' && module.exports) {
     nameFromSubject: nameFromSubject,
     normalizeNameForCompare: normalizeNameForCompare,
     isNameMismatch: isNameMismatch,
+    resolveNotifyChannels: resolveNotifyChannels,
     estimateCost: estimateCost,
     formatUsage: formatUsage,
     MODEL_PRICES: MODEL_PRICES,

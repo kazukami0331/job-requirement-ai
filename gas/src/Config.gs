@@ -24,7 +24,10 @@ var CONFIG_DEFAULTS = {
 
   // 通知
   NOTIFY_VERDICTS: 'pass,review,fail',  // 通知する判定。例: 'review,fail' なら合格は通知しない
-  NOTIFY_VIA: 'email,slack',            // 通知先。'slack' だけにすればメールは送らない
+  // 通知先。'slack' / 'email' / 'email,slack' から選ぶ。
+  // Slack を指定しているのに SLACK_WEBHOOK_URL が未設定だと通知が消えてしまうので、
+  // その場合はメールに切り替える（resolveNotifyChannels を参照）。
+  NOTIFY_VIA: 'slack',
   SLACK_WEBHOOK_URL: '',                // 未設定なら Slack へは投稿しない
 
   // 添付ファイル

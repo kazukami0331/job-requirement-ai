@@ -222,6 +222,30 @@ test("氏名が一致していれば合格のまま", () => {
   assert.equal(a.candidate.nameMismatch, false);
 });
 
+test("通知先：設定どおりに返す", () => {
+  assert.deepEqual([...rules.resolveNotifyChannels(["slack"], true).channels], ["slack"]);
+  assert.deepEqual([...rules.resolveNotifyChannels(["email"], true).channels], ["email"]);
+  assert.deepEqual([...rules.resolveNotifyChannels(["email", "slack"], true).channels], ["email", "slack"]);
+  assert.equal(rules.resolveNotifyChannels(["slack"], true).warning, "");
+});
+
+test("通知先：Webhookが無いのにSlack指定ならメールに倒す（通知を消さない）", () => {
+  const r = rules.resolveNotifyChannels(["slack"], false);
+  assert.deepEqual([...r.channels], ["email"]);
+  assert.match(r.warning, /SLACK_WEBHOOK_URL/);
+});
+
+test("通知先：email,slack でWebhookが無ければメールだけ残す", () => {
+  const r = rules.resolveNotifyChannels(["email", "slack"], false);
+  assert.deepEqual([...r.channels], ["email"]);
+});
+
+test("通知先：不正な値や空ならメールに倒す", () => {
+  assert.deepEqual([...rules.resolveNotifyChannels([], true).channels], ["email"]);
+  assert.deepEqual([...rules.resolveNotifyChannels(["line", "sms"], true).channels], ["email"]);
+  assert.match(rules.resolveNotifyChannels(["line"], true).warning, /NOTIFY_VIA/);
+});
+
 test("コスト計算：モデルごとの単価で入出力トークンから算出する", () => {
   // Opus 5: 入力 $5 / 出力 $25 （100万トークンあたり）
   const opus = rules.estimateCost(

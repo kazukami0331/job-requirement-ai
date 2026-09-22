@@ -18,13 +18,20 @@ function notifyAssessment(entry) {
     return;
   }
 
-  var channels = cfgList('NOTIFY_VIA');
+  var channels = notifyChannels_();
   if (channels.indexOf('email') >= 0) {
     MailApp.sendEmail({ to: notifyEmail(), subject: subject, body: body });
   }
   if (channels.indexOf('slack') >= 0) {
     postToSlack_(buildSlackBlocks(entry), subject);
   }
+}
+
+/** 設定から通知先を決める。問題があればログに残す。 */
+function notifyChannels_() {
+  var resolved = resolveNotifyChannels(cfgList('NOTIFY_VIA'), !!cfg('SLACK_WEBHOOK_URL'));
+  if (resolved.warning) log_(resolved.warning);
+  return resolved.channels;
 }
 
 /** 判定ごとの絵文字。Slack で一覧したときに色で区別できるようにする。 */
@@ -176,7 +183,7 @@ function notifyError(entry) {
     return;
   }
 
-  var channels = cfgList('NOTIFY_VIA');
+  var channels = notifyChannels_();
   if (channels.indexOf('email') >= 0) {
     MailApp.sendEmail({ to: notifyEmail(), subject: subject, body: body });
   }

@@ -137,7 +137,8 @@ compareModels()    // 両方を続けて実行して並べる（API を2回叩�
 
 投稿先チャンネルは Webhook 作成時に決まります。変更したいときは Webhook を作り直してください。
 
-メール通知が不要なら `NOTIFY_VIA` を `slack` だけにします（既定は `email,slack`）。
+既定では **Slack にのみ通知**します。メールでも受け取りたい場合は `NOTIFY_VIA` を `email,slack` にしてください。
+`SLACK_WEBHOOK_URL` が未設定のまま `slack` を指定した場合は、通知が消えないよう自動でメールに切り替わります。
 
 #### 本番運用に切り替える
 
@@ -156,7 +157,7 @@ compareModels()    // 両方を続けて実行して並べる（API を2回叩�
 | `LEDGER_SPREADSHEET_ID` | setup() が設定 | 判定台帳 |
 | `NOTIFY_EMAIL` | 実行ユーザー | 通知先 |
 | `NOTIFY_VERDICTS` | `pass,review,fail` | 通知する判定。`review,fail` にすれば合格は通知されない |
-| `NOTIFY_VIA` | `email,slack` | 通知先。`slack` だけにすればメールは送らない |
+| `NOTIFY_VIA` | `slack` | 通知先。`email` / `slack` / `email,slack`。Webhook 未設定時は自動でメールに切り替わる |
 | `SLACK_WEBHOOK_URL` | （空） | Slack Incoming Webhook の URL。未設定なら Slack には投稿しない |
 | `USD_JPY` | `150` | 概算コスト表示に使う為替レート |
 | `ANTHROPIC_MODEL` | `claude-opus-5` | 使用モデル |
