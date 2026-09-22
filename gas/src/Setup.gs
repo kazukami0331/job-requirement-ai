@@ -86,6 +86,8 @@ function installTrigger() {
   var resolved = parseTriggerTimes(cfg('TRIGGER_TIMES'));
   if (resolved.warning) log_(resolved.warning);
 
+  // プロジェクトのタイムゾーンが意図と違っていても正しい時刻に回るよう、明示的に指定する。
+  var tz = timezone_();
   removeTriggers();
   var labels = [];
   for (var i = 0; i < resolved.times.length; i++) {
@@ -95,13 +97,22 @@ function installTrigger() {
       .everyDays(1)
       .atHour(time.hour)
       .nearMinute(time.minute)
+      .inTimezone(tz)
       .create();
     labels.push(formatTriggerTime(time));
   }
 
-  log_('毎日 ' + labels.join(' と ') + ' に実行するよう登録しました（' + timezone_() + '）。');
+  log_('毎日 ' + labels.join(' と ') + ' に実行するよう登録しました（' + tz + '）。');
   log_('※ Apps Script は分単位の実行を保証しないため、指定時刻の前後15分ほどずれます。');
   log_('時刻を変えたい場合は TRIGGER_TIMES を "8:30,17:00" の形式で設定し、installTrigger() を再実行してください。');
+
+  var projectTz = Session.getScriptTimeZone();
+  if (projectTz !== tz) {
+    log_('（補足）Apps Script プロジェクトのタイムゾーンは ' + projectTz + ' ですが、' +
+      'トリガーと日付の計算は ' + tz + ' で行います。' +
+      '実行ログの時刻表示だけはプロジェクト設定に従うため、揃えたい場合は ' +
+      'プロジェクトの設定 → タイムゾーン を変更してください。');
+  }
 }
 
 function removeTriggers() {

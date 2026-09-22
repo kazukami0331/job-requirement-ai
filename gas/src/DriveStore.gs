@@ -45,6 +45,11 @@ function getOrCreateChildFolder_(parent, name) {
   return it.hasNext() ? it.next() : parent.createFolder(name);
 }
 
+/**
+ * 日時の基準タイムゾーン。
+ * Apps Script プロジェクトの設定に依存すると、作成時の既定（America/New_York など）の
+ * ままになっていた場合に日付がずれる。設定値を優先し、最後の保険として東京にする。
+ */
 function timezone_() {
-  return Session.getScriptTimeZone() || 'Asia/Tokyo';
+  return cfg('TIMEZONE') || Session.getScriptTimeZone() || 'Asia/Tokyo';
 }
