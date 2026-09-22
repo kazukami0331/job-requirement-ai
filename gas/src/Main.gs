@@ -60,7 +60,12 @@ function compareModels() {
   });
 }
 
+var FOLLOWUP_TRIGGER_IDS_KEY = 'FOLLOWUP_TRIGGER_IDS';
+var FOLLOWUP_DELAY_MINUTES = 3;
+
 function run() {
+  cleanupFollowUpTriggers_();
+
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) {
     log_('別の実行が進行中のためスキップしました。');
@@ -70,6 +75,49 @@ function run() {
     processInbox_();
   } finally {
     lock.releaseLock();
+  }
+}
+
+/**
+ * 処理しきれなかった分の続きを数分後に走らせる（1回きりのトリガー）。
+ * 定期実行のトリガーとは別物で、実行後は次回の run() が片付ける。
+ */
+function scheduleFollowUpRun_() {
+  try {
+    var trigger = ScriptApp.newTrigger('run')
+      .timeBased()
+      .after(FOLLOWUP_DELAY_MINUTES * 60 * 1000)
+      .create();
+
+    var ids = followUpTriggerIds_();
+    ids.push(trigger.getUniqueId());
+    scriptProps_().setProperty(FOLLOWUP_TRIGGER_IDS_KEY, JSON.stringify(ids));
+    log_('未処理のメールが残っているため、' + FOLLOWUP_DELAY_MINUTES + '分後に続きを実行します。');
+  } catch (e) {
+    // トリガーを作れなくても次の定期実行で拾えるので、処理自体は止めない
+    log_('続きの実行を予約できませんでした（次の定期実行で処理されます）: ' + e.message);
+  }
+}
+
+/** 役目を終えた1回きりのトリガーを消す。放置するとトリガー数の上限に当たる。 */
+function cleanupFollowUpTriggers_() {
+  var ids = followUpTriggerIds_();
+  if (!ids.length) return;
+
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (ids.indexOf(triggers[i].getUniqueId()) >= 0) {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  scriptProps_().deleteProperty(FOLLOWUP_TRIGGER_IDS_KEY);
+}
+
+function followUpTriggerIds_() {
+  try {
+    return JSON.parse(scriptProps_().getProperty(FOLLOWUP_TRIGGER_IDS_KEY) || '[]');
+  } catch (e) {
+    return [];
   }
 }
 
@@ -90,17 +138,33 @@ function processInbox_() {
   var inboxLabel = getOrCreateLabel_(cfg('LABEL_INBOX'));
   var count = 0;
 
-  for (var t = 0; t < threads.length && count < maxMessages; t++) {
+  var hasMore = false;
+
+  for (var t = 0; t < threads.length; t++) {
     var thread = threads[t];
     var pending = thread.getMessages().filter(function (message) {
       return !processed[message.getId()] && message.getAttachments().length > 0;
     });
+    if (!pending.length) {
+      // 既に処理済みのスレッド（前回タイムアウトでラベルが付かなかった等）。ラベルだけ整える。
+      if (!dryRun) {
+        thread.removeLabel(inboxLabel);
+        thread.addLabel(doneLabel);
+      }
+      continue;
+    }
+
+    if (count >= maxMessages) {
+      hasMore = true;
+      break;
+    }
 
     // スレッドの途中で上限に達すると、残りのメールが未処理のまま done ラベルが付いてしまう。
     // 1スレッドは丸ごと処理できるときだけ着手し、無理なら次回の実行に回す。
     // ただし1スレッド単体が上限より大きい場合は、先送りし続けると永久に処理されないので着手する。
     if (pending.length > maxMessages - count && count > 0) {
       log_('今回の残り処理枠に収まらないため次回に回します: ' + thread.getFirstMessageSubject());
+      hasMore = true;
       continue;
     }
 
@@ -122,6 +186,13 @@ function processInbox_() {
     thread.addLabel(threadHadError ? errorLabel : doneLabel);
   }
   log_(count + '件のメールを処理しました。');
+
+  // 1回の実行では Apps Script の6分制限があるため MAX_MESSAGES で区切っている。
+  // 処理しきれなかった分は次の定期実行を待たず、数分後に続きを走らせる。
+  // count === 0 のときは何も進んでいないので、無限に繰り返さないよう予約しない。
+  if (hasMore && count > 0 && !dryRun) {
+    scheduleFollowUpRun_();
+  }
 }
 
 /**
@@ -154,11 +225,13 @@ function processMessage_(message, thread, dryRun, modelOverride) {
     throw new Error('添付ファイルを Claude に渡せる形式に変換できませんでした: ' + prepared.skipped.join(', '));
   }
 
-  var evaluated = evaluateWithClaude(prepared.blocks, modelOverride);
+  var customRules = loadCustomRules();
+  var evaluated = evaluateWithClaude(prepared.blocks, modelOverride, customRules);
   var assessment = buildAssessment(evaluated.result, {
     today: new Date(),
     ageRule: ageRule(),
-    subjectName: subjectName
+    subjectName: subjectName,
+    customRules: customRules
   });
 
   var entry = {

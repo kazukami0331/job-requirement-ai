@@ -186,6 +186,11 @@ function buildAssessment(aiResult, options) {
   if (job.rating === 'concern') concerns.push('【求人適合】' + (job.reason || '対象ツールそのものの経験が確認できません。'));
   if (exp.rating === 'concern') concerns.push('【実務経験】' + (exp.reason || '実務経験かどうか書類から判別できません。'));
 
+  // 採用担当者が設定した追加条件を反映する
+  var custom = applyCustomRules(verdict, opts.customRules, result.customRules);
+  verdict = custom.verdict;
+  concerns = concerns.concat(custom.concerns);
+
   var candidate = result.candidate || {};
   var documentName = candidate.name || '';
 
@@ -265,6 +270,112 @@ function isNameMismatch(subjectName, documentName) {
   // 旧姓併記や「山田太郎（ヤマダタロウ）」のようにどちらかが含む関係なら一致とみなす
   if (a.indexOf(b) >= 0 || b.indexOf(a) >= 0) return false;
   return true;
+}
+
+// 追加判定条件の分類。シートの「分類」列に書く値。
+var CUSTOM_RULE_KINDS = {
+  '不合格条件': 'reject',
+  '懸念条件': 'concern',
+  '補足': 'note'
+};
+
+/**
+ * 「判定ルール」シートの行を、扱える形に変換する。
+ * 有効でない行・分類や内容が不正な行は読み飛ばし、理由を warnings に入れる。
+ * @param {Array<Array>} rows [有効, 分類, 内容, メモ] の配列
+ * @return {{rules: Array<{id:string, kind:string, kindLabel:string, text:string}>, warnings: string[]}}
+ */
+function parseCustomRules(rows) {
+  var rules = [];
+  var warnings = [];
+
+  for (var i = 0; i < (rows || []).length; i++) {
+    var row = rows[i] || [];
+    var lineNo = i + 2;  // 見出し行のぶん
+    var enabled = row[0] === true || String(row[0]).toUpperCase() === 'TRUE';
+    if (!enabled) continue;
+
+    var kindLabel = String(row[1] || '').trim();
+    var text = String(row[2] || '').trim();
+
+    if (!CUSTOM_RULE_KINDS[kindLabel]) {
+      warnings.push(lineNo + '行目: 分類「' + kindLabel + '」は不明です（不合格条件 / 懸念条件 / 補足）');
+      continue;
+    }
+    if (!text) {
+      warnings.push(lineNo + '行目: 内容が空です');
+      continue;
+    }
+
+    rules.push({
+      id: 'R' + lineNo,
+      kind: CUSTOM_RULE_KINDS[kindLabel],
+      kindLabel: kindLabel,
+      text: text
+    });
+  }
+  return { rules: rules, warnings: warnings };
+}
+
+/**
+ * 追加条件の判定結果を総合判定に反映する。
+ * 不合格条件に該当 → 不合格。懸念条件に該当 → 懸念点を足し、合格なら要確認に落とす。
+ * 判定できなかった（unclear）場合も、見落としを避けるため懸念として扱う。
+ * @param {string} verdict 現時点の総合判定
+ * @param {Array} rules parseCustomRules の結果
+ * @param {Array} findings AIが返した [{id, matched, reason}]
+ * @return {{verdict: string, concerns: string[]}}
+ */
+function applyCustomRules(verdict, rules, findings) {
+  var byId = {};
+  for (var i = 0; i < (findings || []).length; i++) {
+    var f = findings[i];
+    if (f && f.id) byId[f.id] = f;
+  }
+
+  var concerns = [];
+  var result = verdict;
+
+  for (var j = 0; j < (rules || []).length; j++) {
+    var rule = rules[j];
+    if (rule.kind === 'note') continue;  // 補足は判定を変えない
+
+    var finding = byId[rule.id] || {};
+    var matched = finding.matched;
+    var reason = finding.reason ? '（' + finding.reason + '）' : '';
+
+    if (matched === 'yes') {
+      if (rule.kind === 'reject') {
+        concerns.push('【追加条件・不合格】' + rule.text + reason);
+        result = 'fail';
+      } else {
+        concerns.push('【追加条件】' + rule.text + reason);
+        if (result === 'pass') result = 'review';
+      }
+    } else if (matched !== 'no') {
+      // 該当するか判断できなかった。人が見る。
+      concerns.push('【追加条件・要確認】' + rule.text + '：書類からは判断できませんでした。' + reason);
+      if (result === 'pass') result = 'review';
+    }
+  }
+  return { verdict: result, concerns: concerns };
+}
+
+/** プロンプトに埋め込む追加条件のテキスト。条件が無ければ空文字。 */
+function customRulesAsPromptText(rules) {
+  if (!rules || !rules.length) return '';
+
+  var lines = ['## 追加の判定条件（採用担当者が設定したもの）'];
+  lines.push('以下の条件それぞれについて、候補者が当てはまるかを customRules に返してください。');
+  lines.push('書類から判断できない場合は unclear にしてください（推測しないこと）。');
+  lines.push('');
+
+  for (var i = 0; i < rules.length; i++) {
+    var rule = rules[i];
+    var suffix = rule.kind === 'note' ? '　※判定の参考情報です' : '';
+    lines.push('- ' + rule.id + '（' + rule.kindLabel + '）：' + rule.text + suffix);
+  }
+  return lines.join('\n');
 }
 
 var DEFAULT_TRIGGER_TIMES = [{ hour: 8, minute: 30 }, { hour: 17, minute: 0 }];
@@ -424,6 +535,9 @@ if (typeof module !== 'undefined' && module.exports) {
     nameFromSubject: nameFromSubject,
     normalizeNameForCompare: normalizeNameForCompare,
     isNameMismatch: isNameMismatch,
+    parseCustomRules: parseCustomRules,
+    applyCustomRules: applyCustomRules,
+    customRulesAsPromptText: customRulesAsPromptText,
     parseTriggerTimes: parseTriggerTimes,
     formatTriggerTime: formatTriggerTime,
     folderIdFromUrl: folderIdFromUrl,

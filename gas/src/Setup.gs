@@ -53,7 +53,8 @@ function setup() {
     props.setProperty('LEDGER_SPREADSHEET_ID', ss.getId());
     log_('判定台帳を作成しました: ' + ss.getUrl());
   }
-  ledgerSheet_();  // ヘッダー行を用意する
+  ledgerSheet_();        // ヘッダー行を用意する
+  customRulesSheet_();   // 追加の判定条件を書くシートを用意する
 
   ['LABEL_INBOX', 'LABEL_DONE', 'LABEL_ERROR'].forEach(function (key) {
     var label = getOrCreateLabel_(cfg(key));
@@ -70,7 +71,7 @@ function setup() {
   } else {
     log_('セットアップ完了。installTrigger() を実行すると定期実行が始まります。');
   }
-  log_('Gmail 側で、応募書類が届くメールに "' + cfg('LABEL_INBOX') + '" ラベルを付けるフィルタを作成してください。');
+  log_('判定条件を追加したい場合は、判定台帳の「' + CUSTOM_RULES_SHEET_NAME + '」シートに行を追加してください。');
 }
 
 function findOrCreateRootFolder_() {
@@ -120,6 +121,8 @@ function removeTriggers() {
   for (var i = 0; i < triggers.length; i++) {
     if (triggers[i].getHandlerFunction() === 'run') ScriptApp.deleteTrigger(triggers[i]);
   }
+  // 「続きの実行」用に記録していたIDも消す（対象のトリガーは今ここで削除済み）
+  scriptProps_().deleteProperty(FOLLOWUP_TRIGGER_IDS_KEY);
   log_('既存の定期実行を削除しました。');
 }
 
