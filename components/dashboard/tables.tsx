@@ -36,7 +36,8 @@ function MobileCard({
         {title}
         {badge}
       </div>
-      <dl className={`grid gap-x-2 gap-y-1.5 ${items.length % 3 === 0 ? "grid-cols-3" : "grid-cols-2"}`}>
+      {/* 項目が増えたら3列。2列のままだと縦に伸びて、校舎を1画面で見比べられなくなる */}
+      <dl className={`grid gap-x-2 gap-y-1.5 ${items.length >= 5 ? "grid-cols-3" : "grid-cols-2"}`}>
         {items.map((it) => (
           <div key={it.label}>
             <dt className="text-[10px]" style={{ color: "var(--text-muted)" }}>
@@ -277,7 +278,10 @@ function ShopName({ row }: { row: PlanVsActualRow }) {
 /** 校舎ごとに並べる指標。スマホのカードとPCの表で順番を揃える。 */
 const PLAN_METRICS: { label: string; value: (r: PlanVsActualRow) => ReactNode }[] = [
   { label: "累計応募", value: (r) => r.applied },
+  // 定例が週の途中にあるので、直近週はまだ数日ぶんしかない。
+  // 前週を実数で並べて置かないと、増えたのか減ったのかを会議で判断できない。
   { label: "直近週応募", value: (r) => r.lastWeekApplied },
+  { label: "前週応募", value: (r) => r.prevWeekApplied },
   { label: "前週差", value: (r) => <Delta value={r.lastWeekApplied - r.prevWeekApplied} /> },
   { label: "選考中", value: (r) => r.pool },
   { label: "面談設定", value: (r) => r.scheduled },

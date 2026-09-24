@@ -44,6 +44,9 @@ const DIMENSIONS: Dimension[] = ["shopShortName", "employmentType", "media", "ro
 
 type SectionKey = "summary" | "shops" | "plan" | "activity";
 
+/** 2026-09-21 → 9/21 */
+const md = (d?: string) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : "");
+
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: "summary", label: "サマリー" },
   { key: "plan", label: "充足状況" },
@@ -103,8 +106,17 @@ export default function DashboardPage() {
   const trend = useMemo(() => weeklyTrend(apps), [apps]);
   const pool = useMemo(() => stagePool(apps), [apps]);
   const funnelSteps = useMemo(() => funnel(apps), [apps]);
-  const summary = useMemo(() => kpis(apps), [apps]);
-  const weekKeys = useMemo(() => recentWeekKeys(apps), [apps]);
+  /**
+   * 集計の基準日。書き出した日を含む週が「直近週」になる。
+   * これを渡さないと、週明けでまだ応募が無いだけで直近週が1つ前にズレ、
+   * 「前週」として報告する数字が前々週のものになってしまう。
+   */
+  const asOf = useMemo(
+    () => snapshots[snapshots.length - 1]?.takenAt,
+    [snapshots]
+  );
+  const weekKeys = useMemo(() => recentWeekKeys(apps, asOf), [apps, asOf]);
+  const summary = useMemo(() => kpis(apps, weekKeys), [apps, weekKeys]);
   const rows = useMemo(() => breakdown(apps, dimension, weekKeys), [apps, dimension, weekKeys]);
   const matrix = useMemo(() => weeklyMatrix(apps, dimension, 12), [apps, dimension]);
   const reasons = useMemo(() => rejectReasons(apps), [apps]);
@@ -258,7 +270,25 @@ export default function DashboardPage() {
     setMessage({ kind: "info", text: "採用計画をクリアしました。応募データの履歴はそのままです。" });
   }, []);
 
-  const lastWeekLabel = trend[trend.length - 1]?.week.label ?? "";
+  const lastWeekLabel = weekKeys.lastWeek?.label ?? "";
+
+  /**
+   * 直近週が何日ぶんなのか。定例が週の途中だと直近週は月〜水しか無く、
+   * 前週と単純に比べると必ず減って見える。期間を明示して誤読を防ぐ。
+   */
+  const weekRangeNote = useMemo(() => {
+    const { lastWeek, prevWeek } = weekKeys;
+    if (!lastWeek || !prevWeek) return "";
+    const prev = `前週 ${md(prevWeek.start)}〜${md(prevWeek.end)}`;
+    if (!asOf) return `直近週 ${md(lastWeek.start)}〜${md(lastWeek.end)} ／ ${prev}`;
+    const asOfDate = asOf.slice(0, 10);
+    const days =
+      Math.round(
+        (new Date(`${asOfDate}T00:00:00`).getTime() - new Date(`${lastWeek.start}T00:00:00`).getTime()) / 86400000
+      ) + 1;
+    const partial = days < 7 ? `途中・${days}日ぶん` : "確定";
+    return `直近週 ${md(lastWeek.start)}〜${md(asOfDate)}（${partial}） ／ ${prev}（確定）`;
+  }, [weekKeys, asOf]);
 
   /** 集計している期間。ファネルなどが何を対象にしているかを示すのに使う。 */
   const periodLabel = useMemo(() => {
@@ -375,6 +405,7 @@ export default function DashboardPage() {
                 unit="件"
                 delta={summary.wowDelta}
                 deltaLabel="前週差"
+                hint={weekRangeNote || undefined}
               />
               <StatTile label="4週平均の応募" value={summary.avg4w.toFixed(1)} unit="件/週" />
               <StatTile label="選考中プール" value={summary.activePool} unit="件" hint="未対応〜面接結果待ち" />
@@ -409,7 +440,7 @@ export default function DashboardPage() {
             {plan && planVsActual.length > 0 ? (
               <Card
                 title="校舎ごとの充足状況"
-                subtitle={`採用目標 計${totalShortage(plan)}名に対する採用実績。充足率が低い校舎から並べています。`}
+                subtitle={`採用目標 計${totalShortage(plan)}名に対する採用実績。充足率が低い校舎から並べています。${weekRangeNote ? ` ${weekRangeNote}` : ""}`}
               >
                 <PlanVsActualTable rows={planVsActual} />
                 {unplannedShops.length > 0 && (

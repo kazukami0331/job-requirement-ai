@@ -1,6 +1,6 @@
 import { Application, FunnelStage, MergedApplication } from "@/types/recruiting";
 import { ACTIVE_STAGES, FUNNEL_STEPS, STAGES, stageOf } from "./status";
-import { Week, weekOfIso, weekRange } from "./week";
+import { Week, weekOf, weekOfIso, weekRange } from "./week";
 
 export type Dimension = "shopShortName" | "employmentType" | "media" | "route" | "jobTitle";
 
@@ -209,10 +209,12 @@ export interface Kpis {
   hireRate: number;
 }
 
-export function kpis(apps: Application[]): Kpis {
+export function kpis(apps: Application[], weeks?: RecentWeeks): Kpis {
   const trend = weeklyTrend(apps);
-  const lastWeekApplied = trend.length > 0 ? trend[trend.length - 1].applied : 0;
-  const prevWeekApplied = trend.length > 1 ? trend[trend.length - 2].applied : 0;
+  const at = (key?: string) => (key ? (trend.find((p) => p.week.key === key)?.applied ?? 0) : 0);
+  // 週の指定があればそれに従う。無ければ「データがある最後の週」を直近週とみなす。
+  const lastWeekApplied = weeks?.lastWeek ? at(weeks.lastWeekKey) : (trend[trend.length - 1]?.applied ?? 0);
+  const prevWeekApplied = weeks?.prevWeek ? at(weeks.prevWeekKey) : (trend[trend.length - 2]?.applied ?? 0);
   const recent = trend.slice(-4);
   const pool = stagePool(apps);
   const activePool = pool.filter((p) => ACTIVE_STAGES.includes(p.stage)).reduce((a, b) => a + b.count, 0);
@@ -231,13 +233,34 @@ export function kpis(apps: Application[]): Kpis {
   };
 }
 
-/** 直近2週のキー（前週比の計算に使う） */
-export function recentWeekKeys(apps: Application[]): { lastWeekKey?: string; prevWeekKey?: string } {
-  const trend = weeklyTrend(apps);
-  return {
-    lastWeekKey: trend[trend.length - 1]?.week.key,
-    prevWeekKey: trend[trend.length - 2]?.week.key,
-  };
+export interface RecentWeeks {
+  lastWeekKey?: string;
+  prevWeekKey?: string;
+  lastWeek?: Week;
+  prevWeek?: Week;
+}
+
+/**
+ * 直近週と前週（前週比や週別の数字に使う）。
+ *
+ * asOfIso（データを書き出した日）を渡すと、その日を含む週を直近週にする。
+ * 渡さないと「応募が1件でもある最後の週」が直近週になるため、週の頭にまだ応募が
+ * 無いだけで直近週が1週ズレ、前週の数字が前々週のものになってしまう。
+ * 定例が週の途中にある運用ではこのズレがそのまま報告の誤りになる。
+ */
+export function recentWeekKeys(apps: Application[], asOfIso?: string): RecentWeeks {
+  let lastWeek: Week | undefined;
+  if (asOfIso) {
+    lastWeek = weekOfIso(asOfIso);
+  } else {
+    const trend = weeklyTrend(apps);
+    lastWeek = trend[trend.length - 1]?.week;
+  }
+  if (!lastWeek) return {};
+  const before = new Date(`${lastWeek.start}T00:00:00`);
+  before.setDate(before.getDate() - 7);
+  const prevWeek = weekOf(before);
+  return { lastWeekKey: lastWeek.key, prevWeekKey: prevWeek.key, lastWeek, prevWeek };
 }
 
 /** 不採用・辞退の理由内訳 */
