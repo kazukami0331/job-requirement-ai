@@ -238,7 +238,6 @@ export interface PlanVsActualRow {
   prevWeekApplied: number;
   pool: number;
   scheduled: number;
-  matched: boolean;
 }
 
 /** 校舎名のすぐ横に出す充足率。採用数/目標数と、その割合。 */
@@ -262,27 +261,15 @@ function Fill({ row }: { row: PlanVsActualRow }) {
 }
 
 /**
- * 校舎名。緊急度が高い校舎は、元の不足人数管理表と同じようにオレンジで塗る。
+ * 校舎名。不足人数管理表でオレンジに塗られている＝緊急度が高い校舎は、文字をオレンジの太字にする。
  * 画面に記号は足さない指定なので、色を読めない場合向けの断りは読み上げ用にだけ置く。
  */
 function ShopName({ row }: { row: PlanVsActualRow }) {
   if (!row.urgent) return <>{row.shopShortName}</>;
   return (
-    <span
-      className="rounded px-1 py-0.5"
-      style={{ background: "var(--urgent-mark)", color: "var(--urgent-mark-text)" }}
-      title="緊急度が高い校舎"
-    >
+    <span style={{ color: "var(--urgent-text)", fontWeight: 700 }} title="緊急度が高い校舎">
       {row.shopShortName}
       <span className="sr-only">（緊急度が高い校舎）</span>
-    </span>
-  );
-}
-
-function Unmatched() {
-  return (
-    <span className="text-[10px] font-normal" style={{ color: "var(--text-muted)" }}>
-      （応募データ未突合）
     </span>
   );
 }
@@ -309,7 +296,6 @@ export function PlanVsActualTable({ rows }: { rows: PlanVsActualRow[] }) {
               <>
                 <ShopName row={r} />
                 <Fill row={r} />
-                {!r.matched && <Unmatched />}
               </>
             }
             items={PLAN_METRICS.map((m) => ({ label: m.label, value: m.value(r) }))}
@@ -335,7 +321,6 @@ export function PlanVsActualTable({ rows }: { rows: PlanVsActualRow[] }) {
                 <th scope="row" className={`${cellBase} text-left font-normal`} style={{ color: "var(--text-primary)" }}>
                   <ShopName row={r} />
                   <Fill row={r} />
-                  {!r.matched && <Unmatched />}
                 </th>
                 {PLAN_METRICS.map((m) => (
                   <td

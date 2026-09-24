@@ -161,13 +161,29 @@ export default function DashboardPage() {
           prevWeekApplied: a?.prevWeekApplied ?? 0,
           pool: a?.pool ?? 0,
           scheduled: a?.scheduled ?? 0,
-          matched: a !== undefined,
         };
       })
       .filter((r) => r.target > 0 || r.applied > 0)
       // 充足率が低い校舎から。同率なら目標が大きい方を先に。
       .sort((a, b) => (a.rate ?? 1) - (b.rate ?? 1) || b.target - a.target);
   }, [apps, plan, weekKeys]);
+
+  /**
+   * 応募はあるのに不足人数マスタに校舎が無いもの。
+   * この応募は充足状況の表に出てこないので、取りこぼしとして知らせる。
+   */
+  const unplannedShops = useMemo(() => {
+    if (!plan) return [];
+    const known = shortageLookup(plan);
+    const counts = new Map<string, number>();
+    for (const a of apps) {
+      if (known.has(normalizeShopKey(a.shopShortName))) continue;
+      counts.set(a.shopShortName, (counts.get(a.shopShortName) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([shopShortName, count]) => ({ shopShortName, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [apps, plan]);
 
   const handleUploadApplications = useCallback(async (file: File) => {
     try {
@@ -396,6 +412,13 @@ export default function DashboardPage() {
                 subtitle={`採用目標 計${totalShortage(plan)}名に対する採用実績。充足率が低い校舎から並べています。`}
               >
                 <PlanVsActualTable rows={planVsActual} />
+                {unplannedShops.length > 0 && (
+                  <p className="mt-3 text-[11px]" style={{ color: "var(--status-serious)" }}>
+                    不足人数マスタに無い校舎の応募が{unplannedShops.reduce((a, b) => a + b.count, 0)}件あります（
+                    {unplannedShops.map((u) => `${u.shopShortName} ${u.count}件`).join(" / ")}
+                    ）。この表には出てきません。
+                  </p>
+                )}
               </Card>
             ) : (
               <Card title="校舎ごとの充足状況">
