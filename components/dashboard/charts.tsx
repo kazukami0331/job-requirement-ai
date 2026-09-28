@@ -5,7 +5,6 @@ import { WeeklyPoint, FunnelStep } from "@/lib/recruiting/aggregate";
 import { ChartTooltip, TooltipState, useMeasuredWidth } from "./ui";
 
 const AXIS_W = 30;
-const PAD_T = 12;
 const PAD_R = 8;
 const AXIS_H = 26;
 const BAR_GAP = 2; // 隣り合う棒のあいだに入れる地の色の隙間
@@ -38,13 +37,15 @@ export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
   const narrow = width < 480;
   const height = narrow ? 180 : 220;
   const plotW = Math.max(width - AXIS_W - PAD_R, 40);
-  const plotH = height - PAD_T - AXIS_H;
   const max = niceMax(Math.max(...points.map((p) => p.applied), 1));
   const slot = plotW / points.length;
   const barW = Math.min(Math.max(slot - BAR_GAP, 2), MAX_BAR_W);
   const ticks = [0, max / 2, max];
   // 全週に件数を出す。週が増えたら文字を詰めて重ならないようにする。
   const valueSize = Math.max(9, Math.min(11, slot * 0.42));
+  // 棒の上に件数を出すので、一番高い棒がちょうど上限に届いたときでも文字が切れないだけの余白を取る。
+  const padT = Math.ceil(valueSize) + 6;
+  const plotH = height - padT - AXIS_H;
 
   // 週が多いときは軸ラベルを間引く
   const labelStep = Math.ceil(points.length / Math.max(Math.floor(plotW / 46), 1));
@@ -53,7 +54,7 @@ export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
     <div ref={ref} className="relative w-full">
       <svg width={width} height={height} role="img" aria-label="週ごとの応募数の推移">
         {ticks.map((t) => {
-          const y = PAD_T + plotH - (t / max) * plotH;
+          const y = padT + plotH - (t / max) * plotH;
           return (
             <g key={t}>
               <line x1={AXIS_W} x2={width - PAD_R} y1={y} y2={y} stroke="var(--gridline)" strokeWidth={1} />
@@ -68,7 +69,7 @@ export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
           const show = () =>
             setTip({
               x: AXIS_W + i * slot + slot / 2,
-              y: Math.max(PAD_T + plotH - (p.applied / max) * plotH, PAD_T + 12),
+              y: Math.max(padT + plotH - (p.applied / max) * plotH, padT + 12),
               title: `${p.week.start} 〜 ${p.week.end}`,
               rows: [
                 { label: "応募", value: `${p.applied}件` },
@@ -81,14 +82,14 @@ export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
 
           const h = (p.applied / max) * plotH;
           const x = AXIS_W + i * slot + (slot - barW) / 2;
-          const y = PAD_T + plotH - h;
+          const y = padT + plotH - h;
 
           return (
             <g key={p.week.key}>
               {/* 当たり判定は棒より広く取る */}
               <rect
                 x={AXIS_W + i * slot}
-                y={PAD_T}
+                y={padT}
                 width={slot}
                 height={plotH}
                 fill="transparent"
@@ -145,8 +146,8 @@ export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
         <line
           x1={AXIS_W}
           x2={width - PAD_R}
-          y1={PAD_T + plotH}
-          y2={PAD_T + plotH}
+          y1={padT + plotH}
+          y2={padT + plotH}
           stroke="var(--baseline)"
           strokeWidth={1}
         />
@@ -157,52 +158,80 @@ export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
 }
 
 /**
- * 選考ステータス別のプール。棒ごとに段階名と件数を直接書くので、
- * 色は補助であって識別を色だけに負わせていない。
+ * 選考ステータス別の内訳。
+ *
+ * 「選考中」と「決着済み」を分けて、それぞれの中で棒の長さを比べる。
+ * ひと続きにすると不採用の棒だけが伸びて、まだ動いている応募が潰れて読めなくなるため。
+ * 件数の横の％は全応募に対する割合で、群の小計は見出しに出す。
  */
 export function StagePoolChart({
   rows,
   total,
 }: {
-  rows: { stage: string; label: string; count: number; color: string }[];
+  rows: { stage: string; label: string; count: number; color: string; active: boolean }[];
   total: number;
 }) {
-  const max = Math.max(...rows.map((r) => r.count), 1);
+  const groups = [
+    { key: "active", title: "選考中", rows: rows.filter((r) => r.active) },
+    { key: "closed", title: "決着済み", rows: rows.filter((r) => !r.active) },
+  ].filter((g) => g.rows.length > 0);
 
   return (
-    <ul className="space-y-2">
-      {rows.map((r) => (
-        <li
-          key={r.stage}
-          className="grid grid-cols-[1fr_5rem] items-center gap-x-2 gap-y-1 sm:grid-cols-[11rem_1fr_5rem]"
-        >
-          <span
-            className="col-span-2 truncate text-xs sm:col-span-1"
-            style={{ color: "var(--text-secondary)" }}
-            title={r.label}
-          >
-            {r.label}
-          </span>
-          <span className="flex h-4 items-center" style={{ background: "var(--gridline)", borderRadius: RADIUS }}>
-            <span
-              className="h-4"
-              style={{
-                width: `${(r.count / max) * 100}%`,
-                background: r.color,
-                borderRadius: RADIUS,
-                minWidth: r.count > 0 ? 3 : 0,
-              }}
-            />
-          </span>
-          <span className="text-right text-xs tabular" style={{ color: "var(--text-primary)" }}>
-            {r.count}
-            <span style={{ color: "var(--text-muted)" }}>
-              {total > 0 ? ` / ${Math.round((r.count / total) * 100)}%` : ""}
-            </span>
-          </span>
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-4">
+      {groups.map((g) => {
+        const sum = g.rows.reduce((a, r) => a + r.count, 0);
+        const max = Math.max(...g.rows.map((r) => r.count), 1);
+        return (
+          <section key={g.key}>
+            <h3 className="mb-1.5 flex items-baseline gap-1.5">
+              <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+                {g.title}
+              </span>
+              <span className="text-xs tabular" style={{ color: "var(--text-secondary)" }}>
+                {sum}件
+                {total > 0 && <span style={{ color: "var(--text-muted)" }}> / {Math.round((sum / total) * 100)}%</span>}
+              </span>
+            </h3>
+            <ul className="space-y-2">
+              {g.rows.map((r) => (
+                <li
+                  key={r.stage}
+                  className="grid grid-cols-[1fr_5rem] items-center gap-x-2 gap-y-1 sm:grid-cols-[11rem_1fr_5rem]"
+                >
+                  <span
+                    className="col-span-2 truncate text-xs sm:col-span-1"
+                    style={{ color: "var(--text-secondary)" }}
+                    title={r.label}
+                  >
+                    {r.label}
+                  </span>
+                  <span
+                    className="flex h-4 items-center"
+                    style={{ background: "var(--gridline)", borderRadius: RADIUS }}
+                  >
+                    <span
+                      className="h-4"
+                      style={{
+                        width: `${(r.count / max) * 100}%`,
+                        background: r.color,
+                        borderRadius: RADIUS,
+                        minWidth: r.count > 0 ? 3 : 0,
+                      }}
+                    />
+                  </span>
+                  <span className="text-right text-xs tabular" style={{ color: "var(--text-primary)" }}>
+                    {r.count}
+                    <span style={{ color: "var(--text-muted)" }}>
+                      {total > 0 ? ` / ${Math.round((r.count / total) * 100)}%` : ""}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
   );
 }
 

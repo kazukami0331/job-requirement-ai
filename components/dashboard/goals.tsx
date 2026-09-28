@@ -1,20 +1,21 @@
 "use client";
 
 import { ReactNode } from "react";
-import { GoalRates, MonthGoal, MonthlyGoals, ShopGoalRow, appliesPerHire } from "@/lib/recruiting/goal";
+import { GoalRates, GoalWindow, MonthGoal, MonthlyGoals, ShopGoalRow, appliesPerHire } from "@/lib/recruiting/goal";
+import { UrgentName } from "./tables";
 
 /** 表に出す指標。目標も実績も同じ形で持っているので切り替えるだけで済む。 */
-export type GoalMetric = "applied" | "interview" | "offer";
+export type GoalMetric = "applied" | "interview" | "hire";
 
 export const GOAL_METRICS: { key: GoalMetric; label: string; hint: string }[] = [
   { key: "applied", label: "応募", hint: "その月に受け付けた応募" },
   { key: "interview", label: "面接設定", hint: "その月に応募した人のうち、面接日が確定した数" },
-  { key: "offer", label: "内定", hint: "その月に応募した人のうち、採用まで進んだ数" },
+  { key: "hire", label: "採用", hint: "その月に応募した人のうち、採用まで進んだ数" },
 ];
 
 function pick(m: MonthGoal, metric: GoalMetric): { target: number; actual: number } {
   if (metric === "interview") return { target: m.targetInterview, actual: m.interviewActual };
-  if (metric === "offer") return { target: m.targetOffer, actual: m.offerActual };
+  if (metric === "hire") return { target: m.targetHire, actual: m.hireActual };
   return { target: m.targetApplied, actual: m.appliedActual };
 }
 
@@ -34,18 +35,28 @@ function tone(actual: number, target: number, elapsed: number): string {
   return "var(--status-critical)";
 }
 
+function Bar({ ratio, color }: { ratio: number; color: string }) {
+  return (
+    <span className="flex h-1.5 w-full items-center" style={{ background: "var(--gridline)", borderRadius: 2 }}>
+      <span
+        className="h-1.5"
+        style={{ width: `${ratio * 100}%`, background: color, borderRadius: 2, minWidth: ratio > 0 ? 2 : 0 }}
+      />
+    </span>
+  );
+}
+
 /** 実績/目標を1マスに収めたもの。棒は目標を100%とした埋まり具合。 */
 function Cell({ m, metric }: { m: MonthGoal; metric: GoalMetric }) {
   const { target, actual } = pick(m, metric);
   // 期限より後の月。0/0 と出すと「未達」に見えるので、対象外だと分かる形にする。
   if (target <= 0 && actual === 0) {
     return (
-      <div className="text-xs" style={{ color: "var(--text-muted)" }} title="期限より後の月なので目標はありません">
+      <div className="text-xs" style={{ color: "var(--text-muted)" }} title="この月は目標の対象外です">
         —
       </div>
     );
   }
-  const ratio = target > 0 ? Math.min(actual / target, 1) : 0;
   const color = tone(actual, target, m.current ? m.elapsed : 0);
 
   return (
@@ -54,44 +65,72 @@ function Cell({ m, metric }: { m: MonthGoal; metric: GoalMetric }) {
         <span style={{ color, fontWeight: 600 }}>{fmt(actual)}</span>
         <span style={{ color: "var(--text-muted)" }}> / {fmt(target)}</span>
       </div>
-      <span className="flex h-1.5 w-full items-center" style={{ background: "var(--gridline)", borderRadius: 2 }}>
-        <span
-          className="h-1.5"
-          style={{ width: `${ratio * 100}%`, background: color, borderRadius: 2, minWidth: actual > 0 ? 2 : 0 }}
-        />
-      </span>
+      <Bar ratio={target > 0 ? Math.min(actual / target, 1) : 0} color={color} />
     </div>
   );
 }
 
-function ShopName({ row }: { row: ShopGoalRow }) {
-  const name = row.urgent ? (
-    <span style={{ color: "var(--urgent-text)", fontWeight: 700 }} title="緊急度が高い校舎">
-      {row.shopShortName}
-      <span className="sr-only">（緊急度が高い校舎）</span>
-    </span>
-  ) : (
-    <span style={{ color: "var(--text-primary)" }}>{row.shopShortName}</span>
-  );
+/**
+ * 月ごとに、応募・面接設定・採用の目標と実績をまとめて出す。
+ * 校舎別の表は指標を切り替える作りなので、全体の3本を一度に見たいときはここを見る。
+ */
+export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
+  const { total, months } = goals;
+  if (!total) return null;
 
   return (
-    <span className="text-xs" title={row.deadlineNote}>
-      {name}
-      <span style={{ color: "var(--text-muted)" }}> 採用{row.hireTarget}名</span>
+    <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      {total.months.map((m, i) => (
+        <li
+          key={m.month}
+          className="rounded-lg border px-3 py-2.5"
+          style={{ borderColor: "var(--gridline)", background: "var(--background)" }}
+        >
+          <div className="mb-2 flex items-baseline gap-1.5">
+            <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+              {months[i].label}
+            </span>
+            <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+              {m.current ? `途中・${Math.round(m.elapsed * 100)}%経過` : m.month.replace("-", "/")}
+            </span>
+          </div>
+          <dl className="space-y-1.5">
+            {GOAL_METRICS.map((metric) => {
+              const { target, actual } = pick(m, metric.key);
+              const color = tone(actual, target, m.current ? m.elapsed : 0);
+              return (
+                <div key={metric.key} className="grid grid-cols-[3.5rem_1fr_5rem] items-center gap-2">
+                  <dt className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                    {metric.label}
+                  </dt>
+                  <dd>
+                    <Bar ratio={target > 0 ? Math.min(actual / target, 1) : 0} color={color} />
+                  </dd>
+                  <dd className="text-right text-xs tabular whitespace-nowrap">
+                    <span style={{ color, fontWeight: 600 }}>{fmt(actual)}</span>
+                    <span style={{ color: "var(--text-muted)" }}> / {fmt(target)}</span>
+                  </dd>
+                </div>
+              );
+            })}
+          </dl>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ShopName({ row }: { row: ShopGoalRow }) {
+  return (
+    <span className="inline-flex items-center gap-1 text-xs" title={row.deadlineNote}>
+      <UrgentName name={row.shopShortName} urgent={row.urgent} />
+      <span style={{ color: "var(--text-muted)" }}>採用{row.hireTarget}名</span>
     </span>
   );
 }
 
 /** 歩留まりの入力。1つ変えると必要応募数がその場で変わる。 */
-function RateInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-}) {
+function RateInput({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
     <label className="flex items-center gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
       {label}
@@ -113,56 +152,93 @@ function RateInput({
   );
 }
 
-export function GoalAssumptions({
-  rates,
+function MonthSelect({
+  label,
+  value,
+  choices,
   onChange,
-  observed,
+}: {
+  label: string;
+  value: string;
+  choices: { month: string; label: string }[];
+  onChange: (m: string) => void;
+}) {
+  return (
+    <label className="flex items-center gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+      {label}
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded border px-1.5 py-0.5 text-xs"
+        style={{ borderColor: "var(--gridline)", background: "var(--background)", color: "var(--text-primary)" }}
+      >
+        {choices.map((c) => (
+          <option key={c.month} value={c.month}>
+            {c.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+export function GoalControls({
+  rates,
+  onRates,
+  goals,
+  onWindow,
 }: {
   rates: GoalRates;
-  onChange: (r: GoalRates) => void;
-  observed: MonthlyGoals["observed"];
+  onRates: (r: GoalRates) => void;
+  goals: MonthlyGoals;
+  onWindow: (w: GoalWindow) => void;
 }) {
   const perHire = appliesPerHire(rates);
+  const { window: win, choices, observed, total } = goals;
   const pct = (a: number, b: number) => (b > 0 ? `${((a / b) * 100).toFixed(0)}%` : "—");
 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <RateInput
-          label="応募→面接"
-          value={rates.applyToInterview}
-          onChange={(v) => onChange({ ...rates, applyToInterview: v })}
-        />
-        <RateInput
-          label="面接→内定"
-          value={rates.interviewToOffer}
-          onChange={(v) => onChange({ ...rates, interviewToOffer: v })}
-        />
+        <RateInput label="応募→面接" value={rates.applyToInterview} onChange={(v) => onRates({ ...rates, applyToInterview: v })} />
+        <RateInput label="面接→採用" value={rates.interviewToHire} onChange={(v) => onRates({ ...rates, interviewToHire: v })} />
         <span className="text-xs" style={{ color: "var(--text-primary)" }}>
           1名採用するのに応募が
           <strong className="tabular"> {perHire === null ? "—" : perHire.toFixed(1)} </strong>
           件必要
+          {total && (
+            <span style={{ color: "var(--text-secondary)" }}>
+              （{total.hireTarget}名で計 {total.requiredApplied}件）
+            </span>
+          )}
         </span>
       </div>
 
+      {choices.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+            按分する期間
+          </span>
+          <MonthSelect label="" value={win.from} choices={choices} onChange={(m) => onWindow({ ...win, from: m })} />
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            〜
+          </span>
+          <MonthSelect label="" value={win.to} choices={choices} onChange={(m) => onWindow({ ...win, to: m })} />
+        </div>
+      )}
+
       {observed && (
         <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-          取り込み済みの実績では 応募→面接 {pct(observed.interview, observed.applied)}／面接→内定{" "}
-          {pct(observed.offer, observed.interview)}（応募{observed.applied}件・面接{observed.interview}件・内定
-          {observed.offer}件）。選考が途中の応募も分母に入っているので、募集を始めたばかりだと想定値より低く出ます。
+          取り込み済みの実績では 応募→面接 {pct(observed.interview, observed.applied)}／面接→採用{" "}
+          {pct(observed.hire, observed.interview)}（応募{observed.applied}件・面接{observed.interview}件・採用
+          {observed.hire}件）。選考が途中の応募も分母に入っているので、募集を始めたばかりだと想定値より低く出ます。
         </p>
       )}
     </div>
   );
 }
 
-export function MetricSwitch({
-  value,
-  onChange,
-}: {
-  value: GoalMetric;
-  onChange: (m: GoalMetric) => void;
-}) {
+export function MetricSwitch({ value, onChange }: { value: GoalMetric; onChange: (m: GoalMetric) => void }) {
   return (
     <div className="flex flex-wrap gap-1">
       {GOAL_METRICS.map((m) => {

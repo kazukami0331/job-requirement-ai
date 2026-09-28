@@ -265,14 +265,29 @@ function Fill({ row }: { row: PlanVsActualRow }) {
  * 校舎名。不足人数管理表でオレンジに塗られている＝緊急度が高い校舎は、文字をオレンジの太字にする。
  * 画面に記号は足さない指定なので、色を読めない場合向けの断りは読み上げ用にだけ置く。
  */
-function ShopName({ row }: { row: PlanVsActualRow }) {
-  if (!row.urgent) return <>{row.shopShortName}</>;
+/**
+ * 不足人数管理表でオレンジに塗られている校舎を、色だけに頼らず「緊急」の札でも示す。
+ * 文字色だけだと見落とすという指摘があったため、札と並び順（緊急が先頭）の3つで示している。
+ */
+export function UrgentName({ name, urgent }: { name: string; urgent: boolean }) {
+  if (!urgent) return <>{name}</>;
   return (
-    <span style={{ color: "var(--urgent-text)", fontWeight: 700 }} title="緊急度が高い校舎">
-      {row.shopShortName}
-      <span className="sr-only">（緊急度が高い校舎）</span>
+    <span className="inline-flex items-center gap-1" title="不足人数管理表でオレンジに塗られている＝緊急度が高い校舎">
+      <span style={{ color: "var(--urgent-text)", fontWeight: 700 }}>{name}</span>
+      {/* 地を塗ると、ダークテーマでは白抜き文字のコントラストが 2.1:1 まで落ちて読めない。
+          枠線と文字だけにすれば、両テーマとも本文と同じ 5.5:1 / 9.4:1 を保てる。 */}
+      <span
+        className="rounded border px-1 py-px text-[10px] font-semibold leading-none"
+        style={{ color: "var(--urgent-text)", borderColor: "var(--urgent-text)" }}
+      >
+        緊急
+      </span>
     </span>
   );
+}
+
+function ShopName({ row }: { row: PlanVsActualRow }) {
+  return <UrgentName name={row.shopShortName} urgent={row.urgent} />;
 }
 
 /** 校舎ごとに並べる指標。スマホのカードとPCの表で順番を揃える。 */

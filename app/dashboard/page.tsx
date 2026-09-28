@@ -37,8 +37,8 @@ import { Button, Card, EmptyState, Legend, StatTile } from "@/components/dashboa
 import { FunnelChart, StagePoolChart, WeeklyTrendChart } from "@/components/dashboard/charts";
 import { BreakdownTable, PlanVsActualRow, PlanVsActualTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
 import { DataMenu } from "@/components/dashboard/DataPanel";
-import { DEFAULT_RATES, GoalRates, monthlyGoals } from "@/lib/recruiting/goal";
-import { GoalAssumptions, GoalMetric, MetricSwitch, MonthlyGoalTable } from "@/components/dashboard/goals";
+import { DEFAULT_RATES, GoalRates, GoalWindow, monthlyGoals } from "@/lib/recruiting/goal";
+import { GoalControls, GoalMetric, MetricSwitch, MonthSummary, MonthlyGoalTable } from "@/components/dashboard/goals";
 
 type Message = { kind: "info" | "error"; text: string } | null;
 
@@ -73,6 +73,8 @@ export default function DashboardPage() {
   // 歩留まりの想定値。実績を見ながら手で動かせるようにしておく。
   const [rates, setRates] = useState<GoalRates>(DEFAULT_RATES);
   const [goalMetric, setGoalMetric] = useState<GoalMetric>("applied");
+  // 按分する期間。未選択のうちは monthlyGoals 側の既定（当月〜一番遅い期限）に任せる。
+  const [goalWindow, setGoalWindow] = useState<GoalWindow | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -183,28 +185,18 @@ export default function DashboardPage() {
       })
       .filter((r) => r.target > 0 || r.applied > 0)
       // 充足率が低い校舎から。同率なら目標が大きい方を先に。
-      .sort((a, b) => (a.rate ?? 1) - (b.rate ?? 1) || b.target - a.target);
+      // 緊急の校舎を先頭に。そのうえで充足率が低い順、同率なら目標が大きい順。
+      .sort(
+        (a, b) =>
+          Number(b.urgent) - Number(a.urgent) || (a.rate ?? 1) - (b.rate ?? 1) || b.target - a.target
+      );
   }, [apps, plan, weekKeys]);
 
-  /**
-   * 応募はあるのに不足人数マスタに校舎が無いもの。
-   * この応募は充足状況の表に出てこないので、取りこぼしとして知らせる。
-   */
-  const unplannedShops = useMemo(() => {
-    if (!plan) return [];
-    const known = shortageLookup(plan);
-    const counts = new Map<string, number>();
-    for (const a of apps) {
-      if (known.has(normalizeShopKey(a.shopShortName))) continue;
-      counts.set(a.shopShortName, (counts.get(a.shopShortName) ?? 0) + 1);
-    }
-    return [...counts.entries()]
-      .map(([shopShortName, count]) => ({ shopShortName, count }))
-      .sort((a, b) => b.count - a.count);
-  }, [apps, plan]);
-
   /** 採用目標から逆算した月次の応募目標と進捗 */
-  const goals = useMemo(() => monthlyGoals(apps, plan, rates, asOf), [apps, plan, rates, asOf]);
+  const goals = useMemo(
+    () => monthlyGoals(apps, plan, rates, asOf, goalWindow ?? undefined),
+    [apps, plan, rates, asOf, goalWindow]
+  );
 
   const handleUploadApplications = useCallback(async (file: File) => {
     try {
@@ -437,7 +429,10 @@ export default function DashboardPage() {
             </Card>
 
             <div className="grid gap-4 sm:gap-5 lg:grid-cols-2">
-              <Card title="いまのプール（選考ステータス別）" subtitle="各段階に何人溜まっているか">
+              <Card
+                title="選考ステータスの内訳"
+                subtitle={`${periodLabel}に応募した ${apps.length}件の、いまのステータス。棒の長さは群の中での比較です。`}
+              >
                 <StagePoolChart rows={pool} total={apps.length} />
               </Card>
 
@@ -452,16 +447,11 @@ export default function DashboardPage() {
             {plan && planVsActual.length > 0 ? (
               <Card
                 title="校舎ごとの充足状況"
-                subtitle={`採用目標 計${totalShortage(plan)}名に対する採用実績。充足率が低い校舎から並べています。${weekRangeNote ? ` ${weekRangeNote}` : ""}`}
+                subtitle={`採用目標 計${totalShortage(plan)}名に対する採用実績。緊急${
+                  planVsActual.filter((r) => r.urgent).length
+                }校舎を先頭に、充足率が低い順です。${weekRangeNote ? ` ${weekRangeNote}` : ""}`}
               >
                 <PlanVsActualTable rows={planVsActual} />
-                {unplannedShops.length > 0 && (
-                  <p className="mt-3 text-[11px]" style={{ color: "var(--status-serious)" }}>
-                    不足人数マスタに無い校舎の応募が{unplannedShops.reduce((a, b) => a + b.count, 0)}件あります（
-                    {unplannedShops.map((u) => `${u.shopShortName} ${u.count}件`).join(" / ")}
-                    ）。この表には出てきません。
-                  </p>
-                )}
               </Card>
             ) : (
               <Card title="校舎ごとの充足状況">
@@ -477,17 +467,24 @@ export default function DashboardPage() {
             {goals.rows.length > 0 ? (
               <Card
                 title="月次の目標と進捗"
-                subtitle="採用目標から歩留まりで割り戻した、月ごとに必要な応募数です。期限までの月で均等に割っています。"
+                subtitle="採用目標から歩留まりで割り戻した、月ごとの目標と実績です。選んだ期間で均等に割っています。"
                 actions={<MetricSwitch value={goalMetric} onChange={setGoalMetric} />}
               >
-                <div className="space-y-4">
-                  <GoalAssumptions rates={rates} onChange={setRates} observed={goals.observed} />
-                  <MonthlyGoalTable goals={goals} metric={goalMetric} />
+                <div className="space-y-5">
+                  <GoalControls rates={rates} onRates={setRates} goals={goals} onWindow={setGoalWindow} />
+                  <MonthSummary goals={goals} />
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+                      校舎ごと
+                    </h3>
+                    <MonthlyGoalTable goals={goals} metric={goalMetric} />
+                  </div>
                   <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
                     各マスは「実績 / 目標」。当月は月末までの残りがあるので、経過ぶんに対する進み具合で色を付けています。
-                    面接設定と内定は<strong>その月に応募した人を追いかけた数</strong>です（歩留まりは同じ人を追ったときの割合なので、
+                    面接設定と採用は<strong>その月に応募した人を追いかけた数</strong>です（歩留まりは同じ人を追ったときの割合なので、
                     別の月に応募した人の面接を混ぜると想定値と比べられません）。
-                    期限が「即日」や未記入、すでに過ぎている校舎の扱いは、校舎名にカーソルを合わせると出ます。
+                    期限が期間の途中に来る校舎はその月までで割ります。「即日」や未記入、すでに過ぎている校舎の扱いは、
+                    校舎名にカーソルを合わせると出ます。
                   </p>
                 </div>
               </Card>

@@ -14,16 +14,24 @@ import { shortageByShop } from "./plan";
 export interface GoalRates {
   /** 応募 → 面接設定 の歩留まり */
   applyToInterview: number;
-  /** 面接設定 → 内定 の歩留まり */
-  interviewToOffer: number;
+  /** 面接設定 → 採用 の歩留まり */
+  interviewToHire: number;
 }
 
-export const DEFAULT_RATES: GoalRates = { applyToInterview: 0.3, interviewToOffer: 0.6 };
+export const DEFAULT_RATES: GoalRates = { applyToInterview: 0.3, interviewToHire: 0.6 };
 
 /** 1名採るのに必要な応募数。歩留まりが0なら計算できないので null。 */
 export function appliesPerHire(r: GoalRates): number | null {
-  const through = r.applyToInterview * r.interviewToOffer;
+  const through = r.applyToInterview * r.interviewToHire;
   return through > 0 ? 1 / through : null;
+}
+
+/** 目標を按分する期間。両端を含む。 */
+export interface GoalWindow {
+  /** YYYY-MM */
+  from: string;
+  /** YYYY-MM */
+  to: string;
 }
 
 export interface MonthGoal {
@@ -33,10 +41,10 @@ export interface MonthGoal {
   label: string;
   targetApplied: number;
   targetInterview: number;
-  targetOffer: number;
+  targetHire: number;
   appliedActual: number;
   interviewActual: number;
-  offerActual: number;
+  hireActual: number;
   /** 集計基準日を含む月 */
   current: boolean;
   /** その月のうち何割が過ぎているか。当月だけ1未満になる。 */
@@ -57,12 +65,15 @@ export interface ShopGoalRow {
 }
 
 export interface MonthlyGoals {
+  window: GoalWindow;
+  /** 期間の選択肢（当月から、マスタで一番遅い期限まで） */
+  choices: { month: string; label: string }[];
   months: { month: string; label: string; current: boolean; elapsed: number }[];
   rows: ShopGoalRow[];
   /** 全校舎の合計 */
   total: ShopGoalRow | null;
   /** 実績から出した歩留まり。想定値が実態と合っているかを見るため。 */
-  observed: { applied: number; interview: number; offer: number } | null;
+  observed: { applied: number; interview: number; hire: number } | null;
 }
 
 const monthKey = (iso: string) => iso.slice(0, 7);
@@ -100,10 +111,36 @@ function spread(total: number, n: number): number[] {
 }
 
 /**
+ * 按分期間の初期値。
+ *
+ * 当月から、マスタで一番遅い期限の月まで。ただし当月の残りが4分の1を切っていたら翌月から始める。
+ * 残り数日の月にひと月ぶんの目標を割り当てても、達成できないうえに他の月の目標まで軽くなるため。
+ */
+export function defaultWindow(plan: HiringPlan | null, asOfIso?: string): GoalWindow {
+  const asOf = asOfIso ?? new Date().toISOString();
+  const thisMonth = monthKey(asOf);
+  const daysInMonth = new Date(Number(thisMonth.slice(0, 4)), Number(thisMonth.slice(5, 7)), 0).getDate();
+  const left = (daysInMonth - Number(asOf.slice(8, 10)) + 1) / daysInMonth;
+  const from = left < 0.25 ? addMonths(thisMonth, 1) : thisMonth;
+
+  const latest = plan
+    ? shortageByShop(plan)
+        .filter((x) => x.shortage > 0)
+        .map((x) => deadlineMonth(x.deadline))
+        .filter((m): m is string => m !== null)
+        .sort()
+        .pop()
+    : undefined;
+
+  const to = latest && monthsBetween(from, latest) > 0 ? latest : from;
+  return { from, to };
+}
+
+/**
  * 月次目標と進捗。
  *
- * - 目標は「当月から期限の月まで」で均等割り。期限が過ぎているもの・即日・未記入は当月に寄せる
- *   （未記入はマスタ内で一番遅い期限に合わせる）。
+ * - 目標は指定した期間（既定は当月〜マスタで一番遅い期限）で均等割り。
+ *   期限がその期間より前に来る校舎はその月までで割り、期限超過・即日は先頭の月に寄せる。
  * - 面接・内定の実績は「その月に応募した人がどこまで進んだか」で数える（コホート）。
  *   歩留まりは同じ人を追いかけたときの割合なので、月をまたいだ面接実施件数で割っても
  *   想定値と比べられないため。
@@ -112,34 +149,43 @@ export function monthlyGoals(
   apps: Application[],
   plan: HiringPlan | null,
   rates: GoalRates,
-  asOfIso?: string
+  asOfIso?: string,
+  window?: GoalWindow
 ): MonthlyGoals {
-  const perHire = appliesPerHire(rates);
-  if (!plan || perHire === null) return { months: [], rows: [], total: null, observed: null };
-
-  const shortages = shortageByShop(plan).filter((s) => s.shortage > 0);
-  if (shortages.length === 0) return { months: [], rows: [], total: null, observed: null };
-
   const asOf = asOfIso ?? new Date().toISOString();
-  const startMonth = monthKey(asOf);
+  const win = window ?? defaultWindow(plan, asOf);
+  const empty: MonthlyGoals = {
+    window: win,
+    choices: [],
+    months: [],
+    rows: [],
+    total: null,
+    observed: null,
+  };
 
-  // マスタ内で一番遅い期限。期限が入っていない校舎はここに合わせる。
-  const latest = shortages
-    .map((s) => deadlineMonth(s.deadline))
-    .filter((m): m is string => m !== null && monthsBetween(startMonth, m) >= 0)
-    .sort()
-    .pop();
+  const perHire = appliesPerHire(rates);
+  if (!plan || perHire === null) return empty;
+
+  // 緊急の校舎を先頭に。そのあとは採用目標が大きい順。
+  const shortages = shortageByShop(plan)
+    .filter((s) => s.shortage > 0)
+    .sort((a, b) => Number(b.urgent) - Number(a.urgent) || b.shortage - a.shortage);
+  if (shortages.length === 0) return empty;
+
+  const startMonth = win.from;
+  // 期間の終わり。開始より前を指定されても1ヶ月にはなるようにする。
+  const endMonth = monthsBetween(startMonth, win.to) > 0 ? win.to : startMonth;
 
   // 実績を 校舎 × 応募月 で数える
-  type Counts = { applied: number; interview: number; offer: number };
+  type Counts = { applied: number; interview: number; hire: number };
   const actual = new Map<string, Counts>();
   const bump = (shopKey: string, month: string, f: (c: Counts) => void) => {
     const k = `${shopKey}|${month}`;
-    const c = actual.get(k) ?? { applied: 0, interview: 0, offer: 0 };
+    const c = actual.get(k) ?? { applied: 0, interview: 0, hire: 0 };
     f(c);
     actual.set(k, c);
   };
-  const observed: Counts = { applied: 0, interview: 0, offer: 0 };
+  const observed: Counts = { applied: 0, interview: 0, hire: 0 };
   for (const a of apps) {
     const stage = stageOf(a.statusId);
     const reachedInterview = FUNNEL_STEPS[1].reached(stage);
@@ -147,31 +193,41 @@ export function monthlyGoals(
     bump(normalizeShopKey(a.shopShortName), monthKey(a.receivedDate), (c) => {
       c.applied++;
       if (reachedInterview) c.interview++;
-      if (hired) c.offer++;
+      if (hired) c.hire++;
     });
     observed.applied++;
     if (reachedInterview) observed.interview++;
-    if (hired) observed.offer++;
+    if (hired) observed.hire++;
   }
 
-  // 表に出す月の範囲。どの校舎かによらず同じ列にしたいので、一番遠い期限まで並べる。
-  const lastMonth = shortages
-    .map((s) => deadlineMonth(s.deadline) ?? latest ?? startMonth)
-    .filter((m) => monthsBetween(startMonth, m) >= 0)
-    .sort()
-    .pop();
-  const windowSpan = Math.min(Math.max(monthsBetween(startMonth, lastMonth ?? startMonth), 0), 11);
-  // 当月は途中なので、何割過ぎたかを持たせる。月末までの見込みと突き合わせるために使う。
-  const asOfDay = Number(asOf.slice(8, 10));
-  const daysInMonth = new Date(Number(startMonth.slice(0, 4)), Number(startMonth.slice(5, 7)), 0).getDate();
+  const windowSpan = Math.min(Math.max(monthsBetween(startMonth, endMonth), 0), 23);
+  // 集計基準日を含む月は途中なので、何割過ぎたかを持たせる。目標のペースと突き合わせるのに使う。
+  const nowMonth = monthKey(asOf);
   const months = Array.from({ length: windowSpan + 1 }, (_, i) => {
     const month = addMonths(startMonth, i);
+    const current = month === nowMonth;
+    const daysInMonth = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
     return {
       month,
       label: monthLabel(month),
-      current: i === 0,
-      elapsed: i === 0 ? Math.min(asOfDay / daysInMonth, 1) : 0,
+      current,
+      // 過ぎた月は満了、これからの月は0、当月だけ途中になる
+      elapsed: current ? Math.min(Number(asOf.slice(8, 10)) / daysInMonth, 1) : month < nowMonth ? 1 : 0,
     };
+  });
+
+  // 期間の選択肢。当月の前後も選べるように、1ヶ月前からマスタで一番遅い期限の1ヶ月後まで並べる。
+  const latestDeadline = shortages
+    .map((x) => deadlineMonth(x.deadline))
+    .filter((m): m is string => m !== null)
+    .sort()
+    .pop();
+  const choiceFrom = addMonths(nowMonth, -1);
+  const choiceTo = [latestDeadline ?? nowMonth, endMonth].sort().pop() as string;
+  const choiceSpan = Math.min(Math.max(monthsBetween(choiceFrom, choiceTo), 0) + 1, 23);
+  const choices = Array.from({ length: choiceSpan + 1 }, (_, i) => {
+    const month = addMonths(choiceFrom, i);
+    return { month, label: `${month.slice(0, 4)}年${monthLabel(month)}` };
   });
 
   const rows: ShopGoalRow[] = shortages.map((s) => {
@@ -179,26 +235,24 @@ export function monthlyGoals(
     const requiredApplied = Math.ceil(s.shortage * perHire);
 
     const dm = deadlineMonth(s.deadline);
-    let endMonth: string;
+    let shopEnd: string;
     let deadlineNote: string;
     if (dm && monthsBetween(startMonth, dm) >= 0) {
-      endMonth = dm;
-      deadlineNote = `${s.deadline} まで`;
+      // 期限が期間の途中なら、その月までで割る（期間より後なら期間の終わりまで）
+      shopEnd = monthsBetween(dm, endMonth) >= 0 ? dm : endMonth;
+      deadlineNote = `期限 ${s.deadline} まで ${monthLabel(startMonth)}〜${monthLabel(shopEnd)} で按分`;
     } else if (dm) {
-      // 期限がもう過ぎている
-      endMonth = startMonth;
-      deadlineNote = `期限超過（${s.deadline}）のため今月に寄せています`;
+      shopEnd = startMonth;
+      deadlineNote = `期限超過（${s.deadline}）のため ${monthLabel(startMonth)} に寄せています`;
     } else if (/即日/.test(s.deadline)) {
-      endMonth = startMonth;
-      deadlineNote = "即日のため今月に寄せています";
+      shopEnd = startMonth;
+      deadlineNote = `即日のため ${monthLabel(startMonth)} に寄せています`;
     } else {
-      endMonth = latest ?? startMonth;
-      deadlineNote = latest
-        ? `期限未記入のため、マスタで一番遅い ${monthLabel(latest)} までで割っています`
-        : "期限未記入のため今月に寄せています";
+      shopEnd = endMonth;
+      deadlineNote = `期限未記入のため ${monthLabel(startMonth)}〜${monthLabel(endMonth)} で按分`;
     }
 
-    const shopSpan = Math.max(monthsBetween(startMonth, endMonth), 0) + 1;
+    const shopSpan = Math.max(monthsBetween(startMonth, shopEnd), 0) + 1;
     const perMonth = spread(requiredApplied, shopSpan);
 
     return {
@@ -210,15 +264,15 @@ export function monthlyGoals(
       requiredApplied,
       months: months.map((m, i) => {
         const targetApplied = i < shopSpan ? perMonth[i] : 0;
-        const c = actual.get(`${key}|${m.month}`) ?? { applied: 0, interview: 0, offer: 0 };
+        const c = actual.get(`${key}|${m.month}`) ?? { applied: 0, interview: 0, hire: 0 };
         return {
           ...m,
           targetApplied,
           targetInterview: targetApplied * rates.applyToInterview,
-          targetOffer: targetApplied * rates.applyToInterview * rates.interviewToOffer,
+          targetHire: targetApplied * rates.applyToInterview * rates.interviewToHire,
           appliedActual: c.applied,
           interviewActual: c.interview,
-          offerActual: c.offer,
+          hireActual: c.hire,
         };
       }),
     };
@@ -238,14 +292,21 @@ export function monthlyGoals(
             ...m,
             targetApplied: rows.reduce((a, r) => a + r.months[i].targetApplied, 0),
             targetInterview: rows.reduce((a, r) => a + r.months[i].targetInterview, 0),
-            targetOffer: rows.reduce((a, r) => a + r.months[i].targetOffer, 0),
+            targetHire: rows.reduce((a, r) => a + r.months[i].targetHire, 0),
             appliedActual: rows.reduce((a, r) => a + r.months[i].appliedActual, 0),
             interviewActual: rows.reduce((a, r) => a + r.months[i].interviewActual, 0),
-            offerActual: rows.reduce((a, r) => a + r.months[i].offerActual, 0),
+            hireActual: rows.reduce((a, r) => a + r.months[i].hireActual, 0),
           })),
         };
 
-  return { months, rows, total, observed: observed.applied > 0 ? observed : null };
+  return {
+    window: { from: startMonth, to: endMonth },
+    choices,
+    months,
+    rows,
+    total,
+    observed: observed.applied > 0 ? observed : null,
+  };
 }
 
 /** 目標に対する進捗。目標0のときは比率が出せないので null。 */

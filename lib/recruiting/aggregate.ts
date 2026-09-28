@@ -77,10 +77,18 @@ export function weeklyTrend(apps: Application[]): WeeklyPoint[] {
 }
 
 /** 現在の選考ステータス別プール（＝いま何人がどこに溜まっているか） */
-export function stagePool(apps: Application[]): { stage: FunnelStage; label: string; count: number; color: string }[] {
+export function stagePool(
+  apps: Application[]
+): { stage: FunnelStage; label: string; count: number; color: string; active: boolean }[] {
   const counts = emptyStageCount();
   for (const app of apps) counts[stageOf(app.statusId)]++;
-  return STAGES.map((s) => ({ stage: s.key, label: s.label, count: counts[s.key], color: s.color }));
+  return STAGES.map((s) => ({
+    stage: s.key,
+    label: s.label,
+    count: counts[s.key],
+    color: s.color,
+    active: s.active,
+  }));
 }
 
 export interface FunnelStep {

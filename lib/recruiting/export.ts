@@ -213,7 +213,7 @@ function monthlyGoalGrid(apps: Application[], plan: HiringPlan, rates: GoalRates
   const grid: unknown[][] = [
     [
       `応募→面接 ${Math.round(rates.applyToInterview * 100)}%`,
-      `面接→内定 ${Math.round(rates.interviewToOffer * 100)}%`,
+      `面接→採用 ${Math.round(rates.interviewToHire * 100)}%`,
       `1名採用に必要な応募 ${perHire === null ? "—" : perHire.toFixed(1)}件`,
     ],
     [],
@@ -228,8 +228,8 @@ function monthlyGoalGrid(apps: Application[], plan: HiringPlan, rates: GoalRates
         `${m.label} 実績応募`,
         `${m.label} 目標面接`,
         `${m.label} 実績面接`,
-        `${m.label} 目標内定`,
-        `${m.label} 実績内定`,
+        `${m.label} 目標採用`,
+        `${m.label} 実績採用`,
       ]),
     ],
   ];
@@ -247,8 +247,8 @@ function monthlyGoalGrid(apps: Application[], plan: HiringPlan, rates: GoalRates
         m.appliedActual,
         round1(m.targetInterview),
         m.interviewActual,
-        round1(m.targetOffer),
-        m.offerActual,
+        round1(m.targetHire),
+        m.hireActual,
       ]),
     ]);
   }
