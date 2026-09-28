@@ -115,17 +115,14 @@ function spread(total: number, n: number): number[] {
 }
 
 /**
- * 按分期間の初期値。
+ * 按分期間の初期値。当月から、マスタで一番遅い期限の月まで。
  *
- * 当月から、マスタで一番遅い期限の月まで。ただし当月の残りが4分の1を切っていたら翌月から始める。
- * 残り数日の月にひと月ぶんの目標を割り当てても、達成できないうえに他の月の目標まで軽くなるため。
+ * 月の終わりが近くても当月から始める。途中の月でも目標に対してどれだけ足りていないかが
+ * 分かること自体に意味があるため（月末で始めると遅れが表に出ない）。
  */
 export function defaultWindow(plan: HiringPlan | null, asOfIso?: string): GoalWindow {
   const asOf = asOfIso ?? new Date().toISOString();
-  const thisMonth = monthKey(asOf);
-  const daysInMonth = new Date(Number(thisMonth.slice(0, 4)), Number(thisMonth.slice(5, 7)), 0).getDate();
-  const left = (daysInMonth - Number(asOf.slice(8, 10)) + 1) / daysInMonth;
-  const from = left < 0.25 ? addMonths(thisMonth, 1) : thisMonth;
+  const from = monthKey(asOf);
 
   const latest = plan
     ? shortageByShop(plan)
@@ -143,9 +140,10 @@ export function defaultWindow(plan: HiringPlan | null, asOfIso?: string): GoalWi
 /**
  * 月次目標と進捗。
  *
- * - 目標は指定した期間（既定は当月〜マスタで一番遅い期限）で均等割り。
- *   期限がその期間より前に来る校舎はその月までで割り、期限超過・即日は先頭の月に寄せる。
- * - 面接・内定の実績は「その月に応募した人がどこまで進んだか」で数える（コホート）。
+ * - 目標は指定した期間（既定は当月〜マスタで一番遅い期限）で、どの校舎も均等割り。
+ *   期限は月の配分には使わず、注記として残すだけ。
+ * - 期間が始まる前にすでに採用できている人数は差し引いてから割り戻す。
+ * - 面接・採用の実績は「その月に応募した人がどこまで進んだか」で数える（コホート）。
  *   歩留まりは同じ人を追いかけたときの割合なので、月をまたいだ面接実施件数で割っても
  *   想定値と比べられないため。
  */

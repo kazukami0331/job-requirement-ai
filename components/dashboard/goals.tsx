@@ -120,19 +120,28 @@ export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
   );
 }
 
+/**
+ * 採用の内訳。「採用3名（済2・残1）」だと3名が目標なのか採れた数なのか読めないという
+ * 指摘があったので、どの数字が何なのかを毎回名前で書く。
+ */
+function HireCount({ row }: { row: ShopGoalRow }) {
+  if (row.alreadyHired === 0) {
+    return <span style={{ color: "var(--text-muted)" }}>目標{row.hireTarget}名</span>;
+  }
+  return (
+    <span style={{ color: "var(--text-muted)" }}>
+      目標{row.hireTarget}名 ／ 採用済
+      <span style={{ color: "var(--status-good)", fontWeight: 600 }}>{row.alreadyHired}</span>名 ／ 残り
+      <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>{row.remainingTarget}</span>名
+    </span>
+  );
+}
+
 function ShopName({ row }: { row: ShopGoalRow }) {
   return (
-    <span className="inline-flex items-center gap-1 text-xs" title={row.deadlineNote}>
+    <span className="inline-flex flex-wrap items-center gap-x-1 text-xs" title={row.deadlineNote}>
       <UrgentName name={row.shopShortName} urgent={row.urgent} />
-      <span style={{ color: "var(--text-muted)" }}>
-        採用{row.hireTarget}名
-        {row.alreadyHired > 0 && (
-          <>
-            （済<span style={{ color: "var(--status-good)", fontWeight: 600 }}>{row.alreadyHired}</span>・残
-            {row.remainingTarget}）
-          </>
-        )}
-      </span>
+      <HireCount row={row} />
     </span>
   );
 }
@@ -358,9 +367,8 @@ export function MonthlyGoalTable({ goals, metric }: { goals: MonthlyGoals; metri
           <tbody>
             {total && (
               <tr style={{ borderBottom: "1px solid var(--gridline)" }}>
-                <td className="px-2 py-1.5 text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
-                  合計（採用{total.hireTarget}名
-                  {total.alreadyHired > 0 && `・済${total.alreadyHired}・残${total.remainingTarget}`}）
+                <td className="px-2 py-1.5 text-xs" style={{ color: "var(--text-primary)" }}>
+                  <span className="font-semibold">合計</span> <HireCount row={total} />
                 </td>
                 <td className="px-2 py-1.5 text-right text-xs tabular" style={{ color: "var(--text-secondary)" }}>
                   {total.requiredApplied}
