@@ -124,7 +124,15 @@ function ShopName({ row }: { row: ShopGoalRow }) {
   return (
     <span className="inline-flex items-center gap-1 text-xs" title={row.deadlineNote}>
       <UrgentName name={row.shopShortName} urgent={row.urgent} />
-      <span style={{ color: "var(--text-muted)" }}>採用{row.hireTarget}名</span>
+      <span style={{ color: "var(--text-muted)" }}>
+        採用{row.hireTarget}名
+        {row.alreadyHired > 0 && (
+          <>
+            （済<span style={{ color: "var(--status-good)", fontWeight: 600 }}>{row.alreadyHired}</span>・残
+            {row.remainingTarget}）
+          </>
+        )}
+      </span>
     </span>
   );
 }
@@ -208,7 +216,9 @@ export function GoalControls({
           件必要
           {total && (
             <span style={{ color: "var(--text-secondary)" }}>
-              （{total.hireTarget}名で計 {total.requiredApplied}件）
+              {total.alreadyHired > 0
+                ? `（目標${total.hireTarget}名 − 採用済み${total.alreadyHired}名 ＝ 残り${total.remainingTarget}名で計 ${total.requiredApplied}件）`
+                : `（${total.hireTarget}名で計 ${total.requiredApplied}件）`}
             </span>
           )}
         </span>
@@ -349,7 +359,8 @@ export function MonthlyGoalTable({ goals, metric }: { goals: MonthlyGoals; metri
             {total && (
               <tr style={{ borderBottom: "1px solid var(--gridline)" }}>
                 <td className="px-2 py-1.5 text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
-                  合計（採用{total.hireTarget}名）
+                  合計（採用{total.hireTarget}名
+                  {total.alreadyHired > 0 && `・済${total.alreadyHired}・残${total.remainingTarget}`}）
                 </td>
                 <td className="px-2 py-1.5 text-right text-xs tabular" style={{ color: "var(--text-secondary)" }}>
                   {total.requiredApplied}

@@ -467,7 +467,7 @@ export default function DashboardPage() {
             {goals.rows.length > 0 ? (
               <Card
                 title="月次の目標と進捗"
-                subtitle="採用目標から歩留まりで割り戻した、月ごとの目標と実績です。選んだ期間で均等に割っています。"
+                subtitle="採用目標から歩留まりで割り戻した、月ごとの目標と実績です。期間の開始前にすでに採用できたぶんを引いた残りを、期間で均等に割っています。"
                 actions={<MetricSwitch value={goalMetric} onChange={setGoalMetric} />}
               >
                 <div className="space-y-5">
@@ -483,8 +483,7 @@ export default function DashboardPage() {
                     各マスは「実績 / 目標」。当月は月末までの残りがあるので、経過ぶんに対する進み具合で色を付けています。
                     面接設定と採用は<strong>その月に応募した人を追いかけた数</strong>です（歩留まりは同じ人を追ったときの割合なので、
                     別の月に応募した人の面接を混ぜると想定値と比べられません）。
-                    期限が期間の途中に来る校舎はその月までで割ります。「即日」や未記入、すでに過ぎている校舎の扱いは、
-                    校舎名にカーソルを合わせると出ます。
+                    期限の早い校舎も含め、どの校舎も期間ぜんぶで均等に割っています（期限は校舎名にカーソルを合わせると出ます）。
                   </p>
                 </div>
               </Card>

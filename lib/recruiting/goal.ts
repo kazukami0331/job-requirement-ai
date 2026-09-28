@@ -56,10 +56,14 @@ export interface ShopGoalRow {
   urgent: boolean;
   /** 採用目標（不足人数マスタの人数） */
   hireTarget: number;
+  /** 期間が始まる前にすでに採用できていた人数。ここを起点に残りを積む。 */
+  alreadyHired: number;
+  /** 目標から既採用を引いた、これから採る人数 */
+  remainingTarget: number;
   deadline: string;
-  /** 期限の解釈。表になぜその月数で割ったのかを出すために持つ。 */
+  /** 期限など、その行の前提を伝える注記 */
   deadlineNote: string;
-  /** 採用目標を満たすのに必要な応募の総数 */
+  /** 残りの採用目標を満たすのに必要な応募の総数 */
   requiredApplied: number;
   months: MonthGoal[];
 }
@@ -186,15 +190,20 @@ export function monthlyGoals(
     actual.set(k, c);
   };
   const observed: Counts = { applied: 0, interview: 0, hire: 0 };
+  // 期間が始まる前にすでに採用できている人数。目標はここからの残りぶんだけ積む。
+  const hiredBefore = new Map<string, number>();
   for (const a of apps) {
     const stage = stageOf(a.statusId);
     const reachedInterview = FUNNEL_STEPS[1].reached(stage);
     const hired = stage === "hired";
-    bump(normalizeShopKey(a.shopShortName), monthKey(a.receivedDate), (c) => {
+    const key = normalizeShopKey(a.shopShortName);
+    const month = monthKey(a.receivedDate);
+    bump(key, month, (c) => {
       c.applied++;
       if (reachedInterview) c.interview++;
       if (hired) c.hire++;
     });
+    if (hired && month < startMonth) hiredBefore.set(key, (hiredBefore.get(key) ?? 0) + 1);
     observed.applied++;
     if (reachedInterview) observed.interview++;
     if (hired) observed.hire++;
@@ -230,40 +239,37 @@ export function monthlyGoals(
     return { month, label: `${month.slice(0, 4)}年${monthLabel(month)}` };
   });
 
+  const windowLabel = `${monthLabel(startMonth)}〜${monthLabel(endMonth)}`;
+
   const rows: ShopGoalRow[] = shortages.map((s) => {
     const key = normalizeShopKey(s.shopShortName);
-    const requiredApplied = Math.ceil(s.shortage * perHire);
+    const alreadyHired = hiredBefore.get(key) ?? 0;
+    const remainingTarget = Math.max(s.shortage - alreadyHired, 0);
+    const requiredApplied = Math.ceil(remainingTarget * perHire);
 
-    const dm = deadlineMonth(s.deadline);
-    let shopEnd: string;
-    let deadlineNote: string;
-    if (dm && monthsBetween(startMonth, dm) >= 0) {
-      // 期限が期間の途中なら、その月までで割る（期間より後なら期間の終わりまで）
-      shopEnd = monthsBetween(dm, endMonth) >= 0 ? dm : endMonth;
-      deadlineNote = `期限 ${s.deadline} まで ${monthLabel(startMonth)}〜${monthLabel(shopEnd)} で按分`;
-    } else if (dm) {
-      shopEnd = startMonth;
-      deadlineNote = `期限超過（${s.deadline}）のため ${monthLabel(startMonth)} に寄せています`;
-    } else if (/即日/.test(s.deadline)) {
-      shopEnd = startMonth;
-      deadlineNote = `即日のため ${monthLabel(startMonth)} に寄せています`;
-    } else {
-      shopEnd = endMonth;
-      deadlineNote = `期限未記入のため ${monthLabel(startMonth)}〜${monthLabel(endMonth)} で按分`;
-    }
-
-    const shopSpan = Math.max(monthsBetween(startMonth, shopEnd), 0) + 1;
+    // 期限の早い校舎も含め、どの校舎も期間ぜんぶで均等に割る。
+    // 期限は目安として注記に残すだけで、月の配分は変えない。
+    const shopSpan = windowSpan + 1;
     const perMonth = spread(requiredApplied, shopSpan);
+    const deadlineNote = [
+      `${windowLabel} で均等に按分`,
+      s.deadline && s.deadline !== "-" ? `期限 ${s.deadline}` : "期限未記入",
+      alreadyHired > 0 ? `${monthLabel(startMonth)}より前に${alreadyHired}名採用済み（目標${s.shortage}名の残り${remainingTarget}名ぶん）` : null,
+    ]
+      .filter(Boolean)
+      .join(" / ");
 
     return {
       shopShortName: s.shopShortName,
       urgent: s.urgent,
       hireTarget: s.shortage,
+      alreadyHired,
+      remainingTarget,
       deadline: s.deadline,
       deadlineNote,
       requiredApplied,
       months: months.map((m, i) => {
-        const targetApplied = i < shopSpan ? perMonth[i] : 0;
+        const targetApplied = perMonth[i] ?? 0;
         const c = actual.get(`${key}|${m.month}`) ?? { applied: 0, interview: 0, hire: 0 };
         return {
           ...m,
@@ -285,8 +291,10 @@ export function monthlyGoals(
           shopShortName: "合計",
           urgent: false,
           hireTarget: rows.reduce((a, r) => a + r.hireTarget, 0),
+          alreadyHired: rows.reduce((a, r) => a + r.alreadyHired, 0),
+          remainingTarget: rows.reduce((a, r) => a + r.remainingTarget, 0),
           deadline: "",
-          deadlineNote: "",
+          deadlineNote: `${windowLabel} で均等に按分`,
           requiredApplied: rows.reduce((a, r) => a + r.requiredApplied, 0),
           months: months.map((m, i) => ({
             ...m,
