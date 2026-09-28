@@ -38,7 +38,7 @@ import { FunnelChart, StagePoolChart, WeeklyTrendChart } from "@/components/dash
 import { BreakdownTable, PlanVsActualRow, PlanVsActualTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
 import { DataMenu } from "@/components/dashboard/DataPanel";
 import { DEFAULT_RATES, GoalRates, GoalWindow, monthlyGoals } from "@/lib/recruiting/goal";
-import { GoalControls, GoalMetric, MetricSwitch, MonthSummary, MonthlyGoalTable } from "@/components/dashboard/goals";
+import { GoalControls, GoalView, MetricSwitch, MonthSummary, MonthlyGoalTable } from "@/components/dashboard/goals";
 
 type Message = { kind: "info" | "error"; text: string } | null;
 
@@ -72,7 +72,8 @@ export default function DashboardPage() {
   const [section, setSection] = useState<SectionKey>("summary");
   // 歩留まりの想定値。実績を見ながら手で動かせるようにしておく。
   const [rates, setRates] = useState<GoalRates>(DEFAULT_RATES);
-  const [goalMetric, setGoalMetric] = useState<GoalMetric>("applied");
+  // 既定は3指標まとめて。応募だけ・採用だけを見たいときは絞り込める。
+  const [goalView, setGoalView] = useState<GoalView>("all");
   // 按分する期間。未選択のうちは monthlyGoals 側の既定（当月〜一番遅い期限）に任せる。
   const [goalWindow, setGoalWindow] = useState<GoalWindow | null>(null);
 
@@ -468,16 +469,18 @@ export default function DashboardPage() {
               <Card
                 title="月次の目標と進捗"
                 subtitle="採用目標から歩留まりで割り戻した、月ごとの目標と実績です。期間の開始前にすでに採用できたぶんを引いた残りを、期間で均等に割っています。"
-                actions={<MetricSwitch value={goalMetric} onChange={setGoalMetric} />}
               >
                 <div className="space-y-5">
                   <GoalControls rates={rates} onRates={setRates} goals={goals} onWindow={setGoalWindow} />
                   <MonthSummary goals={goals} />
                   <div className="space-y-2">
-                    <h3 className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
-                      校舎ごと
-                    </h3>
-                    <MonthlyGoalTable goals={goals} metric={goalMetric} />
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+                        校舎ごと
+                      </h3>
+                      <MetricSwitch value={goalView} onChange={setGoalView} />
+                    </div>
+                    <MonthlyGoalTable goals={goals} view={goalView} />
                   </div>
                   <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
                     各マスは「実績 / 目標」。当月は月末までの残りがあるので、経過ぶんに対する進み具合で色を付けています。

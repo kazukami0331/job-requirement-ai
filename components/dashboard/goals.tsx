@@ -7,10 +7,18 @@ import { UrgentName } from "./tables";
 /** 表に出す指標。目標も実績も同じ形で持っているので切り替えるだけで済む。 */
 export type GoalMetric = "applied" | "interview" | "hire";
 
-export const GOAL_METRICS: { key: GoalMetric; label: string; hint: string }[] = [
-  { key: "applied", label: "応募", hint: "その月に受け付けた応募" },
-  { key: "interview", label: "面接設定", hint: "その月に応募した人のうち、面接日が確定した数" },
-  { key: "hire", label: "採用", hint: "その月に応募した人のうち、採用まで進んだ数" },
+/** 「すべて」は3指標を1マスに縦に並べる。単体は棒つきで1指標だけを見る。 */
+export type GoalView = GoalMetric | "all";
+
+export const GOAL_METRICS: { key: GoalMetric; label: string; short: string; hint: string }[] = [
+  { key: "applied", label: "応募", short: "応募", hint: "その月に受け付けた応募" },
+  { key: "interview", label: "面接設定", short: "面接", hint: "その月に応募した人のうち、面接日が確定した数" },
+  { key: "hire", label: "採用", short: "採用", hint: "その月に応募した人のうち、採用まで進んだ数" },
+];
+
+const GOAL_VIEWS: { key: GoalView; label: string; hint: string }[] = [
+  { key: "all", label: "すべて", hint: "応募・面接設定・採用を1マスにまとめて出す" },
+  ...GOAL_METRICS.map((m) => ({ key: m.key as GoalView, label: m.label, hint: m.hint })),
 ];
 
 function pick(m: MonthGoal, metric: GoalMetric): { target: number; actual: number } {
@@ -46,18 +54,48 @@ function Bar({ ratio, color }: { ratio: number; color: string }) {
   );
 }
 
-/** 実績/目標を1マスに収めたもの。棒は目標を100%とした埋まり具合。 */
-function Cell({ m, metric }: { m: MonthGoal; metric: GoalMetric }) {
-  const { target, actual } = pick(m, metric);
-  // 期限より後の月。0/0 と出すと「未達」に見えるので、対象外だと分かる形にする。
-  if (target <= 0 && actual === 0) {
+const Dash = () => (
+  <div className="text-xs" style={{ color: "var(--text-muted)" }} title="この月は目標の対象外です">
+    —
+  </div>
+);
+
+/**
+ * 実績/目標を1マスに収めたもの。
+ *
+ * 1指標だけのときは棒を添えて埋まり具合を見せる。3指標まとめて出すときは棒を外す。
+ * 1マスに棒が3本入ると、校舎が25行あるだけで画面が線だらけになって、数字が読めなくなるため。
+ */
+function Cell({ m, view, showLabels = true }: { m: MonthGoal; view: GoalView; showLabels?: boolean }) {
+  const elapsed = m.current ? m.elapsed : 0;
+
+  if (view === "all") {
+    // 3指標とも目標も実績も無い＝期間の対象外
+    if (GOAL_METRICS.every((g) => pick(m, g.key).target <= 0 && pick(m, g.key).actual === 0)) return <Dash />;
     return (
-      <div className="text-xs" style={{ color: "var(--text-muted)" }} title="この月は目標の対象外です">
-        —
+      <div className="space-y-0.5">
+        {GOAL_METRICS.map((g) => {
+          const { target, actual } = pick(m, g.key);
+          const color = tone(actual, target, elapsed);
+          return (
+            <div key={g.key} className="flex items-baseline justify-between gap-1.5 text-[11px] whitespace-nowrap">
+              {/* 行の高さは揃うので、見出しは左端の月だけに出す。全部の月に出すと
+                  25校舎ぶんでラベルが100個並んで、肝心の数字が埋もれる。 */}
+              <span style={{ color: "var(--text-muted)" }}>{showLabels ? g.short : ""}</span>
+              <span className="tabular">
+                <span style={{ color, fontWeight: 600 }}>{fmt(actual)}</span>
+                <span style={{ color: "var(--text-muted)" }}> / {fmt(target)}</span>
+              </span>
+            </div>
+          );
+        })}
       </div>
     );
   }
-  const color = tone(actual, target, m.current ? m.elapsed : 0);
+
+  const { target, actual } = pick(m, view);
+  if (target <= 0 && actual === 0) return <Dash />;
+  const color = tone(actual, target, elapsed);
 
   return (
     <div className="space-y-1">
@@ -257,10 +295,10 @@ export function GoalControls({
   );
 }
 
-export function MetricSwitch({ value, onChange }: { value: GoalMetric; onChange: (m: GoalMetric) => void }) {
+export function MetricSwitch({ value, onChange }: { value: GoalView; onChange: (m: GoalView) => void }) {
   return (
     <div className="flex flex-wrap gap-1">
-      {GOAL_METRICS.map((m) => {
+      {GOAL_VIEWS.map((m) => {
         const active = m.key === value;
         return (
           <button
@@ -305,7 +343,7 @@ function Th({
 }
 
 /** 校舎 × 月の目標と実績。狭い画面ではカードに組み替える。 */
-export function MonthlyGoalTable({ goals, metric }: { goals: MonthlyGoals; metric: GoalMetric }) {
+export function MonthlyGoalTable({ goals, view }: { goals: MonthlyGoals; view: GoalView }) {
   const { months, rows, total } = goals;
   if (rows.length === 0) return null;
 
@@ -341,7 +379,7 @@ export function MonthlyGoalTable({ goals, metric }: { goals: MonthlyGoals; metri
                     {head(months[i])}
                   </dt>
                   <dd>
-                    <Cell m={m} metric={metric} />
+                    <Cell m={m} view={view} />
                   </dd>
                 </div>
               ))}
@@ -373,9 +411,9 @@ export function MonthlyGoalTable({ goals, metric }: { goals: MonthlyGoals; metri
                 <td className="px-2 py-1.5 text-right text-xs tabular" style={{ color: "var(--text-secondary)" }}>
                   {total.requiredApplied}
                 </td>
-                {total.months.map((m) => (
+                {total.months.map((m, i) => (
                   <td key={m.month} className="px-2 py-1.5 align-top">
-                    <Cell m={m} metric={metric} />
+                    <Cell m={m} view={view} showLabels={i === 0} />
                   </td>
                 ))}
               </tr>
@@ -388,9 +426,9 @@ export function MonthlyGoalTable({ goals, metric }: { goals: MonthlyGoals; metri
                 <td className="px-2 py-1.5 text-right text-xs tabular" style={{ color: "var(--text-secondary)" }}>
                   {r.requiredApplied}
                 </td>
-                {r.months.map((m) => (
+                {r.months.map((m, i) => (
                   <td key={m.month} className="px-2 py-1.5 align-top">
-                    <Cell m={m} metric={metric} />
+                    <Cell m={m} view={view} showLabels={i === 0} />
                   </td>
                 ))}
               </tr>
