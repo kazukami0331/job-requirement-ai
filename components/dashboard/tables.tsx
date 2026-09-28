@@ -179,6 +179,9 @@ export function BreakdownTable({ rows, dimensionLabel }: { rows: BreakdownRow[];
             items={[
               { label: "累計応募", value: r.applied },
               { label: "直近週", value: r.lastWeekApplied },
+              // 定例が週の途中にあると直近週は数日ぶんしかない。前週を実数でも置かないと
+              // 増えたのか減ったのかを会議で判断できない。
+              { label: "前週", value: r.prevWeekApplied },
               { label: "前週差", value: <Delta value={r.lastWeekApplied - r.prevWeekApplied} /> },
               { label: "選考中", value: r.activePool },
               { label: "面接設定", value: r.scheduled },
@@ -195,6 +198,7 @@ export function BreakdownTable({ rows, dimensionLabel }: { rows: BreakdownRow[];
               <Th>{dimensionLabel}</Th>
               <Th align="right">累計応募</Th>
               <Th align="right">直近週</Th>
+              <Th align="right">前週</Th>
               <Th align="right">前週差</Th>
               <Th align="right">選考中</Th>
               <Th align="right">面接設定</Th>
@@ -209,6 +213,7 @@ export function BreakdownTable({ rows, dimensionLabel }: { rows: BreakdownRow[];
                 </th>
                 <td className={`${cellBase} text-right tabular`} style={{ color: "var(--text-primary)" }}>{r.applied}</td>
                 <td className={`${cellBase} text-right tabular`} style={{ color: "var(--text-primary)" }}>{r.lastWeekApplied}</td>
+                <td className={`${cellBase} text-right tabular`} style={{ color: "var(--text-primary)" }}>{r.prevWeekApplied}</td>
                 <td className={`${cellBase} text-right`}>
                   <Delta value={r.lastWeekApplied - r.prevWeekApplied} />
                 </td>
@@ -224,47 +229,6 @@ export function BreakdownTable({ rows, dimensionLabel }: { rows: BreakdownRow[];
   );
 }
 
-export interface PlanVsActualRow {
-  shopShortName: string;
-  /** 採用したい人数（不足人数マスタの値） */
-  target: number;
-  /** 採用できた人数 */
-  hired: number;
-  /** 採用 ÷ 目標。目標0なら null */
-  rate: number | null;
-  /** 不足人数管理表でオレンジに塗られている＝緊急度が高い校舎 */
-  urgent: boolean;
-  applied: number;
-  lastWeekApplied: number;
-  prevWeekApplied: number;
-  pool: number;
-  scheduled: number;
-}
-
-/** 校舎名のすぐ横に出す充足率。採用数/目標数と、その割合。 */
-function Fill({ row }: { row: PlanVsActualRow }) {
-  const pct = row.rate === null ? null : Math.round(row.rate * 100);
-  const done = pct !== null && pct >= 100;
-  return (
-    <span className="ml-1.5 whitespace-nowrap align-middle text-xs tabular">
-      <span style={{ color: done ? "var(--status-good)" : "var(--text-primary)" }}>
-        {done && "✓ "}
-        <strong>{row.hired}</strong>
-        <span style={{ color: "var(--text-muted)" }}>/{row.target}</span>
-      </span>
-      {pct !== null && (
-        <span className="ml-1" style={{ color: done ? "var(--status-good)" : "var(--text-secondary)" }}>
-          （{pct}%）
-        </span>
-      )}
-    </span>
-  );
-}
-
-/**
- * 校舎名。不足人数管理表でオレンジに塗られている＝緊急度が高い校舎は、文字をオレンジの太字にする。
- * 画面に記号は足さない指定なので、色を読めない場合向けの断りは読み上げ用にだけ置く。
- */
 /**
  * 不足人数管理表でオレンジに塗られている校舎を、色だけに頼らず「緊急」の札でも示す。
  * 文字色だけだと見落とすという指摘があったため、札と並び順（緊急が先頭）の3つで示している。
@@ -286,75 +250,3 @@ export function UrgentName({ name, urgent }: { name: string; urgent: boolean }) 
   );
 }
 
-function ShopName({ row }: { row: PlanVsActualRow }) {
-  return <UrgentName name={row.shopShortName} urgent={row.urgent} />;
-}
-
-/** 校舎ごとに並べる指標。スマホのカードとPCの表で順番を揃える。 */
-const PLAN_METRICS: { label: string; value: (r: PlanVsActualRow) => ReactNode }[] = [
-  { label: "累計応募", value: (r) => r.applied },
-  // 定例が週の途中にあるので、直近週はまだ数日ぶんしかない。
-  // 前週を実数で並べて置かないと、増えたのか減ったのかを会議で判断できない。
-  { label: "直近週応募", value: (r) => r.lastWeekApplied },
-  { label: "前週応募", value: (r) => r.prevWeekApplied },
-  { label: "前週差", value: (r) => <Delta value={r.lastWeekApplied - r.prevWeekApplied} /> },
-  { label: "選考中", value: (r) => r.pool },
-  { label: "面談設定", value: (r) => r.scheduled },
-  { label: "内定", value: (r) => r.hired },
-];
-
-/** 採用計画の目標に対して、いまどこまで採れているか */
-export function PlanVsActualTable({ rows }: { rows: PlanVsActualRow[] }) {
-  return (
-    <>
-      <ul className="space-y-2 sm:hidden">
-        {rows.map((r) => (
-          <MobileCard
-            key={r.shopShortName}
-            title={
-              <>
-                <ShopName row={r} />
-                <Fill row={r} />
-              </>
-            }
-            items={PLAN_METRICS.map((m) => ({ label: m.label, value: m.value(r) }))}
-          />
-        ))}
-      </ul>
-
-      <div className="-mx-1 hidden overflow-x-auto sm:block">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr style={{ borderBottom: "1px solid var(--gridline)" }}>
-              <Th>校舎（採用 / 目標）</Th>
-              {PLAN_METRICS.map((m) => (
-                <Th key={m.label} align="right">
-                  {m.label}
-                </Th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.shopShortName} style={{ borderBottom: "1px solid var(--gridline)" }}>
-                <th scope="row" className={`${cellBase} text-left font-normal`} style={{ color: "var(--text-primary)" }}>
-                  <ShopName row={r} />
-                  <Fill row={r} />
-                </th>
-                {PLAN_METRICS.map((m) => (
-                  <td
-                    key={m.label}
-                    className={`${cellBase} text-right tabular`}
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    {m.value(r)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
-  );
-}

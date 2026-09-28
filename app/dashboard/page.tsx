@@ -16,10 +16,7 @@ import {
   weeklyMatrix,
   weeklyTrend,
 } from "@/lib/recruiting/aggregate";
-import { parsePlanFile, shortageLookup, totalShortage } from "@/lib/recruiting/plan";
-import { normalizeShopKey } from "@/lib/recruiting/shops";
-import { ACTIVE_STAGES, FUNNEL_STEPS, stageOf } from "@/lib/recruiting/status";
-import { weekOfIso } from "@/lib/recruiting/week";
+import { parsePlanFile, totalShortage } from "@/lib/recruiting/plan";
 import { buildWorkbookSheets, downloadJson, downloadWorkbook } from "@/lib/recruiting/export";
 import {
   deletePlan,
@@ -35,7 +32,7 @@ import {
 } from "@/lib/recruiting/storage";
 import { Button, Card, EmptyState, Legend, StatTile } from "@/components/dashboard/ui";
 import { FunnelChart, StagePoolChart, WeeklyTrendChart } from "@/components/dashboard/charts";
-import { BreakdownTable, PlanVsActualRow, PlanVsActualTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
+import { BreakdownTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
 import { DataMenu } from "@/components/dashboard/DataPanel";
 import { DEFAULT_RATES, GoalRates, GoalWindow, monthlyGoals } from "@/lib/recruiting/goal";
 import { Coverage, GoalControls, GoalView, MetricSwitch, MonthSummary, MonthlyGoalTable } from "@/components/dashboard/goals";
@@ -44,18 +41,42 @@ type Message = { kind: "info" | "error"; text: string } | null;
 
 const DIMENSIONS: Dimension[] = ["shopShortName", "employmentType", "media", "route", "jobTitle"];
 
-type SectionKey = "summary" | "shops" | "plan" | "goal" | "activity";
+type SectionKey = "summary" | "goal" | "trend" | "breakdown" | "activity";
 
 /** 2026-09-21 → 9/21 */
 const md = (d?: string) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : "");
 
+/** 並びは画面の上から下と同じ。スマホのタブもこの順で出る。 */
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: "summary", label: "サマリー" },
-  { key: "plan", label: "充足状況" },
   { key: "goal", label: "月次目標" },
-  { key: "shops", label: "校舎別応募" },
+  { key: "trend", label: "週次推移" },
+  { key: "breakdown", label: "選考状況" },
   { key: "activity", label: "動き" },
 ];
+
+/** 集計の軸を切り替える。週次推移と選考状況の2枚が離れた位置に出るので、両方に置く。 */
+function DimensionSwitch({ value, onChange }: { value: Dimension; onChange: (d: Dimension) => void }) {
+  return (
+    <div className="-mx-1 flex gap-1 overflow-x-auto px-1">
+      {DIMENSIONS.map((d) => (
+        <button
+          key={d}
+          onClick={() => onChange(d)}
+          className="shrink-0 rounded-lg border px-2 py-1 text-xs"
+          style={{
+            borderColor: d === value ? "var(--series-1)" : "var(--hairline)",
+            color: d === value ? "var(--series-1)" : "var(--text-secondary)",
+            fontWeight: d === value ? 600 : 400,
+          }}
+          aria-pressed={d === value}
+        >
+          {DIMENSION_LABEL[d]}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function readFile(file: File): Promise<ArrayBuffer> {
   return file.arrayBuffer();
@@ -134,64 +155,6 @@ export default function DashboardPage() {
     if (snapshots.length < 2) return [];
     return statusMovements(allApps, snapshots[snapshots.length - 2].takenAt);
   }, [allApps, snapshots]);
-
-  /** 不足人数と応募実績の突合 */
-  const planVsActual: PlanVsActualRow[] = useMemo(() => {
-    if (!plan) return [];
-    const lookup = shortageLookup(plan);
-    type Actual = {
-      applied: number;
-      lastWeekApplied: number;
-      prevWeekApplied: number;
-      pool: number;
-      scheduled: number;
-      hired: number;
-    };
-    const actual = new Map<string, Actual>();
-
-    for (const a of apps) {
-      const key = normalizeShopKey(a.shopShortName);
-      const e: Actual =
-        actual.get(key) ?? { applied: 0, lastWeekApplied: 0, prevWeekApplied: 0, pool: 0, scheduled: 0, hired: 0 };
-      const stage = stageOf(a.statusId);
-      e.applied++;
-      if (ACTIVE_STAGES.includes(stage)) e.pool++;
-      // 面接日が確定した、もしくはその先に進んだもの（面接前の不採用・辞退は含めない）
-      if (FUNNEL_STEPS[1].reached(stage)) e.scheduled++;
-      if (stage === "hired") e.hired++;
-
-      const wk = weekOfIso(a.receivedAt).key;
-      if (weekKeys.lastWeekKey && wk === weekKeys.lastWeekKey) e.lastWeekApplied++;
-      if (weekKeys.prevWeekKey && wk === weekKeys.prevWeekKey) e.prevWeekApplied++;
-
-      actual.set(key, e);
-    }
-
-    return [...lookup.entries()]
-      .map(([key, s]) => {
-        const a = actual.get(key);
-        const hired = a?.hired ?? 0;
-        return {
-          shopShortName: s.shopShortName,
-          target: s.shortage,
-          hired,
-          rate: s.shortage > 0 ? hired / s.shortage : null,
-          urgent: s.urgent,
-          applied: a?.applied ?? 0,
-          lastWeekApplied: a?.lastWeekApplied ?? 0,
-          prevWeekApplied: a?.prevWeekApplied ?? 0,
-          pool: a?.pool ?? 0,
-          scheduled: a?.scheduled ?? 0,
-        };
-      })
-      .filter((r) => r.target > 0 || r.applied > 0)
-      // 充足率が低い校舎から。同率なら目標が大きい方を先に。
-      // 緊急の校舎を先頭に。そのうえで充足率が低い順、同率なら目標が大きい順。
-      .sort(
-        (a, b) =>
-          Number(b.urgent) - Number(a.urgent) || (a.rate ?? 1) - (b.rate ?? 1) || b.target - a.target
-      );
-  }, [apps, plan, weekKeys]);
 
   /** 採用目標から逆算した月次の応募目標と進捗 */
   const goals = useMemo(
@@ -443,26 +406,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* 充足状況 */}
-          <div className={`space-y-4 sm:space-y-5 ${section === "plan" ? "" : "hidden sm:block"}`}>
-            {plan && planVsActual.length > 0 ? (
-              <Card
-                title="校舎ごとの充足状況"
-                subtitle={`採用目標 計${totalShortage(plan)}名に対する採用実績。緊急${
-                  planVsActual.filter((r) => r.urgent).length
-                }校舎を先頭に、充足率が低い順です。${weekRangeNote ? ` ${weekRangeNote}` : ""}`}
-              >
-                <PlanVsActualTable rows={planVsActual} />
-              </Card>
-            ) : (
-              <Card title="校舎ごとの充足状況">
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  不足人数マスタが未登録です。右上の「その他」から読み込むと、校舎ごとの充足率が出ます。
-                </p>
-              </Card>
-            )}
-          </div>
-
           {/* 月次目標 */}
           <div className={`space-y-4 sm:space-y-5 ${section === "goal" ? "" : "hidden sm:block"}`}>
             {goals.rows.length > 0 ? (
@@ -502,35 +445,25 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* 校舎別応募 */}
-          <div className={`space-y-4 sm:space-y-5 ${section === "shops" ? "" : "hidden sm:block"}`}>
+          {/* 週次推移 */}
+          <div className={`space-y-4 sm:space-y-5 ${section === "trend" ? "" : "hidden sm:block"}`}>
             <Card
               title={`${DIMENSION_LABEL[dimension]}ごとの週次推移`}
               subtitle="直近12週。色が濃いほど応募が多い週です。"
-              actions={
-                <div className="-mx-1 flex gap-1 overflow-x-auto px-1">
-                  {DIMENSIONS.map((d) => (
-                    <button
-                      key={d}
-                      onClick={() => setDimension(d)}
-                      className="shrink-0 rounded-lg border px-2 py-1 text-xs"
-                      style={{
-                        borderColor: d === dimension ? "var(--series-1)" : "var(--hairline)",
-                        color: d === dimension ? "var(--series-1)" : "var(--text-secondary)",
-                        fontWeight: d === dimension ? 600 : 400,
-                      }}
-                      aria-pressed={d === dimension}
-                    >
-                      {DIMENSION_LABEL[d]}
-                    </button>
-                  ))}
-                </div>
-              }
+              actions={<DimensionSwitch value={dimension} onChange={setDimension} />}
             >
               <WeeklyMatrixTable matrix={matrix} dimensionLabel={DIMENSION_LABEL[dimension]} />
             </Card>
+          </div>
 
-            <Card title={`${DIMENSION_LABEL[dimension]}ごとの選考状況`} subtitle="累計と直近週、そして選考のどこまで進んでいるか">
+          {/* 選考状況 */}
+          <div className={`space-y-4 sm:space-y-5 ${section === "breakdown" ? "" : "hidden sm:block"}`}>
+            <Card
+              title={`${DIMENSION_LABEL[dimension]}ごとの選考状況`}
+              subtitle={`累計と直近週、そして選考のどこまで進んでいるか。${weekRangeNote}`}
+              // 週次推移と離れた位置に来るので、ここでも軸を切り替えられるようにする（状態は共通）
+              actions={<DimensionSwitch value={dimension} onChange={setDimension} />}
+            >
               <BreakdownTable rows={rows} dimensionLabel={DIMENSION_LABEL[dimension]} />
             </Card>
           </div>

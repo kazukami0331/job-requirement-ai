@@ -56,10 +56,12 @@ export interface ShopGoalRow {
   urgent: boolean;
   /** 採用目標（不足人数マスタの人数） */
   hireTarget: number;
-  /** 期間が始まる前にすでに採用できていた人数。ここを起点に残りを積む。 */
+  /** いまの採用者数（全期間）。目標に対する充足ぶん。 */
   alreadyHired: number;
-  /** 目標から既採用を引いた、これから採る人数 */
+  /** 目標から採用ぶんを引いた、これから採る人数 */
   remainingTarget: number;
+  /** 充足率。目標0なら出せないので null。 */
+  fillRate: number | null;
   deadline: string;
   /** 期限など、その行の前提を伝える注記 */
   deadlineNote: string;
@@ -195,8 +197,9 @@ export function monthlyGoals(
     actual.set(k, c);
   };
   const observed: Counts = { applied: 0, interview: 0, hire: 0 };
-  // 期間が始まる前にすでに採用できている人数。目標はここからの残りぶんだけ積む。
-  const hiredBefore = new Map<string, number>();
+  // いまの採用者数。目標はここからの残りぶんだけ積む。
+  // 期間の前後で分けず全期間で数える。採れた人はいつ応募した人でも充足には変わりないため。
+  const hiredSoFar = new Map<string, number>();
   for (const a of apps) {
     const stage = stageOf(a.statusId);
     const reachedInterview = FUNNEL_STEPS[1].reached(stage);
@@ -208,7 +211,7 @@ export function monthlyGoals(
       if (reachedInterview) c.interview++;
       if (hired) c.hire++;
     });
-    if (hired && month < startMonth) hiredBefore.set(key, (hiredBefore.get(key) ?? 0) + 1);
+    if (hired) hiredSoFar.set(key, (hiredSoFar.get(key) ?? 0) + 1);
     observed.applied++;
     if (reachedInterview) observed.interview++;
     if (hired) observed.hire++;
@@ -248,7 +251,7 @@ export function monthlyGoals(
 
   const rows: ShopGoalRow[] = shortages.map((s) => {
     const key = normalizeShopKey(s.shopShortName);
-    const alreadyHired = hiredBefore.get(key) ?? 0;
+    const alreadyHired = hiredSoFar.get(key) ?? 0;
     const remainingTarget = Math.max(s.shortage - alreadyHired, 0);
     const requiredApplied = Math.ceil(remainingTarget * perHire);
 
@@ -259,7 +262,7 @@ export function monthlyGoals(
     const deadlineNote = [
       `${windowLabel} で均等に按分`,
       s.deadline && s.deadline !== "-" ? `期限 ${s.deadline}` : "期限未記入",
-      alreadyHired > 0 ? `${monthLabel(startMonth)}より前に${alreadyHired}名採用済み（目標${s.shortage}名の残り${remainingTarget}名ぶん）` : null,
+      alreadyHired > 0 ? `採用${alreadyHired}名ぶんを引いた残り${remainingTarget}名で計算` : null,
     ]
       .filter(Boolean)
       .join(" / ");
@@ -270,6 +273,7 @@ export function monthlyGoals(
       hireTarget: s.shortage,
       alreadyHired,
       remainingTarget,
+      fillRate: s.shortage > 0 ? alreadyHired / s.shortage : null,
       deadline: s.deadline,
       deadlineNote,
       requiredApplied,
@@ -298,6 +302,10 @@ export function monthlyGoals(
           hireTarget: rows.reduce((a, r) => a + r.hireTarget, 0),
           alreadyHired: rows.reduce((a, r) => a + r.alreadyHired, 0),
           remainingTarget: rows.reduce((a, r) => a + r.remainingTarget, 0),
+          fillRate: (() => {
+            const t = rows.reduce((a, r) => a + r.hireTarget, 0);
+            return t > 0 ? rows.reduce((a, r) => a + r.alreadyHired, 0) / t : null;
+          })(),
           deadline: "",
           deadlineNote: `${windowLabel} で均等に按分`,
           requiredApplied: rows.reduce((a, r) => a + r.requiredApplied, 0),

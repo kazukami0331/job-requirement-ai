@@ -170,17 +170,18 @@ export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
 }
 
 /**
- * 採用の内訳。「採用3名（済2・残1）」だと3名が目標なのか採れた数なのか読めないという
+ * 採用の充足ぐあい。「採用3名（済2・残1）」だと3名が目標なのか採れた数なのか読めないという
  * 指摘があったので、どの数字が何なのかを毎回名前で書く。
  */
 function HireCount({ row }: { row: ShopGoalRow }) {
-  if (row.alreadyHired === 0) {
-    return <span style={{ color: "var(--text-muted)" }}>目標{row.hireTarget}名</span>;
-  }
+  const rate = row.fillRate === null ? null : `${Math.round(row.fillRate * 100)}%`;
   return (
     <span style={{ color: "var(--text-muted)" }}>
-      目標{row.hireTarget}名 ／ 採用済
-      <span style={{ color: "var(--status-good)", fontWeight: 600 }}>{row.alreadyHired}</span>名 ／ 残り
+      目標{row.hireTarget}名 ／ 採用
+      <span style={{ color: row.alreadyHired > 0 ? "var(--status-good)" : "var(--text-muted)", fontWeight: 600 }}>
+        {row.alreadyHired}
+      </span>
+      名{rate && `（${rate}）`} ／ 残り
       <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>{row.remainingTarget}</span>名
     </span>
   );
@@ -275,7 +276,7 @@ export function GoalControls({
           {total && (
             <span style={{ color: "var(--text-secondary)" }}>
               {total.alreadyHired > 0
-                ? `（目標${total.hireTarget}名 − 採用済み${total.alreadyHired}名 ＝ 残り${total.remainingTarget}名で計 ${total.requiredApplied}件）`
+                ? `（目標${total.hireTarget}名 − 採用${total.alreadyHired}名 ＝ 残り${total.remainingTarget}名で計 ${total.requiredApplied}件）`
                 : `（${total.hireTarget}名で計 ${total.requiredApplied}件）`}
             </span>
           )}
