@@ -37,12 +37,14 @@ import { Button, Card, EmptyState, Legend, StatTile } from "@/components/dashboa
 import { FunnelChart, StagePoolChart, WeeklyTrendChart } from "@/components/dashboard/charts";
 import { BreakdownTable, PlanVsActualRow, PlanVsActualTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
 import { DataMenu } from "@/components/dashboard/DataPanel";
+import { DEFAULT_RATES, GoalRates, monthlyGoals } from "@/lib/recruiting/goal";
+import { GoalAssumptions, GoalMetric, MetricSwitch, MonthlyGoalTable } from "@/components/dashboard/goals";
 
 type Message = { kind: "info" | "error"; text: string } | null;
 
 const DIMENSIONS: Dimension[] = ["shopShortName", "employmentType", "media", "route", "jobTitle"];
 
-type SectionKey = "summary" | "shops" | "plan" | "activity";
+type SectionKey = "summary" | "shops" | "plan" | "goal" | "activity";
 
 /** 2026-09-21 → 9/21 */
 const md = (d?: string) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : "");
@@ -50,6 +52,7 @@ const md = (d?: string) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: "summary", label: "サマリー" },
   { key: "plan", label: "充足状況" },
+  { key: "goal", label: "月次目標" },
   { key: "shops", label: "校舎別応募" },
   { key: "activity", label: "動き" },
 ];
@@ -67,6 +70,9 @@ export default function DashboardPage() {
   const [employmentFilter, setEmploymentFilter] = useState<string>("すべて");
   // スマホでは縦に長くなりすぎるのでセクションを切り替える。画面が広いときは全部並べる。
   const [section, setSection] = useState<SectionKey>("summary");
+  // 歩留まりの想定値。実績を見ながら手で動かせるようにしておく。
+  const [rates, setRates] = useState<GoalRates>(DEFAULT_RATES);
+  const [goalMetric, setGoalMetric] = useState<GoalMetric>("applied");
 
   useEffect(() => {
     (async () => {
@@ -197,6 +203,9 @@ export default function DashboardPage() {
       .sort((a, b) => b.count - a.count);
   }, [apps, plan]);
 
+  /** 採用目標から逆算した月次の応募目標と進捗 */
+  const goals = useMemo(() => monthlyGoals(apps, plan, rates, asOf), [apps, plan, rates, asOf]);
+
   const handleUploadApplications = useCallback(async (file: File) => {
     try {
       const snapshot = buildSnapshot(file.name, await readFile(file));
@@ -253,8 +262,11 @@ export default function DashboardPage() {
   }, []);
 
   const handleExportWorkbook = useCallback(() => {
-    downloadWorkbook(buildWorkbookSheets(apps, plan), `採用モニタリング_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  }, [apps, plan]);
+    downloadWorkbook(
+      buildWorkbookSheets(apps, plan, rates, asOf),
+      `採用モニタリング_${new Date().toISOString().slice(0, 10)}.xlsx`
+    );
+  }, [apps, plan, rates, asOf]);
 
   const handleDeleteSnapshot = useCallback(async (id: string) => {
     await deleteSnapshot(id);
@@ -455,6 +467,36 @@ export default function DashboardPage() {
               <Card title="校舎ごとの充足状況">
                 <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                   不足人数マスタが未登録です。右上の「その他」から読み込むと、校舎ごとの充足率が出ます。
+                </p>
+              </Card>
+            )}
+          </div>
+
+          {/* 月次目標 */}
+          <div className={`space-y-4 sm:space-y-5 ${section === "goal" ? "" : "hidden sm:block"}`}>
+            {goals.rows.length > 0 ? (
+              <Card
+                title="月次の目標と進捗"
+                subtitle="採用目標から歩留まりで割り戻した、月ごとに必要な応募数です。期限までの月で均等に割っています。"
+                actions={<MetricSwitch value={goalMetric} onChange={setGoalMetric} />}
+              >
+                <div className="space-y-4">
+                  <GoalAssumptions rates={rates} onChange={setRates} observed={goals.observed} />
+                  <MonthlyGoalTable goals={goals} metric={goalMetric} />
+                  <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                    各マスは「実績 / 目標」。当月は月末までの残りがあるので、経過ぶんに対する進み具合で色を付けています。
+                    面接設定と内定は<strong>その月に応募した人を追いかけた数</strong>です（歩留まりは同じ人を追ったときの割合なので、
+                    別の月に応募した人の面接を混ぜると想定値と比べられません）。
+                    期限が「即日」や未記入、すでに過ぎている校舎の扱いは、校舎名にカーソルを合わせると出ます。
+                  </p>
+                </div>
+              </Card>
+            ) : (
+              <Card title="月次の目標と進捗">
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {plan
+                    ? "不足人数マスタに採用目標が1名以上入っている校舎がありません。"
+                    : "不足人数マスタが未登録です。右上の「その他」から読み込むと、月ごとの応募目標が出ます。"}
                 </p>
               </Card>
             )}

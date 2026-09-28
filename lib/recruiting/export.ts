@@ -4,6 +4,7 @@ import { ACTIVE_STAGES, FUNNEL_STEPS, STAGES, stageOf } from "./status";
 import { Dimension, DIMENSION_LABEL, funnel, recentWeekKeys, weeklyMatrix, weeklyTrend } from "./aggregate";
 import { weekOfIso } from "./week";
 import { planToGrid, shortageByShop } from "./plan";
+import { DEFAULT_RATES, GoalRates, appliesPerHire, monthlyGoals } from "./goal";
 
 export interface SheetSpec {
   name: string;
@@ -203,8 +204,64 @@ export function planVsActualGrid(apps: Application[], plan: HiringPlan | null): 
   return grid;
 }
 
+/** 月次の目標と進捗。画面の「月次目標」タブと同じもの。 */
+function monthlyGoalGrid(apps: Application[], plan: HiringPlan, rates: GoalRates, asOf?: string): unknown[][] {
+  const goals = monthlyGoals(apps, plan, rates, asOf);
+  if (goals.rows.length === 0) return [["採用目標が入っている校舎がありません"]];
+
+  const perHire = appliesPerHire(rates);
+  const grid: unknown[][] = [
+    [
+      `応募→面接 ${Math.round(rates.applyToInterview * 100)}%`,
+      `面接→内定 ${Math.round(rates.interviewToOffer * 100)}%`,
+      `1名採用に必要な応募 ${perHire === null ? "—" : perHire.toFixed(1)}件`,
+    ],
+    [],
+    [
+      "校舎",
+      "緊急",
+      "採用目標",
+      "期限",
+      "必要応募",
+      ...goals.months.flatMap((m) => [
+        `${m.label} 目標応募`,
+        `${m.label} 実績応募`,
+        `${m.label} 目標面接`,
+        `${m.label} 実績面接`,
+        `${m.label} 目標内定`,
+        `${m.label} 実績内定`,
+      ]),
+    ],
+  ];
+
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  for (const r of [...(goals.total ? [goals.total] : []), ...goals.rows]) {
+    grid.push([
+      r.shopShortName,
+      r.urgent ? "緊急" : "",
+      r.hireTarget,
+      r.deadline,
+      r.requiredApplied,
+      ...r.months.flatMap((m) => [
+        m.targetApplied,
+        m.appliedActual,
+        round1(m.targetInterview),
+        m.interviewActual,
+        round1(m.targetOffer),
+        m.offerActual,
+      ]),
+    ]);
+  }
+  return grid;
+}
+
 /** ダッシュボード一式をスプレッドシート用のブックとして書き出す */
-export function buildWorkbookSheets(apps: Application[], plan: HiringPlan | null): SheetSpec[] {
+export function buildWorkbookSheets(
+  apps: Application[],
+  plan: HiringPlan | null,
+  rates: GoalRates = DEFAULT_RATES,
+  asOf?: string
+): SheetSpec[] {
   const sheets: SheetSpec[] = [
     { name: "週次推移", grid: weeklyTrendGrid(apps) },
     { name: "校舎別×週", grid: matrixGrid(apps, "shopShortName") },
@@ -215,6 +272,7 @@ export function buildWorkbookSheets(apps: Application[], plan: HiringPlan | null
   ];
   if (plan) {
     sheets.push({ name: "計画vs実績", grid: planVsActualGrid(apps, plan) });
+    sheets.push({ name: "月次目標", grid: monthlyGoalGrid(apps, plan, rates, asOf) });
     sheets.push({ name: "採用計画", grid: planToGrid(plan) });
   }
   return sheets;
