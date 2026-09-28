@@ -38,7 +38,7 @@ import { FunnelChart, StagePoolChart, WeeklyTrendChart } from "@/components/dash
 import { BreakdownTable, PlanVsActualRow, PlanVsActualTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
 import { DataMenu } from "@/components/dashboard/DataPanel";
 import { DEFAULT_RATES, GoalRates, GoalWindow, monthlyGoals } from "@/lib/recruiting/goal";
-import { GoalControls, GoalView, MetricSwitch, MonthSummary, MonthlyGoalTable } from "@/components/dashboard/goals";
+import { Coverage, GoalControls, GoalView, MetricSwitch, MonthSummary, MonthlyGoalTable } from "@/components/dashboard/goals";
 
 type Message = { kind: "info" | "error"; text: string } | null;
 
@@ -481,6 +481,7 @@ export default function DashboardPage() {
                       <MetricSwitch value={goalView} onChange={setGoalView} />
                     </div>
                     <MonthlyGoalTable goals={goals} view={goalView} />
+                    <Coverage goals={goals} />
                   </div>
                   <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
                     各マスは「実績 / 目標」。当月は月末までの残りがあるので、経過ぶんに対する進み具合で色を付けています。

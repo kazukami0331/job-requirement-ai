@@ -78,6 +78,12 @@ export interface MonthlyGoals {
   total: ShopGoalRow | null;
   /** 実績から出した歩留まり。想定値が実態と合っているかを見るため。 */
   observed: { applied: number; interview: number; hire: number } | null;
+  /**
+   * 期間内の応募のうち、この表に出ている件数と全体の件数。
+   * 不足人数マスタに無い校舎の応募は表に出てこないので、表の合計だけ見ると
+   * 応募が実際より少なく見える。その差を数字で示すために持つ。
+   */
+  coverage: { inTable: number; all: number };
 }
 
 const monthKey = (iso: string) => iso.slice(0, 7);
@@ -163,6 +169,7 @@ export function monthlyGoals(
     rows: [],
     total: null,
     observed: null,
+    coverage: { inTable: 0, all: 0 },
   };
 
   const perHire = appliesPerHire(rates);
@@ -305,6 +312,17 @@ export function monthlyGoals(
           })),
         };
 
+  // 期間内の応募のうち、表に出ている（＝マスタにある校舎の）件数と全体の件数
+  const known = new Set(shortages.map((x) => normalizeShopKey(x.shopShortName)));
+  const inWindow = months.map((m) => m.month);
+  let inTable = 0;
+  let all = 0;
+  for (const a of apps) {
+    if (!inWindow.includes(monthKey(a.receivedDate))) continue;
+    all++;
+    if (known.has(normalizeShopKey(a.shopShortName))) inTable++;
+  }
+
   return {
     window: { from: startMonth, to: endMonth },
     choices,
@@ -312,6 +330,7 @@ export function monthlyGoals(
     rows,
     total,
     observed: observed.applied > 0 ? observed : null,
+    coverage: { inTable, all },
   };
 }
 

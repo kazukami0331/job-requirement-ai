@@ -43,12 +43,20 @@ function tone(actual: number, target: number, elapsed: number): string {
   return "var(--status-critical)";
 }
 
-function Bar({ ratio, color }: { ratio: number; color: string }) {
+function Bar({ ratio, color, height = 6 }: { ratio: number; color: string; height?: number }) {
   return (
-    <span className="flex h-1.5 w-full items-center" style={{ background: "var(--gridline)", borderRadius: 2 }}>
+    <span
+      className="flex w-full items-center"
+      style={{ height, background: "var(--gridline)", borderRadius: 2 }}
+    >
       <span
-        className="h-1.5"
-        style={{ width: `${ratio * 100}%`, background: color, borderRadius: 2, minWidth: ratio > 0 ? 2 : 0 }}
+        style={{
+          height,
+          width: `${ratio * 100}%`,
+          background: color,
+          borderRadius: 2,
+          minWidth: ratio > 0 ? 2 : 0,
+        }}
       />
     </span>
   );
@@ -61,10 +69,10 @@ const Dash = () => (
 );
 
 /**
- * 実績/目標を1マスに収めたもの。
+ * 実績/目標を1マスに収めたもの。棒は目標を100%とした埋まり具合。
  *
- * 1指標だけのときは棒を添えて埋まり具合を見せる。3指標まとめて出すときは棒を外す。
- * 1マスに棒が3本入ると、校舎が25行あるだけで画面が線だらけになって、数字が読めなくなるため。
+ * 3指標をまとめて出すときは棒を細くする。太いままだと1マスに3本入って
+ * 行が間延びし、校舎を縦に見比べられなくなるため。
  */
 function Cell({ m, view, showLabels = true }: { m: MonthGoal; view: GoalView; showLabels?: boolean }) {
   const elapsed = m.current ? m.elapsed : 0;
@@ -73,19 +81,22 @@ function Cell({ m, view, showLabels = true }: { m: MonthGoal; view: GoalView; sh
     // 3指標とも目標も実績も無い＝期間の対象外
     if (GOAL_METRICS.every((g) => pick(m, g.key).target <= 0 && pick(m, g.key).actual === 0)) return <Dash />;
     return (
-      <div className="space-y-0.5">
+      <div className="space-y-1">
         {GOAL_METRICS.map((g) => {
           const { target, actual } = pick(m, g.key);
           const color = tone(actual, target, elapsed);
           return (
-            <div key={g.key} className="flex items-baseline justify-between gap-1.5 text-[11px] whitespace-nowrap">
-              {/* 行の高さは揃うので、見出しは左端の月だけに出す。全部の月に出すと
-                  25校舎ぶんでラベルが100個並んで、肝心の数字が埋もれる。 */}
-              <span style={{ color: "var(--text-muted)" }}>{showLabels ? g.short : ""}</span>
-              <span className="tabular">
-                <span style={{ color, fontWeight: 600 }}>{fmt(actual)}</span>
-                <span style={{ color: "var(--text-muted)" }}> / {fmt(target)}</span>
-              </span>
+            <div key={g.key}>
+              <div className="flex items-baseline justify-between gap-1.5 text-[11px] whitespace-nowrap">
+                {/* 行の高さは揃うので、見出しは左端の月だけに出す。全部の月に出すと
+                    25校舎ぶんでラベルが100個並んで、肝心の数字が埋もれる。 */}
+                <span style={{ color: "var(--text-muted)" }}>{showLabels ? g.short : ""}</span>
+                <span className="tabular">
+                  <span style={{ color, fontWeight: 600 }}>{fmt(actual)}</span>
+                  <span style={{ color: "var(--text-muted)" }}> / {fmt(target)}</span>
+                </span>
+              </div>
+              <Bar ratio={target > 0 ? Math.min(actual / target, 1) : 0} color={color} height={3} />
             </div>
           );
         })}
@@ -319,6 +330,24 @@ export function MetricSwitch({ value, onChange }: { value: GoalView; onChange: (
         );
       })}
     </div>
+  );
+}
+
+/**
+ * 表に入っていない応募の件数。
+ *
+ * 不足人数マスタに無い校舎の応募は行が無いので合計にも入らない。
+ * 数字だけ見ると応募が実際より少なく見えるので、差を明示する。
+ */
+export function Coverage({ goals }: { goals: MonthlyGoals }) {
+  const { inTable, all } = goals.coverage;
+  const gap = all - inTable;
+  if (all === 0 || gap <= 0) return null;
+  return (
+    <p className="text-[11px]" style={{ color: "var(--status-serious)" }}>
+      この期間の応募 {all}件のうち、表に出ているのは {inTable}件です。残る {gap}
+      件は不足人数マスタに校舎が無いため、どの行にも入っていません（合計にも含まれません）。
+    </p>
   );
 }
 
