@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { WeeklyPoint, FunnelStep } from "@/lib/recruiting/aggregate";
+import { ratioLabel } from "@/lib/recruiting/format";
 import { ChartTooltip, TooltipState, useMeasuredWidth } from "./ui";
 
 const AXIS_W = 30;
@@ -189,7 +190,7 @@ export function StagePoolChart({
               </span>
               <span className="text-xs tabular" style={{ color: "var(--text-secondary)" }}>
                 {sum}件
-                {total > 0 && <span style={{ color: "var(--text-muted)" }}> / {Math.round((sum / total) * 100)}%</span>}
+                {total > 0 && <span style={{ color: "var(--text-muted)" }}> / {ratioLabel(sum, total)}</span>}
               </span>
             </h3>
             <ul className="space-y-2">
@@ -222,7 +223,7 @@ export function StagePoolChart({
                   <span className="text-right text-xs tabular" style={{ color: "var(--text-primary)" }}>
                     {r.count}
                     <span style={{ color: "var(--text-muted)" }}>
-                      {total > 0 ? ` / ${Math.round((r.count / total) * 100)}%` : ""}
+                      {total > 0 ? ` / ${ratioLabel(r.count, total)}` : ""}
                     </span>
                   </span>
                 </li>
@@ -255,10 +256,11 @@ export function FunnelChart({ steps }: { steps: FunnelStep[] }) {
             </span>
             <span className="text-xs tabular" style={{ color: "var(--text-secondary)" }}>
               {s.count}件
-              {s.conversionFromPrev !== null && (
+              {/* 前段階が0件なら「〜から何%」は出しようがないので、行ごと出さない */}
+              {s.conversionFromPrev !== null && steps[i - 1].count > 0 && (
                 <span style={{ color: "var(--text-muted)" }}>
                   {" "}
-                  / 前段階から {(s.conversionFromPrev * 100).toFixed(0)}%
+                  / 前段階から {ratioLabel(s.count, steps[i - 1].count)}
                 </span>
               )}
             </span>

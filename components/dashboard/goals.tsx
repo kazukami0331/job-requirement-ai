@@ -2,6 +2,7 @@
 
 import { ReactNode } from "react";
 import { GoalRates, GoalWindow, MonthGoal, MonthlyGoals, ShopGoalRow, appliesPerHire } from "@/lib/recruiting/goal";
+import { ratioLabel } from "@/lib/recruiting/format";
 import { UrgentName } from "./tables";
 
 /** 表に出す指標。目標も実績も同じ形で持っているので切り替えるだけで済む。 */
@@ -174,7 +175,7 @@ export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
  * 指摘があったので、どの数字が何なのかを毎回名前で書く。
  */
 function HireCount({ row }: { row: ShopGoalRow }) {
-  const rate = row.fillRate === null ? null : `${Math.round(row.fillRate * 100)}%`;
+  const rate = row.hireTarget > 0 ? ratioLabel(row.alreadyHired, row.hireTarget) : null;
   return (
     <span style={{ color: "var(--text-muted)" }}>
       目標{row.hireTarget}名 ／ 採用
@@ -262,7 +263,7 @@ export function GoalControls({
 }) {
   const perHire = appliesPerHire(rates);
   const { window: win, choices, observed, total } = goals;
-  const pct = (a: number, b: number) => (b > 0 ? `${((a / b) * 100).toFixed(0)}%` : "—");
+  const pct = ratioLabel;
 
   return (
     <div className="space-y-2">
