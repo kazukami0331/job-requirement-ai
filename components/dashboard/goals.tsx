@@ -82,6 +82,21 @@ function Cell({ m, view, showLabels = true }: { m: MonthGoal; view: GoalView; sh
   if (view === "all") {
     // 3指標とも目標も実績も無い＝期間の対象外
     if (GOAL_METRICS.every((g) => pick(m, g.key).target <= 0 && pick(m, g.key).actual === 0)) return <Dash />;
+    if (m.actualOnly) {
+      // 按分期間より前の月。目標が無いので実績だけを出す。
+      return (
+        <div className="space-y-1">
+          {GOAL_METRICS.map((g) => (
+            <div key={g.key} className="flex items-baseline justify-between gap-1.5 text-[11px] whitespace-nowrap">
+              <span style={{ color: "var(--text-muted)" }}>{showLabels ? g.short : ""}</span>
+              <span className="tabular" style={{ color: "var(--text-primary)", fontWeight: 600 }}>
+                {fmt(pick(m, g.key).actual)}
+              </span>
+            </div>
+          ))}
+        </div>
+      );
+    }
     return (
       <div className="space-y-1">
         {GOAL_METRICS.map((g) => {
@@ -108,6 +123,13 @@ function Cell({ m, view, showLabels = true }: { m: MonthGoal; view: GoalView; sh
 
   const { target, actual } = pick(m, view);
   if (target <= 0 && actual === 0) return <Dash />;
+  if (m.actualOnly) {
+    return (
+      <div className="text-xs tabular whitespace-nowrap" style={{ color: "var(--text-primary)", fontWeight: 600 }}>
+        {fmt(actual)}
+      </div>
+    );
+  }
   const color = tone(actual, target, elapsed);
 
   return (
@@ -142,7 +164,7 @@ export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
               {months[i].label}
             </span>
             <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-              {m.current ? `途中・${Math.round(m.elapsed * 100)}%経過` : m.month.replace("-", "/")}
+              {m.actualOnly ? "実績のみ" : m.current ? `途中・${Math.round(m.elapsed * 100)}%経過` : m.month.replace("-", "/")}
             </span>
           </div>
           <dl className="space-y-1.5">
@@ -158,8 +180,10 @@ export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
                     <Bar ratio={target > 0 ? Math.min(actual / target, 1) : 0} color={color} />
                   </dd>
                   <dd className="text-right text-xs tabular whitespace-nowrap">
-                    <span style={{ color, fontWeight: 600 }}>{fmt(actual)}</span>
-                    <span style={{ color: "var(--text-muted)" }}> / {fmtTarget(target)}</span>
+                    <span style={{ color: m.actualOnly ? "var(--text-primary)" : color, fontWeight: 600 }}>
+                      {fmt(actual)}
+                    </span>
+                    {!m.actualOnly && <span style={{ color: "var(--text-muted)" }}> / {fmtTarget(target)}</span>}
                   </dd>
                 </div>
               );
@@ -390,8 +414,12 @@ export function MonthlyGoalTable({ goals, view }: { goals: MonthlyGoals; view: G
   const head = (m: (typeof months)[number]) => (
     <>
       {m.label}
-      {m.current && (
-        <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>（途中 {Math.round(m.elapsed * 100)}%）</span>
+      {m.actualOnly ? (
+        <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>（実績）</span>
+      ) : (
+        m.current && (
+          <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>（途中 {Math.round(m.elapsed * 100)}%）</span>
+        )
       )}
     </>
   );

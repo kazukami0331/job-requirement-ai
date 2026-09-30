@@ -47,6 +47,8 @@ export interface MonthGoal {
   hireActual: number;
   /** 集計基準日を含む月 */
   current: boolean;
+  /** 按分期間より前の月。目標は無く、実績だけを出す。 */
+  actualOnly: boolean;
   /** その月のうち何割が過ぎているか。当月だけ1未満になる。 */
   elapsed: number;
 }
@@ -74,7 +76,7 @@ export interface MonthlyGoals {
   window: GoalWindow;
   /** 期間の選択肢（当月から、マスタで一番遅い期限まで） */
   choices: { month: string; label: string }[];
-  months: { month: string; label: string; current: boolean; elapsed: number }[];
+  months: { month: string; label: string; current: boolean; elapsed: number; actualOnly: boolean }[];
   rows: ShopGoalRow[];
   /** 全校舎の合計 */
   total: ShopGoalRow | null;
@@ -228,16 +230,30 @@ export function monthlyGoals(
   }
 
   const windowSpan = Math.min(Math.max(monthsBetween(startMonth, endMonth), 0), 23);
-  // 集計基準日を含む月は途中なので、何割過ぎたかを持たせる。目標のペースと突き合わせるのに使う。
   const nowMonth = monthKey(asOf);
-  const months = Array.from({ length: windowSpan + 1 }, (_, i) => {
-    const month = addMonths(startMonth, i);
+
+  /**
+   * 按分期間より前でも、当月からの実績は出す。
+   * 期間が翌月から始まるとき（当月が半分以上過ぎているとき）に当月の列ごと消えると、
+   * その月に何件来たのかが分からなくなる。目標は持たせず、実績だけを並べる。
+   */
+  const leading: string[] = [];
+  for (let m = nowMonth; monthsBetween(m, startMonth) > 0 && leading.length < 12; m = addMonths(m, 1)) {
+    leading.push(m);
+  }
+
+  // 集計基準日を含む月は途中なので、何割過ぎたかを持たせる。目標のペースと突き合わせるのに使う。
+  const months = [
+    ...leading.map((month) => ({ month, actualOnly: true })),
+    ...Array.from({ length: windowSpan + 1 }, (_, i) => ({ month: addMonths(startMonth, i), actualOnly: false })),
+  ].map(({ month, actualOnly }) => {
     const current = month === nowMonth;
     const daysInMonth = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
     return {
       month,
       label: monthLabel(month),
       current,
+      actualOnly,
       // 過ぎた月は満了、これからの月は0、当月だけ途中になる
       elapsed: current ? Math.min(Number(asOf.slice(8, 10)) / daysInMonth, 1) : month < nowMonth ? 1 : 0,
     };
@@ -266,7 +282,9 @@ export function monthlyGoals(
 
     // 期限の早い校舎も含め、どの校舎も同じ月に配る。
     // 期限は目安として注記に残すだけで、月の配分は変えない。
-    const hirePerMonth = spreadHires(remainingTarget, months.length);
+    const planned = spreadHires(remainingTarget, windowSpan + 1);
+    // 先頭に付けた実績のみの月には目標を置かない
+    const hirePerMonth = [...leading.map(() => 0), ...planned];
     // 採用目標から歩留まりで割り戻す。応募も面接も人数なので切り上げて整数にする。
     const appliedPerMonth = hirePerMonth.map((h) => (h > 0 ? Math.ceil(h * perHire) : 0));
     const interviewPerMonth = appliedPerMonth.map((a) => (a > 0 ? Math.ceil(a * rates.applyToInterview) : 0));
