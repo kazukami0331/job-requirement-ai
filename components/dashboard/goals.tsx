@@ -80,8 +80,11 @@ function Cell({ m, view, showLabels = true }: { m: MonthGoal; view: GoalView; sh
   const elapsed = m.current ? m.elapsed : 0;
 
   if (view === "all") {
-    // 3指標とも目標も実績も無い＝期間の対象外
-    if (GOAL_METRICS.every((g) => pick(m, g.key).target <= 0 && pick(m, g.key).actual === 0)) return <Dash />;
+    // 期間の対象外（目標も実績も無い）だけをハイフンにする。
+    // 実績列は0件でも0と出す。応募が来なかったことも読みたい数字なので、消してはいけない。
+    if (!m.actualOnly && GOAL_METRICS.every((g) => pick(m, g.key).target <= 0 && pick(m, g.key).actual === 0)) {
+      return <Dash />;
+    }
     if (m.actualOnly) {
       // 按分期間より前の月。目標が無いので実績だけを出す。
       return (
@@ -122,7 +125,7 @@ function Cell({ m, view, showLabels = true }: { m: MonthGoal; view: GoalView; sh
   }
 
   const { target, actual } = pick(m, view);
-  if (target <= 0 && actual === 0) return <Dash />;
+  if (!m.actualOnly && target <= 0 && actual === 0) return <Dash />;
   if (m.actualOnly) {
     return (
       <div className="text-xs tabular whitespace-nowrap" style={{ color: "var(--text-primary)", fontWeight: 600 }}>
