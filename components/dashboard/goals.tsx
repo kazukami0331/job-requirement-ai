@@ -28,8 +28,9 @@ function pick(m: MonthGoal, metric: GoalMetric): { target: number; actual: numbe
   return { target: m.targetApplied, actual: m.appliedActual };
 }
 
-/** 目標は割り戻しの結果なので小数になる。1未満を0に丸めると「目標なし」に見えてしまう。 */
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+/** 目標を置いていない月。0 と書くと「未達」に見えるので、対象外だと分かる形にする。 */
+const fmtTarget = (n: number) => (n > 0 ? fmt(n) : "—");
 
 /**
  * 進捗の色。達成/未達をラベル無しの色だけで表さないよう、必ず数字と併記して使う。
@@ -94,7 +95,7 @@ function Cell({ m, view, showLabels = true }: { m: MonthGoal; view: GoalView; sh
                 <span style={{ color: "var(--text-muted)" }}>{showLabels ? g.short : ""}</span>
                 <span className="tabular">
                   <span style={{ color, fontWeight: 600 }}>{fmt(actual)}</span>
-                  <span style={{ color: "var(--text-muted)" }}> / {fmt(target)}</span>
+                  <span style={{ color: "var(--text-muted)" }}> / {fmtTarget(target)}</span>
                 </span>
               </div>
               <Bar ratio={target > 0 ? Math.min(actual / target, 1) : 0} color={color} height={3} />
@@ -113,7 +114,7 @@ function Cell({ m, view, showLabels = true }: { m: MonthGoal; view: GoalView; sh
     <div className="space-y-1">
       <div className="text-xs tabular whitespace-nowrap">
         <span style={{ color, fontWeight: 600 }}>{fmt(actual)}</span>
-        <span style={{ color: "var(--text-muted)" }}> / {fmt(target)}</span>
+        <span style={{ color: "var(--text-muted)" }}> / {fmtTarget(target)}</span>
       </div>
       <Bar ratio={target > 0 ? Math.min(actual / target, 1) : 0} color={color} />
     </div>
@@ -158,7 +159,7 @@ export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
                   </dd>
                   <dd className="text-right text-xs tabular whitespace-nowrap">
                     <span style={{ color, fontWeight: 600 }}>{fmt(actual)}</span>
-                    <span style={{ color: "var(--text-muted)" }}> / {fmt(target)}</span>
+                    <span style={{ color: "var(--text-muted)" }}> / {fmtTarget(target)}</span>
                   </dd>
                 </div>
               );
@@ -295,6 +296,14 @@ export function GoalControls({
           </span>
           <MonthSelect label="" value={win.to} choices={choices} onChange={(m) => onWindow({ ...win, to: m })} />
         </div>
+      )}
+
+      {/* 色が読めていないと緊急校舎が1つも出ない。黙って消えるより、その場で気づけるようにする。 */}
+      {goals.rows.length > 0 && goals.rows.every((r) => !r.urgent) && (
+        <p className="text-[11px]" style={{ color: "var(--status-serious)" }}>
+          緊急（オレンジ塗り）の校舎が1つも読み取れていません。不足人数マスタをCSVで取り込むとセルの色が落ちるので、
+          xlsxのまま取り込み直してください。
+        </p>
       )}
 
       {observed && (

@@ -102,14 +102,25 @@ function readLabels(grid: unknown[][]): PlanLabels {
  * 「白以外の solid 塗りつぶしがある」ことだけを条件にしている。
  */
 function isFilled(sheet: XLSX.WorkSheet, address: string): boolean {
-  const style = (sheet[address] as { s?: { patternType?: string; fgColor?: { rgb?: string } } } | undefined)?.s;
-  if (!style || style.patternType !== "solid") return false;
+  type Fg = { rgb?: string; theme?: number; indexed?: number };
+  const style = (sheet[address] as { s?: { patternType?: string; fgColor?: Fg } } | undefined)?.s;
+  if (!style || !style.patternType || style.patternType === "none") return false;
 
-  const raw = String(style.fgColor?.rgb ?? "").toUpperCase();
-  if (!raw) return false;
-  // ARGB(8桁)で来ることがあるのでRGBに揃える
-  const hex = raw.length === 8 ? raw.slice(2) : raw;
-  return !/^(FFFFFF|000000)$/.test(hex);
+  const fg = style.fgColor;
+  if (!fg) return false;
+
+  const raw = String(fg.rgb ?? "").toUpperCase();
+  if (raw) {
+    // ARGB(8桁)で来ることがあるのでRGBに揃える
+    const hex = raw.length === 8 ? raw.slice(2) : raw;
+    return !/^(FFFFFF|000000)$/.test(hex);
+  }
+  // Excelのテーマ色やパレット番号で塗られていると rgb が来ない。
+  // theme 0/1 は白と黒なので地の色とみなし、それ以外は「塗られている」と扱う。
+  if (typeof fg.theme === "number") return fg.theme > 1;
+  // indexed 64 は「色の指定なし」、9 と 13 は白
+  if (typeof fg.indexed === "number") return ![9, 13, 64, 65].includes(fg.indexed);
+  return false;
 }
 
 /** 採用計画のCSV / Excelを取り込む */

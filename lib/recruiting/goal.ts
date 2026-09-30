@@ -109,16 +109,26 @@ function deadlineMonth(raw: string): string | null {
 }
 
 /**
- * 合計が total になるように n 個へ配る（最大剰余法）。
- * 単純に四捨五入すると月の合計が目標総数とずれて、表を足し算した人が混乱する。
+ * 採用の残り人数を月へ配る。人は小数で採れないので必ず整数にする。
+ *
+ * 前の月から1名ずつ置いていき、足りなくなったら0。残り3名で3ヶ月なら 1/1/1、
+ * 2名なら 1/1/0、1名なら 1/0/0。人数が月数より多いときだけ、前の月から2名以上を積む。
+ *
+ * slots は「その月に目標を置けるか」。すでに終わりかけの月に新しく採用目標を置いても
+ * 達成しようがない（応募→面接→採用に数週間かかる）ので、そこは対象から外す。
  */
-function spread(total: number, n: number): number[] {
-  if (n <= 0) return [];
-  const base = Math.floor(total / n);
-  const out = new Array<number>(n).fill(base);
-  let rest = total - base * n;
-  // 余りは前の月から乗せる。後ろに回すと期限直前だけ急に重くなる。
-  for (let i = 0; i < n && rest > 0; i++, rest--) out[i]++;
+function spreadHires(total: number, slots: boolean[]): number[] {
+  const out = new Array<number>(slots.length).fill(0);
+  const usable = slots.reduce((a, b) => a + (b ? 1 : 0), 0);
+  if (usable === 0 || total <= 0) return out;
+
+  const base = Math.floor(total / usable);
+  let rest = total - base * usable;
+  for (let i = 0; i < slots.length; i++) {
+    if (!slots[i]) continue;
+    out[i] = base + (rest > 0 ? 1 : 0);
+    if (rest > 0) rest--;
+  }
   return out;
 }
 
@@ -233,6 +243,15 @@ export function monthlyGoals(
     };
   });
 
+  /**
+   * 採用目標を置ける月。
+   *
+   * すでに半分以上が過ぎた月は外す。応募を集めて面接して採用するまでに数週間かかるので、
+   * 残り数日の月に新しく「1名採用」と置いても達成しようがなく、他の月の目標まで軽くなる。
+   * 実績は全部の月に出るので、対象外の月でも遅れは読める。
+   */
+  const targetableMonths = months.map((m) => (m.month < nowMonth ? false : m.elapsed < 0.5));
+
   // 期間の選択肢。当月の前後も選べるように、1ヶ月前からマスタで一番遅い期限の1ヶ月後まで並べる。
   const latestDeadline = shortages
     .map((x) => deadlineMonth(x.deadline))
@@ -253,12 +272,14 @@ export function monthlyGoals(
     const key = normalizeShopKey(s.shopShortName);
     const alreadyHired = hiredSoFar.get(key) ?? 0;
     const remainingTarget = Math.max(s.shortage - alreadyHired, 0);
-    const requiredApplied = Math.ceil(remainingTarget * perHire);
 
-    // 期限の早い校舎も含め、どの校舎も期間ぜんぶで均等に割る。
+    // 期限の早い校舎も含め、どの校舎も同じ月に配る。
     // 期限は目安として注記に残すだけで、月の配分は変えない。
-    const shopSpan = windowSpan + 1;
-    const perMonth = spread(requiredApplied, shopSpan);
+    const hirePerMonth = spreadHires(remainingTarget, targetableMonths);
+    // 採用目標から歩留まりで割り戻す。応募も面接も人数なので切り上げて整数にする。
+    const appliedPerMonth = hirePerMonth.map((h) => (h > 0 ? Math.ceil(h * perHire) : 0));
+    const interviewPerMonth = appliedPerMonth.map((a) => (a > 0 ? Math.ceil(a * rates.applyToInterview) : 0));
+    const requiredApplied = appliedPerMonth.reduce((a, b) => a + b, 0);
     const deadlineNote = [
       `${windowLabel} で均等に按分`,
       s.deadline && s.deadline !== "-" ? `期限 ${s.deadline}` : "期限未記入",
@@ -278,13 +299,12 @@ export function monthlyGoals(
       deadlineNote,
       requiredApplied,
       months: months.map((m, i) => {
-        const targetApplied = perMonth[i] ?? 0;
         const c = actual.get(`${key}|${m.month}`) ?? { applied: 0, interview: 0, hire: 0 };
         return {
           ...m,
-          targetApplied,
-          targetInterview: targetApplied * rates.applyToInterview,
-          targetHire: targetApplied * rates.applyToInterview * rates.interviewToHire,
+          targetApplied: appliedPerMonth[i] ?? 0,
+          targetInterview: interviewPerMonth[i] ?? 0,
+          targetHire: hirePerMonth[i] ?? 0,
           appliedActual: c.applied,
           interviewActual: c.interview,
           hireActual: c.hire,
