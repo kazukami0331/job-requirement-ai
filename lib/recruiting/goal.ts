@@ -113,19 +113,14 @@ function deadlineMonth(raw: string): string | null {
  *
  * 前の月から1名ずつ置いていき、足りなくなったら0。残り3名で3ヶ月なら 1/1/1、
  * 2名なら 1/1/0、1名なら 1/0/0。人数が月数より多いときだけ、前の月から2名以上を積む。
- *
- * slots は「その月に目標を置けるか」。すでに終わりかけの月に新しく採用目標を置いても
- * 達成しようがない（応募→面接→採用に数週間かかる）ので、そこは対象から外す。
  */
-function spreadHires(total: number, slots: boolean[]): number[] {
-  const out = new Array<number>(slots.length).fill(0);
-  const usable = slots.reduce((a, b) => a + (b ? 1 : 0), 0);
-  if (usable === 0 || total <= 0) return out;
+function spreadHires(total: number, months: number): number[] {
+  const out = new Array<number>(Math.max(months, 0)).fill(0);
+  if (months <= 0 || total <= 0) return out;
 
-  const base = Math.floor(total / usable);
-  let rest = total - base * usable;
-  for (let i = 0; i < slots.length; i++) {
-    if (!slots[i]) continue;
+  const base = Math.floor(total / months);
+  let rest = total - base * months;
+  for (let i = 0; i < months; i++) {
     out[i] = base + (rest > 0 ? 1 : 0);
     if (rest > 0) rest--;
   }
@@ -140,7 +135,12 @@ function spreadHires(total: number, slots: boolean[]): number[] {
  */
 export function defaultWindow(plan: HiringPlan | null, asOfIso?: string): GoalWindow {
   const asOf = asOfIso ?? new Date().toISOString();
-  const from = monthKey(asOf);
+  const thisMonth = monthKey(asOf);
+  // 半分以上過ぎた月からは始めない。応募を集めて面接して採用するまでに数週間かかるので、
+  // 残りわずかな月に採用目標を置いても達成しようがなく、他の月の目標まで軽くなる。
+  const daysInMonth = new Date(Number(thisMonth.slice(0, 4)), Number(thisMonth.slice(5, 7)), 0).getDate();
+  const elapsed = Number(asOf.slice(8, 10)) / daysInMonth;
+  const from = elapsed < 0.5 ? thisMonth : addMonths(thisMonth, 1);
 
   const latest = plan
     ? shortageByShop(plan)
@@ -243,15 +243,6 @@ export function monthlyGoals(
     };
   });
 
-  /**
-   * 採用目標を置ける月。
-   *
-   * すでに半分以上が過ぎた月は外す。応募を集めて面接して採用するまでに数週間かかるので、
-   * 残り数日の月に新しく「1名採用」と置いても達成しようがなく、他の月の目標まで軽くなる。
-   * 実績は全部の月に出るので、対象外の月でも遅れは読める。
-   */
-  const targetableMonths = months.map((m) => (m.month < nowMonth ? false : m.elapsed < 0.5));
-
   // 期間の選択肢。当月の前後も選べるように、1ヶ月前からマスタで一番遅い期限の1ヶ月後まで並べる。
   const latestDeadline = shortages
     .map((x) => deadlineMonth(x.deadline))
@@ -275,7 +266,7 @@ export function monthlyGoals(
 
     // 期限の早い校舎も含め、どの校舎も同じ月に配る。
     // 期限は目安として注記に残すだけで、月の配分は変えない。
-    const hirePerMonth = spreadHires(remainingTarget, targetableMonths);
+    const hirePerMonth = spreadHires(remainingTarget, months.length);
     // 採用目標から歩留まりで割り戻す。応募も面接も人数なので切り上げて整数にする。
     const appliedPerMonth = hirePerMonth.map((h) => (h > 0 ? Math.ceil(h * perHire) : 0));
     const interviewPerMonth = appliedPerMonth.map((a) => (a > 0 ? Math.ceil(a * rates.applyToInterview) : 0));
