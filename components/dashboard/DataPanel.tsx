@@ -59,6 +59,9 @@ export function DataMenu({
   onExportWorkbook,
   onDeleteSnapshot,
   onResetPlan,
+  onPublish,
+  sharedConfigured,
+  sharedPublishedAt,
 }: {
   snapshots: Snapshot[];
   plan: HiringPlan | null;
@@ -69,6 +72,10 @@ export function DataMenu({
   onExportWorkbook: () => void;
   onDeleteSnapshot: (id: string) => void;
   onResetPlan: () => void;
+  onPublish: () => void;
+  /** サーバー側に公開データの保存先があるか */
+  sharedConfigured: boolean;
+  sharedPublishedAt: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -101,6 +108,25 @@ export function DataMenu({
           className="absolute right-0 top-full z-30 mt-1.5 w-72 rounded-xl border p-3 shadow-lg"
           style={{ background: "var(--surface-1)", borderColor: "var(--hairline)" }}
         >
+          {/* 公開データ。ここを押すまで、取り込んだ内容はこのブラウザの外に出ない。 */}
+          <div className="mb-3 border-b pb-3" style={{ borderColor: "var(--gridline)" }}>
+            <Button
+              variant="primary"
+              onClick={onPublish}
+              disabled={snapshots.length === 0 || !sharedConfigured}
+              block
+            >
+              公開データを更新
+            </Button>
+            <p className="mt-1.5 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              {!sharedConfigured
+                ? "公開データの保存先が未設定です。Vercelで Blob ストアを作ると、ここから全員の画面に反映できます。"
+                : sharedPublishedAt
+                  ? `最終更新 ${fmt(sharedPublishedAt)}。URLを開いた人には、この時点の内容が出ます。`
+                  : "まだ一度も公開していません。押すと、いまの手元の内容がURLを開いた人にも出ます。"}
+            </p>
+          </div>
+
           <div className="space-y-1.5">
             <FilePicker label="不足人数マスタを取り込む" accept=".csv,.xls,.xlsx" onPick={onUploadPlan} block />
             <Button onClick={onExportWorkbook} disabled={snapshots.length === 0} block>
@@ -151,7 +177,7 @@ export function DataMenu({
           </div>
 
           <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-            データはこのブラウザの中だけに保存されます。別の端末と共有するときはバックアップのJSONを渡してください。
+            取り込んだデータはこのブラウザの中に保存されます。他の人にも同じ数字を見せるときは「公開データを更新」を押してください。
           </p>
         </div>
       )}

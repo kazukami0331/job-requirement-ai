@@ -19,6 +19,7 @@ import {
 import { parsePlanFile, totalShortage } from "@/lib/recruiting/plan";
 import { buildWorkbookSheets, downloadJson, downloadWorkbook } from "@/lib/recruiting/export";
 import {
+  applyShared,
   deletePlan,
   deleteSnapshot,
   loadSeedIfEmpty,
@@ -29,7 +30,9 @@ import {
   loadPlan,
   savePlan,
   saveSnapshot,
+  setSharedAt,
 } from "@/lib/recruiting/storage";
+import { fetchShared, publishShared } from "@/lib/recruiting/shared";
 import { Button, Card, EmptyState, Legend, StatTile } from "@/components/dashboard/ui";
 import { FunnelChart, StagePoolChart, WeeklyTrendChart } from "@/components/dashboard/charts";
 import { BreakdownTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
@@ -94,6 +97,12 @@ export default function DashboardPage() {
   const [employmentFilter, setEmploymentFilter] = useState<string>("すべて");
   // スマホでは縦に長くなりすぎるのでセクションを切り替える。画面が広いときは全部並べる。
   const [section, setSection] = useState<SectionKey>("summary");
+  // 公開データ（サーバーに置いてある共有データ）の状態。
+  // configured が false のときは保存先が未設定で、同梱データだけで動いている。
+  const [shared, setShared] = useState<{ configured: boolean; publishedAt: string | null }>({
+    configured: false,
+    publishedAt: null,
+  });
   // 集計期間。既定は今期（9月始まり）。全期間は旧運用ぶんも含めて見たいときだけ。
   const [period, setPeriod] = useState<Period>("term");
   // 歩留まりの想定値。実績を見ながら手で動かせるようにしておく。
@@ -106,12 +115,23 @@ export default function DashboardPage() {
   useEffect(() => {
     (async () => {
       try {
-        // 保存先がブラウザごとなので、初回は同梱してある受領済みデータを入れる
-        const seeded = await loadSeedIfEmpty();
+        // 保存先がブラウザごとなので、まず公開データを見に行く。
+        // これがあれば、URLを開いただけの人にも取り込んだ本人と同じ数字が出る。
+        const remote = await fetchShared();
+        let pulled = false;
+        if (remote?.data && remote.publishedAt) {
+          pulled = await applyShared(remote.data, remote.publishedAt);
+        }
+        setShared({ configured: remote?.configured ?? false, publishedAt: remote?.publishedAt ?? null });
+
+        // 公開データが無いときだけ、同梱してある受領済みデータを入れる
+        const seeded = remote?.data ? false : await loadSeedIfEmpty();
         const [s, p] = await Promise.all([listSnapshots(), loadPlan()]);
         setSnapshots(s);
         setPlan(p);
-        if (seeded) {
+        if (pulled) {
+          setMessage({ kind: "info", text: "公開データを読み込みました。" });
+        } else if (seeded) {
           setMessage({
             kind: "info",
             text: "すでにお預かりしている分を初期データとして読み込みました。次の週からは「応募データを取り込む」で追加してください。",
@@ -244,6 +264,31 @@ export default function DashboardPage() {
     downloadJson(await exportBackup(), `採用モニタリング_バックアップ_${new Date().toISOString().slice(0, 10)}.json`);
   }, []);
 
+  /**
+   * 手元のデータを公開データとして上げる。
+   *
+   * 鍵は入れてもらったものをこのブラウザに覚えさせる。毎週聞かれると面倒なので。
+   * 弾かれたときは覚えた鍵のほうを捨てて、次に入れ直せるようにする。
+   */
+  const handlePublish = useCallback(async () => {
+    const stored = window.localStorage.getItem("shareKey") ?? "";
+    const key = stored || window.prompt("公開用パスワードを入れてください") || "";
+    if (!key) return;
+    try {
+      const result = await publishShared(await exportBackup(), key);
+      window.localStorage.setItem("shareKey", key);
+      await setSharedAt(result.publishedAt);
+      setShared({ configured: true, publishedAt: result.publishedAt });
+      setMessage({
+        kind: "info",
+        text: `公開データを更新しました（応募${result.applications}件）。これからURLを開く人には、この内容が出ます。`,
+      });
+    } catch (e) {
+      window.localStorage.removeItem("shareKey");
+      setMessage({ kind: "error", text: e instanceof Error ? e.message : String(e) });
+    }
+  }, []);
+
   const handleExportWorkbook = useCallback(() => {
     downloadWorkbook(
       buildWorkbookSheets(apps, plan, rates, asOf),
@@ -310,6 +355,9 @@ export default function DashboardPage() {
           onImportBackup={handleImportBackup}
           onExportBackup={handleExportBackup}
           onExportWorkbook={handleExportWorkbook}
+          onPublish={handlePublish}
+          sharedConfigured={shared.configured}
+          sharedPublishedAt={shared.publishedAt}
           onDeleteSnapshot={handleDeleteSnapshot}
           onResetPlan={handleResetPlan}
         />

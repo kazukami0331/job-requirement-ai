@@ -121,6 +121,31 @@ export async function loadSeedIfEmpty(): Promise<boolean> {
   }
 }
 
+/**
+ * 公開データの取り込み。
+ *
+ * 公開された時刻を覚えておき、同じものを二度入れない。
+ * 取り込みは上書きではなく追加なので、まだ公開していない手元の週は消えない。
+ */
+const SHARED_AT_KEY = "sharedAt";
+
+export async function getSharedAt(): Promise<string | null> {
+  return (await tx<string | undefined>(SETTING_STORE, "readonly", (s) => s.get(SHARED_AT_KEY))) ?? null;
+}
+
+export async function setSharedAt(publishedAt: string): Promise<void> {
+  await tx(SETTING_STORE, "readwrite", (s) => s.put(publishedAt, SHARED_AT_KEY) as IDBRequest<IDBValidKey>);
+}
+
+/** 公開データが手元のものより新しければ取り込む。入れたらtrue。 */
+export async function applyShared(data: Backup, publishedAt: string): Promise<boolean> {
+  if ((await getSharedAt()) === publishedAt) return false;
+  await importBackup(data);
+  await setSharedAt(publishedAt);
+  await markSeedLoaded();
+  return true;
+}
+
 /** 初期データを読み込み済みにして、以後の自動読み込みを止める */
 export async function markSeedLoaded(): Promise<void> {
   await tx(SETTING_STORE, "readwrite", (s) => s.put(true, SEED_DONE_KEY) as IDBRequest<IDBValidKey>);

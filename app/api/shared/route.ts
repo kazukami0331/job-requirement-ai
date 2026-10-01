@@ -17,6 +17,24 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const PATH = "dashboard/shared.json";
+
+/**
+ * Blobへの出入りに制限時間をつける。
+ *
+ * トークンが違うとSDKが何度も再試行し、再試行の待ち時間のあいだは
+ * abortSignalも見てくれないので、こちら側でも打ち切る。
+ * そうしないと画面のボタンが黙って固まったままになる。
+ */
+const timeout = (ms: number) => AbortSignal.timeout(ms);
+
+function withTimeout<T>(work: Promise<T>, ms: number, what: string): Promise<T> {
+  return Promise.race([
+    work,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${what}が${ms / 1000}秒以内に終わりませんでした`)), ms)
+    ),
+  ]);
+}
 /** Vercelのリクエスト上限（4.5MB）に対する余裕を見た上限 */
 const MAX_BYTES = 4_000_000;
 
@@ -39,7 +57,11 @@ export async function GET() {
 
   try {
     // useCache:false を付けないとCDNに載った古い内容が返ることがある
-    const blob = await get(PATH, { access: "public", useCache: false });
+    const blob = await withTimeout(
+      get(PATH, { access: "public", useCache: false, abortSignal: timeout(15_000) }),
+      20_000,
+      "公開データの読み込み"
+    );
     if (!blob || blob.statusCode !== 200 || !blob.stream) {
       return NextResponse.json({ configured: true, publishedAt: null, data: null }, { headers });
     }
@@ -88,14 +110,19 @@ export async function PUT(req: NextRequest) {
   const publishedAt = new Date().toISOString();
 
   try {
-    await put(PATH, JSON.stringify({ ...backup, publishedAt }), {
-      access: "public",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/json",
-      // 読み取り側は useCache:false で取るが、念のため短くしておく
-      cacheControlMaxAge: 60,
-    });
+    await withTimeout(
+      put(PATH, JSON.stringify({ ...backup, publishedAt }), {
+        access: "public",
+        addRandomSuffix: false,
+        allowOverwrite: true,
+        contentType: "application/json",
+        // 読み取り側は useCache:false で取るが、念のため短くしておく
+        cacheControlMaxAge: 60,
+        abortSignal: timeout(30_000),
+      }),
+      35_000,
+      "公開データの保存"
+    );
   } catch (e) {
     return NextResponse.json(
       { error: `公開に失敗しました: ${e instanceof Error ? e.message : String(e)}` },
