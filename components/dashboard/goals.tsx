@@ -310,6 +310,12 @@ export function GoalControls({
             </span>
           )}
         </span>
+        {total && perHire !== null && total.requiredApplied > Math.round(total.remainingTarget * perHire) && (
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            校舎ごとに端数を切り上げているので、{total.remainingTarget}名 × {perHire.toFixed(1)}件 ＝{" "}
+            {Math.round(total.remainingTarget * perHire)}件 より少し多くなります
+          </span>
+        )}
       </div>
 
       {choices.length > 0 && (

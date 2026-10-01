@@ -145,6 +145,27 @@ function spreadHires(total: number, months: number): number[] {
  * 月の終わりが近くても当月から始める。途中の月でも目標に対してどれだけ足りていないかが
  * 分かること自体に意味があるため（月末で始めると遅れが表に出ない）。
  */
+/**
+ * 合計を、採用目標を置いた月へ配る。
+ * 端数は大きい月から1ずつ足して、月の合計が必ず元の数に戻るようにする。
+ */
+function spreadTotal(total: number, weights: number[]): number[] {
+  const sum = weights.reduce((a, b) => a + b, 0);
+  if (total <= 0 || sum <= 0) return weights.map(() => 0);
+
+  const exact = weights.map((w) => (total * w) / sum);
+  const out = exact.map((v) => Math.floor(v));
+  let rest = total - out.reduce((a, b) => a + b, 0);
+  for (const [, i] of exact
+    .map((v, i) => [v - Math.floor(v), i] as const)
+    .sort((a, b) => b[0] - a[0])) {
+    if (rest <= 0) break;
+    out[i] += 1;
+    rest -= 1;
+  }
+  return out;
+}
+
 export function defaultWindow(plan: HiringPlan | null, asOfIso?: string): GoalWindow {
   const asOf = asOfIso ?? new Date().toISOString();
   const thisMonth = monthKey(asOf);
@@ -296,10 +317,14 @@ export function monthlyGoals(
     const planned = spreadHires(remainingTarget, windowSpan + 1);
     // 先頭に付けた実績のみの月には目標を置かない
     const hirePerMonth = [...leading.map(() => 0), ...planned];
-    // 採用目標から歩留まりで割り戻す。応募も面接も人数なので切り上げて整数にする。
-    const appliedPerMonth = hirePerMonth.map((h) => (h > 0 ? Math.ceil(h * perHire) : 0));
-    const interviewPerMonth = appliedPerMonth.map((a) => (a > 0 ? Math.ceil(a * rates.applyToInterview) : 0));
-    const requiredApplied = appliedPerMonth.reduce((a, b) => a + b, 0);
+    // 採用目標から歩留まりで割り戻す。
+    //
+    // 切り上げるのは校舎ごとに1回だけ。月ごとに割り戻して切り上げると、
+    // 1名あたり5.6件が6件になり、校舎の数だけ積み上がって1割近く膨らむ。
+    const requiredApplied = Math.ceil(remainingTarget * perHire);
+    const requiredInterview = Math.ceil(remainingTarget / rates.interviewToHire);
+    const appliedPerMonth = spreadTotal(requiredApplied, hirePerMonth);
+    const interviewPerMonth = spreadTotal(requiredInterview, hirePerMonth);
     const deadlineNote = [
       `${windowLabel} で均等に按分`,
       s.deadline && s.deadline !== "-" ? `期限 ${s.deadline}` : "期限未記入",
