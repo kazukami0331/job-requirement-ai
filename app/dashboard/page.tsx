@@ -16,7 +16,8 @@ import {
   weeklyMatrix,
   weeklyTrend,
 } from "@/lib/recruiting/aggregate";
-import { parsePlanFile, totalShortage } from "@/lib/recruiting/plan";
+import { parsePlanFile, shortageByShop, totalShortage } from "@/lib/recruiting/plan";
+import { normalizeShopKey } from "@/lib/recruiting/shops";
 import { buildWorkbookSheets, downloadJson, downloadWorkbook } from "@/lib/recruiting/export";
 import {
   applyShared,
@@ -84,6 +85,9 @@ function DimensionSwitch({ value, onChange }: { value: Dimension; onChange: (d: 
 /** 集計期間の選択肢。今期＝9月始まりの採用期。 */
 type Period = "term" | "all";
 
+/** 対象の校舎。master＝不足人数マスタに採用目標がある校舎だけ。 */
+type Scope = "master" | "all";
+
 function readFile(file: File): Promise<ArrayBuffer> {
   return file.arrayBuffer();
 }
@@ -105,6 +109,8 @@ export default function DashboardPage() {
   });
   // 集計期間。既定は今期（9月始まり）。全期間は旧運用ぶんも含めて見たいときだけ。
   const [period, setPeriod] = useState<Period>("term");
+  // 対象の校舎。既定は不足人数マスタに載っている校舎だけ。
+  const [scope, setScope] = useState<Scope>("master");
   // 歩留まりの想定値。実績を見ながら手で動かせるようにしておく。
   const [rates, setRates] = useState<GoalRates>(DEFAULT_RATES);
   // 既定は3指標まとめて。応募だけ・採用だけを見たいときは絞り込める。
@@ -170,11 +176,27 @@ export default function DashboardPage() {
     return `${Number(base.slice(5, 7)) >= 9 ? y : y - 1}-09-01`;
   }, [asOf]);
 
-  /** 雇用形態だけで絞った全期間の応募。充足（採用済み）の数え上げに使う。 */
-  const typedApps = useMemo(
-    () => (employmentFilter === "すべて" ? allApps : allApps.filter((a) => a.employmentType === employmentFilter)),
-    [allApps, employmentFilter]
-  );
+  /** 不足人数マスタに採用目標がある校舎。これ以外は既定で画面から外す。 */
+  const masterKeys = useMemo(() => {
+    if (!plan) return null;
+    const keys = shortageByShop(plan)
+      .filter((s) => s.shortage > 0)
+      .map((s) => normalizeShopKey(s.shopShortName));
+    return keys.length > 0 ? new Set(keys) : null;
+  }, [plan]);
+
+  /**
+   * 雇用形態と対象校舎で絞った全期間の応募。充足（採用済み）の数え上げに使う。
+   *
+   * 既定でマスタ外の校舎を外すのは、採用目標を持っていない校舎（六本木オフィスなど）の
+   * 応募や採用が混ざると、同じ画面のKPIと月次目標で母数が変わってしまうため。
+   */
+  const typedApps = useMemo(() => {
+    const byType =
+      employmentFilter === "すべて" ? allApps : allApps.filter((a) => a.employmentType === employmentFilter);
+    if (scope === "all" || !masterKeys) return byType;
+    return byType.filter((a) => masterKeys.has(normalizeShopKey(a.shopShortName)));
+  }, [allApps, employmentFilter, scope, masterKeys]);
 
   /**
    * 画面に出す応募。既定では今期ぶんだけ。
@@ -341,9 +363,7 @@ export default function DashboardPage() {
     if (!t || t.alreadyHired === 0) return "採用済みは不足人数マスタに載っている校舎ぶんだけを数えています。";
     const j = (d: string) => d.slice(5).replace("-", "/");
     const span = t.hiredFrom && t.hiredTo ? `${j(t.hiredFrom)}〜${j(t.hiredTo)}に応募した人` : "全期間";
-    return `採用済み${t.alreadyHired}名は、上の集計期間に関わらず全期間で数えています（いまは${span}・不足人数マスタに載っている校舎だけ）。上のKPIの採用${
-      summary.hired
-    }件は全校舎ぶんなので一致しません。`;
+    return `採用済み${t.alreadyHired}名は、上の集計期間に関わらず全期間で数えています（いまは${span}）。上のKPIの採用${summary.hired}件は選んだ集計期間ぶんなので、期間を全期間にすると一致します。`;
   }, [goals, summary.hired]);
 
   /**
@@ -460,6 +480,39 @@ export default function DashboardPage() {
               </span>
             </div>
 
+            {masterKeys && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                  対象の校舎
+                </span>
+                <div className="flex gap-1" role="group" aria-label="対象の校舎">
+                  {([
+                    { key: "master" as Scope, label: "不足人数マスタの校舎" },
+                    { key: "all" as Scope, label: "全校舎" },
+                  ]).map((o) => (
+                    <button
+                      key={o.key}
+                      onClick={() => setScope(o.key)}
+                      className="rounded-lg border px-2 py-1 text-xs"
+                      style={{
+                        borderColor: o.key === scope ? "var(--series-1)" : "var(--hairline)",
+                        color: o.key === scope ? "var(--series-1)" : "var(--text-secondary)",
+                        fontWeight: o.key === scope ? 600 : 400,
+                      }}
+                      aria-pressed={o.key === scope}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {scope === "master"
+                    ? "採用目標を持っている校舎だけで集計しています。目標の無い校舎（六本木オフィスなど）の応募・採用は入りません"
+                    : "採用目標の無い校舎も含めて集計しています。月次目標の採用済みとは母数が合いません"}
+                </span>
+              </div>
+            )}
+
             {/* セクションタブはスマホ幅のときだけ。広い画面では全セクションを並べる。 */}
             <div
               className="-mx-4 flex gap-1 overflow-x-auto px-4 sm:hidden"
@@ -509,7 +562,7 @@ export default function DashboardPage() {
                 unit="件"
                 tone={summary.hired > 0 ? "good" : "neutral"}
                 hint={`応募からの採用率 ${(summary.hireRate * 100).toFixed(1)}%${
-                  goals.total ? ` ／ 月次目標の採用済みは${goals.total.alreadyHired}名（マスタ校舎・全期間）` : ""
+                  goals.total ? ` ／ 月次目標の採用済み（全期間）は${goals.total.alreadyHired}名` : ""
                 }`}
                 className="col-span-2 lg:col-span-1"
               />
