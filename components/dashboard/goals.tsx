@@ -202,15 +202,19 @@ export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
  * 採用の充足ぐあい。「採用3名（済2・残1）」だと3名が目標なのか採れた数なのか読めないという
  * 指摘があったので、どの数字が何なのかを毎回名前で書く。
  */
+/**
+ * 採用の進み具合。「採用済み / 目標（残り）」の並びにしている。
+ * 目標・採用済み・残りを別々に書くと、2名なのか1名充足して残り2名なのかが読み取れないため。
+ */
 function HireCount({ row }: { row: ShopGoalRow }) {
   const rate = row.hireTarget > 0 ? ratioLabel(row.alreadyHired, row.hireTarget) : null;
   return (
     <span style={{ color: "var(--text-muted)" }}>
-      目標{row.hireTarget}名 ／ 採用
       <span style={{ color: row.alreadyHired > 0 ? "var(--status-good)" : "var(--text-muted)", fontWeight: 600 }}>
         {row.alreadyHired}
       </span>
-      名{rate && `（${rate}）`} ／ 残り
+      {" / "}
+      {row.hireTarget}名{rate && `（${rate}）`} 残り
       <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>{row.remainingTarget}</span>名
     </span>
   );
@@ -470,7 +474,7 @@ export function MonthlyGoalTable({ goals, view }: { goals: MonthlyGoals; view: G
         <table className="w-full border-collapse">
           <thead>
             <tr style={{ borderBottom: "1px solid var(--gridline)" }}>
-              <Th>校舎（採用目標）</Th>
+              <Th>校舎（採用済み / 目標）</Th>
               <Th align="right">必要応募</Th>
               {months.map((m) => (
                 <Th key={m.month} align="right" width={`${Math.floor(62 / months.length)}%`}>

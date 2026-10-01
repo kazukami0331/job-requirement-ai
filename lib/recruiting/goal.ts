@@ -69,6 +69,9 @@ export interface ShopGoalRow {
   deadlineNote: string;
   /** 残りの採用目標を満たすのに必要な応募の総数 */
   requiredApplied: number;
+  /** 採用済みとして数えた人の、応募日の最初と最後。1人も居なければ null。 */
+  hiredFrom: string | null;
+  hiredTo: string | null;
   months: MonthGoal[];
 }
 
@@ -243,6 +246,7 @@ export function monthlyGoals(
   // いまの採用者数。目標はここからの残りぶんだけ積む。
   // 期間の前後で分けず全期間で数える。採れた人はいつ応募した人でも充足には変わりないため。
   const hiredSoFar = new Map<string, number>();
+  const hiredDates = new Map<string, string[]>();
   for (const a of apps) {
     const stage = stageOf(a.statusId);
     const reachedInterview = FUNNEL_STEPS[1].reached(stage);
@@ -254,7 +258,11 @@ export function monthlyGoals(
       if (reachedInterview) c.interview++;
       if (hired) c.hire++;
     });
-    if (hired) hiredSoFar.set(key, (hiredSoFar.get(key) ?? 0) + 1);
+    if (hired) {
+      hiredSoFar.set(key, (hiredSoFar.get(key) ?? 0) + 1);
+      // 採用済みが「いつ応募した人か」を出せるように、応募日も控えておく
+      hiredDates.set(key, [...(hiredDates.get(key) ?? []), a.receivedDate]);
+    }
     observed.applied++;
     if (reachedInterview) observed.interview++;
     if (hired) observed.hire++;
@@ -311,6 +319,7 @@ export function monthlyGoals(
     const key = normalizeShopKey(s.shopShortName);
     const alreadyHired = hiredSoFar.get(key) ?? 0;
     const remainingTarget = Math.max(s.shortage - alreadyHired, 0);
+    const dates = [...(hiredDates.get(key) ?? [])].sort();
 
     // 期限の早い校舎も含め、どの校舎も同じ月に配る。
     // 期限は目安として注記に残すだけで、月の配分は変えない。
@@ -343,6 +352,8 @@ export function monthlyGoals(
       deadline: s.deadline,
       deadlineNote,
       requiredApplied,
+      hiredFrom: dates[0] ?? null,
+      hiredTo: dates[dates.length - 1] ?? null,
       months: months.map((m, i) => {
         const c = actual.get(`${key}|${m.month}`) ?? { applied: 0, interview: 0, hire: 0 };
         return {
@@ -374,6 +385,8 @@ export function monthlyGoals(
           deadline: "",
           deadlineNote: `${windowLabel} で均等に按分`,
           requiredApplied: rows.reduce((a, r) => a + r.requiredApplied, 0),
+          hiredFrom: rows.map((r) => r.hiredFrom).filter((d): d is string => d !== null).sort()[0] ?? null,
+          hiredTo: rows.map((r) => r.hiredTo).filter((d): d is string => d !== null).sort().pop() ?? null,
           months: months.map((m, i) => ({
             ...m,
             targetApplied: rows.reduce((a, r) => a + r.months[i].targetApplied, 0),

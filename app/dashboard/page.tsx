@@ -331,6 +331,22 @@ export default function DashboardPage() {
   }, [weekKeys, asOf]);
 
   /**
+   * 採用済み（充足ぶん）が何を数えているか。
+   *
+   * 上のKPIの「採用」とは母数が違う（KPIは集計期間ぶんの全校舎、こちらは期間を問わず
+   * 不足人数マスタに載っている校舎だけ）。並べて見ると数が合わないので、ここで断っておく。
+   */
+  const hiredScopeNote = useMemo(() => {
+    const t = goals.total;
+    if (!t || t.alreadyHired === 0) return "採用済みは不足人数マスタに載っている校舎ぶんだけを数えています。";
+    const j = (d: string) => d.slice(5).replace("-", "/");
+    const span = t.hiredFrom && t.hiredTo ? `${j(t.hiredFrom)}〜${j(t.hiredTo)}に応募した人` : "全期間";
+    return `採用済み${t.alreadyHired}名は、上の集計期間に関わらず全期間で数えています（いまは${span}・不足人数マスタに載っている校舎だけ）。上のKPIの採用${
+      summary.hired
+    }件は全校舎ぶんなので一致しません。`;
+  }, [goals, summary.hired]);
+
+  /**
    * 集計している期間。ファネルなどが何を対象にしているかを示すのに使う。
    * 年を省くと2年ぶんの集計が5週ぶんに見えてしまうので、年まで出す。
    */
@@ -492,7 +508,9 @@ export default function DashboardPage() {
                 value={summary.hired}
                 unit="件"
                 tone={summary.hired > 0 ? "good" : "neutral"}
-                hint={`応募からの採用率 ${(summary.hireRate * 100).toFixed(1)}%`}
+                hint={`応募からの採用率 ${(summary.hireRate * 100).toFixed(1)}%${
+                  goals.total ? ` ／ 月次目標の採用済みは${goals.total.alreadyHired}名（マスタ校舎・全期間）` : ""
+                }`}
                 className="col-span-2 lg:col-span-1"
               />
             </div>
@@ -529,7 +547,7 @@ export default function DashboardPage() {
                 title="月次の目標と進捗"
                 subtitle={`残りの採用人数を月に1名ずつ割り当て、そこから歩留まりで割り戻した月ごとの目標と実績です。緊急${
                   goals.rows.filter((r) => r.urgent).length
-                }校舎を先頭に並べています。採用済みの人数だけは、上の集計期間に関わらず全期間で数えています（いつ応募した人でも、採れていれば充足は進むため）。`}
+                }校舎を先頭に並べています。${hiredScopeNote}`}
               >
                 <div className="space-y-5">
                   <GoalControls rates={rates} onRates={setRates} goals={goals} onWindow={setGoalWindow} />
