@@ -133,7 +133,21 @@ export default function DashboardPage() {
     [allApps, employmentFilter]
   );
 
-  const trend = useMemo(() => weeklyTrend(apps), [apps]);
+  /**
+   * 週次の応募数。9月以降だけを出す。
+   *
+   * それより前は旧運用のまばらな履歴で、1年ぶん並べると直近の山が潰れて読めない。
+   * 採用の期が9月始まりなので、9月を過ぎたら新しい9月に切り替わる。
+   */
+  const trend = useMemo(() => {
+    const all = weeklyTrend(apps);
+    if (all.length === 0) return all;
+    const last = all[all.length - 1].week.start;
+    const year = Number(last.slice(0, 4)) - (Number(last.slice(5, 7)) >= 9 ? 0 : 1);
+    const from = `${year}-09-01`;
+    const shown = all.filter((p) => p.week.end >= from);
+    return shown.length > 0 ? shown : all.slice(-13);
+  }, [apps]);
   const pool = useMemo(() => stagePool(apps), [apps]);
   const funnelSteps = useMemo(() => funnel(apps), [apps]);
   /**
@@ -388,7 +402,10 @@ export default function DashboardPage() {
               />
             </div>
 
-            <Card title="週次の応募数" subtitle="応募受付日ベース。棒に触れるとその週の内訳が出ます。">
+            <Card
+              title="週次の応募数"
+              subtitle="応募受付日ベース。9月以降の週だけを出しています（9月初日を含む週から）。棒に触れるとその週の内訳が出ます。"
+            >
               <WeeklyTrendChart points={trend} />
             </Card>
 

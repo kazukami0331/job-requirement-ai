@@ -111,6 +111,16 @@ function deadlineMonth(raw: string): string | null {
 }
 
 /**
+ * その月が属する採用期の最初の月。期は9月始まり。
+ * 不足人数マスタの期限が10/31・12/31で、募集も9月から動き出すため。
+ */
+function termStart(month: string): string {
+  const y = Number(month.slice(0, 4));
+  const m = Number(month.slice(5, 7));
+  return `${m >= 9 ? y : y - 1}-09`;
+}
+
+/**
  * 採用の残り人数を月へ配る。人は小数で採れないので必ず整数にする。
  *
  * 前の月から1名ずつ置いていき、足りなくなったら0。残り3名で3ヶ月なら 1/1/1、
@@ -233,12 +243,13 @@ export function monthlyGoals(
   const nowMonth = monthKey(asOf);
 
   /**
-   * 按分期間より前でも、当月からの実績は出す。
-   * 期間が翌月から始まるとき（当月が半分以上過ぎているとき）に当月の列ごと消えると、
-   * その月に何件来たのかが分からなくなる。目標は持たせず、実績だけを並べる。
+   * 按分期間より前の月も、実績だけは並べる。
+   *
+   * 期の頭（9月）から今期ぶんをすべて出す。10月に入った途端に9月の列が消えると、
+   * その月に何件来たのかが追えなくなるため。目標は持たせない。
    */
   const leading: string[] = [];
-  for (let m = nowMonth; monthsBetween(m, startMonth) > 0 && leading.length < 12; m = addMonths(m, 1)) {
+  for (let m = termStart(nowMonth); monthsBetween(m, startMonth) > 0 && leading.length < 12; m = addMonths(m, 1)) {
     leading.push(m);
   }
 
