@@ -11,7 +11,7 @@
  * 年齢・性別も集計に使っていないためシードには含めない。
  */
 import * as XLSX from "xlsx";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename } from "node:path";
 
 const OUT = "public/seed/initial.json";
@@ -176,7 +176,10 @@ if (!appFile) {
 }
 
 const snapshot = parseApplications(appFile);
-const plan = planFile ? parsePlan(planFile) : null;
+// 不足人数マスタを渡さないときは、いま入っている計画をそのまま残す。
+// 応募データだけ差し替えたいときに、緊急校舎の色まで消してしまわないため。
+const previous = existsSync(OUT) ? JSON.parse(readFileSync(OUT, "utf8")) : null;
+const plan = planFile ? parsePlan(planFile) : (previous?.plan ?? null);
 
 writeFileSync(OUT, JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), snapshots: [snapshot], plan }, null, 2));
 console.error(`${OUT}: 応募 ${snapshot.applications.length}件 / 計画 ${plan ? plan.rows.length : 0}行`);
