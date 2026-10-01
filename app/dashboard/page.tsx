@@ -78,6 +78,9 @@ function DimensionSwitch({ value, onChange }: { value: Dimension; onChange: (d: 
   );
 }
 
+/** 集計期間の選択肢。今期＝9月始まりの採用期。 */
+type Period = "term" | "all";
+
 function readFile(file: File): Promise<ArrayBuffer> {
   return file.arrayBuffer();
 }
@@ -91,6 +94,8 @@ export default function DashboardPage() {
   const [employmentFilter, setEmploymentFilter] = useState<string>("すべて");
   // スマホでは縦に長くなりすぎるのでセクションを切り替える。画面が広いときは全部並べる。
   const [section, setSection] = useState<SectionKey>("summary");
+  // 集計期間。既定は今期（9月始まり）。全期間は旧運用ぶんも含めて見たいときだけ。
+  const [period, setPeriod] = useState<Period>("term");
   // 歩留まりの想定値。実績を見ながら手で動かせるようにしておく。
   const [rates, setRates] = useState<GoalRates>(DEFAULT_RATES);
   // 既定は3指標まとめて。応募だけ・採用だけを見たいときは絞り込める。
@@ -128,28 +133,6 @@ export default function DashboardPage() {
     [allApps]
   );
 
-  const apps = useMemo(
-    () => (employmentFilter === "すべて" ? allApps : allApps.filter((a) => a.employmentType === employmentFilter)),
-    [allApps, employmentFilter]
-  );
-
-  /**
-   * 週次の応募数。9月以降だけを出す。
-   *
-   * それより前は旧運用のまばらな履歴で、1年ぶん並べると直近の山が潰れて読めない。
-   * 採用の期が9月始まりなので、9月を過ぎたら新しい9月に切り替わる。
-   */
-  const trend = useMemo(() => {
-    const all = weeklyTrend(apps);
-    if (all.length === 0) return all;
-    const last = all[all.length - 1].week.start;
-    const year = Number(last.slice(0, 4)) - (Number(last.slice(5, 7)) >= 9 ? 0 : 1);
-    const from = `${year}-09-01`;
-    const shown = all.filter((p) => p.week.end >= from);
-    return shown.length > 0 ? shown : all.slice(-13);
-  }, [apps]);
-  const pool = useMemo(() => stagePool(apps), [apps]);
-  const funnelSteps = useMemo(() => funnel(apps), [apps]);
   /**
    * 集計の基準日。書き出した日を含む週が「直近週」になる。
    * これを渡さないと、週明けでまだ応募が無いだけで直近週が1つ前にズレ、
@@ -159,6 +142,35 @@ export default function DashboardPage() {
     () => snapshots[snapshots.length - 1]?.takenAt,
     [snapshots]
   );
+
+  /** 今期の初日。採用の期は9月始まりなので、8月までは前年の9/1になる。 */
+  const termFrom = useMemo(() => {
+    const base = (asOf ?? new Date().toISOString()).slice(0, 10);
+    const y = Number(base.slice(0, 4));
+    return `${Number(base.slice(5, 7)) >= 9 ? y : y - 1}-09-01`;
+  }, [asOf]);
+
+  /** 雇用形態だけで絞った全期間の応募。充足（採用済み）の数え上げに使う。 */
+  const typedApps = useMemo(
+    () => (employmentFilter === "すべて" ? allApps : allApps.filter((a) => a.employmentType === employmentFilter)),
+    [allApps, employmentFilter]
+  );
+
+  /**
+   * 画面に出す応募。既定では今期ぶんだけ。
+   *
+   * 全期間には2024年からの旧運用ぶん（ほぼ決着済み）が混ざっている。
+   * 週次の棒グラフは9月以降しか出していないのに、ステータス内訳やファネルだけ
+   * 2年ぶんの母数で出ると、同じ画面の中で数字が食い違って見える。
+   */
+  const apps = useMemo(
+    () => (period === "term" ? typedApps.filter((a) => a.receivedDate >= termFrom) : typedApps),
+    [typedApps, period, termFrom]
+  );
+
+  const trend = useMemo(() => weeklyTrend(apps), [apps]);
+  const pool = useMemo(() => stagePool(apps), [apps]);
+  const funnelSteps = useMemo(() => funnel(apps), [apps]);
   const weekKeys = useMemo(() => recentWeekKeys(apps, asOf), [apps, asOf]);
   const summary = useMemo(() => kpis(apps, weekKeys), [apps, weekKeys]);
   const rows = useMemo(() => breakdown(apps, dimension, weekKeys), [apps, dimension, weekKeys]);
@@ -172,8 +184,9 @@ export default function DashboardPage() {
 
   /** 採用目標から逆算した月次の応募目標と進捗 */
   const goals = useMemo(
-    () => monthlyGoals(apps, plan, rates, asOf, goalWindow ?? undefined),
-    [apps, plan, rates, asOf, goalWindow]
+    // 充足は「いつ応募した人でも採れていれば充足」なので、ここだけ全期間で見る
+    () => monthlyGoals(typedApps, plan, rates, asOf, goalWindow ?? undefined),
+    [typedApps, plan, rates, asOf, goalWindow]
   );
 
   const handleUploadApplications = useCallback(async (file: File) => {
@@ -272,11 +285,14 @@ export default function DashboardPage() {
     return `直近週 ${md(lastWeek.start)}〜${md(asOfDate)}（${partial}） ／ ${prev}（確定）`;
   }, [weekKeys, asOf]);
 
-  /** 集計している期間。ファネルなどが何を対象にしているかを示すのに使う。 */
+  /**
+   * 集計している期間。ファネルなどが何を対象にしているかを示すのに使う。
+   * 年を省くと2年ぶんの集計が5週ぶんに見えてしまうので、年まで出す。
+   */
   const periodLabel = useMemo(() => {
-    if (apps.length === 0) return "全期間";
+    if (apps.length === 0) return "対象なし";
     const dates = apps.map((a) => a.receivedDate).sort();
-    const j = (d: string) => d.replace(/^\d{4}-/, "").replace("-", "/");
+    const j = (d: string) => d.replace(/-/g, "/");
     return `${j(dates[0])}〜${j(dates[dates.length - 1])}`;
   }, [apps]);
 
@@ -344,8 +360,39 @@ export default function DashboardPage() {
                   </option>
                 ))}
               </select>
-              <span className="hidden text-xs sm:inline" style={{ color: "var(--text-muted)" }}>
+              <span className="hidden text-xs lg:inline" style={{ color: "var(--text-muted)" }}>
                 正社員を扱い始めたら、ここで切り替えて同じ画面で見られます
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                集計期間
+              </span>
+              <div className="flex gap-1" role="group" aria-label="集計期間">
+                {([
+                  { key: "term" as Period, label: `今期（${termFrom.slice(0, 4)}/09〜）` },
+                  { key: "all" as Period, label: "全期間" },
+                ]).map((p) => (
+                  <button
+                    key={p.key}
+                    onClick={() => setPeriod(p.key)}
+                    className="rounded-lg border px-2 py-1 text-xs"
+                    style={{
+                      borderColor: p.key === period ? "var(--series-1)" : "var(--hairline)",
+                      color: p.key === period ? "var(--series-1)" : "var(--text-secondary)",
+                      fontWeight: p.key === period ? 600 : 400,
+                    }}
+                    aria-pressed={p.key === period}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                {period === "term"
+                  ? `${periodLabel} の ${apps.length}件で集計しています（全期間では${typedApps.length}件）`
+                  : `${periodLabel} の ${apps.length}件。2024年からの旧運用ぶんを含みます`}
               </span>
             </div>
 
@@ -404,7 +451,11 @@ export default function DashboardPage() {
 
             <Card
               title="週次の応募数"
-              subtitle="応募受付日ベース。9月以降の週だけを出しています（9月初日を含む週から）。棒に触れるとその週の内訳が出ます。"
+              subtitle={
+                period === "term"
+                  ? "応募受付日ベース。今期（9月以降）の週だけを出しています。棒に触れるとその週の内訳が出ます。"
+                  : "応募受付日ベース。全期間の週を出しています。棒に触れるとその週の内訳が出ます。"
+              }
             >
               <WeeklyTrendChart points={trend} />
             </Card>
@@ -430,7 +481,7 @@ export default function DashboardPage() {
                 title="月次の目標と進捗"
                 subtitle={`残りの採用人数を月に1名ずつ割り当て、そこから歩留まりで割り戻した月ごとの目標と実績です。緊急${
                   goals.rows.filter((r) => r.urgent).length
-                }校舎を先頭に並べています。`}
+                }校舎を先頭に並べています。採用済みの人数だけは、上の集計期間に関わらず全期間で数えています（いつ応募した人でも、採れていれば充足は進むため）。`}
               >
                 <div className="space-y-5">
                   <GoalControls rates={rates} onRates={setRates} goals={goals} onWindow={setGoalWindow} />
