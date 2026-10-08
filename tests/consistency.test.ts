@@ -112,6 +112,11 @@ test("月ごとの目標を足すと、全体の目標に戻る", () => {
     total.remainingTarget
   );
   assert.equal(total.remainingTarget, total.hireTarget - total.filledHired);
+  // 月へ配るのは「残り」だけ。採用目標そのものを割り直しているわけではない。
+  assert.equal(
+    total.months.reduce((a, m) => a + m.targetHire, 0) + total.filledHired,
+    total.hireTarget
+  );
   assert.equal(
     goals.rows.reduce((a, r) => a + r.requiredApplied, 0),
     total.requiredApplied

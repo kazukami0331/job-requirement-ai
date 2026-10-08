@@ -154,8 +154,25 @@ export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
   const { total, months } = goals;
   if (!total) return null;
 
+  // 月の採用目標を足しても採用目標（58名）にはならない。配っているのは「残り」だけで、
+  // すでに充足したぶんは配る必要が無いため。その内訳をその場に出しておく。
+  const spread = total.months.reduce((a, m) => a + m.targetHire, 0);
+  const over = total.alreadyHired - total.filledHired;
+  const actualOnly = total.months.filter((m) => m.actualOnly);
+  const before = actualOnly.reduce((a, m) => a + m.hireActual, 0);
+  const windowLabel = total.months.filter((m) => !m.actualOnly);
+
   return (
-    <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+    <>
+      <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+        採用目標 {total.hireTarget}名 ＝ 充足 {total.filledHired}名 ＋ これから採る {total.remainingTarget}名。
+        下の{windowLabel[0] ? windowLabel[0].label : ""}〜{windowLabel[windowLabel.length - 1]?.label ?? ""}
+        に配った採用目標の合計 {spread}名は、この「これから採る{total.remainingTarget}名」を月へ割ったものです
+        （{total.hireTarget}名を割り直したものではありません）。
+        {actualOnly.length > 0 && `${actualOnly.map((m) => m.label).join("・")}は実績だけを出していて、採用${before}名が入っています。`}
+        {over > 0 && `採用${total.alreadyHired}名のうち${over}名は目標を超えて採れたぶんで、充足には入れていません。`}
+      </p>
+      <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {total.months.map((m, i) => (
         <li
           key={m.month}
@@ -194,7 +211,8 @@ export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
           </dl>
         </li>
       ))}
-    </ul>
+      </ul>
+    </>
   );
 }
 
