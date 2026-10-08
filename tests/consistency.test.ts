@@ -107,14 +107,16 @@ test("月ごとの目標を足すと、全体の目標に戻る", () => {
     total.months.reduce((a, m) => a + m.targetApplied, 0),
     total.requiredApplied
   );
+  // 月へ配ったのは按分開始時点の残り。期間中に採れたぶん、いまの残りのほうが少なくなる。
   assert.equal(
     total.months.reduce((a, m) => a + m.targetHire, 0),
-    total.remainingTarget
+    total.planRemaining
   );
+  assert.ok(total.planRemaining >= total.remainingTarget);
   assert.equal(total.remainingTarget, total.hireTarget - total.filledHired);
-  // 月へ配るのは「残り」だけ。採用目標そのものを割り直しているわけではない。
+  // 月へ配るのは「按分開始時点の残り」。採用目標そのものを割り直しているわけではない。
   assert.equal(
-    total.months.reduce((a, m) => a + m.targetHire, 0) + total.filledHired,
+    total.months.reduce((a, m) => a + m.targetHire, 0) + total.filledAtStart,
     total.hireTarget
   );
   assert.equal(
@@ -179,6 +181,27 @@ test("目標を超えて採れた校舎を作っても、合計が壊れない",
   const row = g.rows.find((r) => normalizeShopKey(r.shopShortName) === key)!;
   assert.equal(row.remainingTarget, 0);
   assert.equal(row.filledHired, row.hireTarget);
+});
+
+test("期間中に採れた人は、その月の目標を減らさない", () => {
+  // 10月に15名採れたのに10月の目標も15名のまま、という二重計上を防ぐ。
+  // 月の目標は按分開始時点の残りから作るので、期間中の採用では動かない。
+  const start = goals.window.from;
+  const inWindow = hires.filter((h) => movedOn(h).slice(0, 7) >= start).length;
+  if (inWindow > 0) {
+    assert.ok(
+      total.months.reduce((a, m) => a + m.targetHire, 0) > total.remainingTarget,
+      "期間中の採用ぶん、月の目標の合計はいまの残りより多いはず"
+    );
+  }
+  for (const r of goals.rows) {
+    assert.equal(r.planRemaining, r.hireTarget - r.filledAtStart);
+    assert.equal(
+      r.months.reduce((a, m) => a + m.targetHire, 0),
+      r.planRemaining,
+      `${r.shopShortName} の月配分が計画と合わない`
+    );
+  }
 });
 
 test("表に載らなかった応募は、校舎名まで出せる", () => {

@@ -78,6 +78,10 @@ export interface ShopGoalRow {
   /** 採用済みとして数えた人の、採用が決まった日の最初と最後。1人も居なければ null。 */
   hiredFrom: string | null;
   hiredTo: string | null;
+  /** 按分期間が始まる時点で充足していた人数。月ごとの目標はここを起点に配る。 */
+  filledAtStart: number;
+  /** 月へ配った人数の合計（＝按分開始時点の残り） */
+  planRemaining: number;
   months: MonthGoal[];
 }
 
@@ -368,17 +372,33 @@ export function monthlyGoals(
     const remainingTarget = s.shortage - filledHired;
     const dates = [...(hiredDates.get(key) ?? [])].sort();
 
+    /**
+     * 月へ配るのは「按分期間が始まる時点で残っていた人数」。
+     *
+     * いまの残り（期間中に採れたぶんも引いた数）を配ると、その採用が
+     * 「残りを減らす」と「その月の目標を埋める」の両方に効いてしまう。
+     * 10月に15名採れたのに10月の目標も15名のまま、という状態になる。
+     */
+    const filledAtStart = events
+      ? Math.min(
+          (events.hires ?? []).filter(
+            (h) => normalizeShopKey(h.shopShortName) === key && monthKey(movedOn(h)) < startMonth
+          ).length,
+          s.shortage
+        )
+      : filledHired;
+    const planRemaining = Math.max(s.shortage - filledAtStart, 0);
     // 期限の早い校舎も含め、どの校舎も同じ月に配る。
     // 期限は目安として注記に残すだけで、月の配分は変えない。
-    const planned = spreadHires(remainingTarget, windowSpan + 1);
+    const planned = spreadHires(planRemaining, windowSpan + 1);
     // 先頭に付けた実績のみの月には目標を置かない
     const hirePerMonth = [...leading.map(() => 0), ...planned];
     // 採用目標から歩留まりで割り戻す。
     //
     // 切り上げるのは校舎ごとに1回だけ。月ごとに割り戻して切り上げると、
     // 1名あたり5.6件が6件になり、校舎の数だけ積み上がって1割近く膨らむ。
-    const requiredApplied = Math.ceil(remainingTarget * perHire);
-    const requiredInterview = Math.ceil(remainingTarget / rates.interviewToHire);
+    const requiredApplied = Math.ceil(planRemaining * perHire);
+    const requiredInterview = Math.ceil(planRemaining / rates.interviewToHire);
     const appliedPerMonth = spreadTotal(requiredApplied, hirePerMonth);
     const interviewPerMonth = spreadTotal(requiredInterview, hirePerMonth);
     const deadlineNote = [
@@ -403,6 +423,8 @@ export function monthlyGoals(
       requiredApplied,
       hiredFrom: dates[0] ?? null,
       hiredTo: dates[dates.length - 1] ?? null,
+      filledAtStart,
+      planRemaining,
       months: months.map((m, i) => {
         const c = actual.get(`${key}|${m.month}`) ?? { applied: 0, interview: 0, hire: 0 };
         return {
@@ -437,6 +459,8 @@ export function monthlyGoals(
           requiredApplied: rows.reduce((a, r) => a + r.requiredApplied, 0),
           hiredFrom: rows.map((r) => r.hiredFrom).filter((d): d is string => d !== null).sort()[0] ?? null,
           hiredTo: rows.map((r) => r.hiredTo).filter((d): d is string => d !== null).sort().pop() ?? null,
+          filledAtStart: rows.reduce((a, r) => a + r.filledAtStart, 0),
+          planRemaining: rows.reduce((a, r) => a + r.planRemaining, 0),
           months: months.map((m, i) => ({
             ...m,
             targetApplied: rows.reduce((a, r) => a + r.months[i].targetApplied, 0),
