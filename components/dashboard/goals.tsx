@@ -22,10 +22,33 @@ const GOAL_VIEWS: { key: GoalView; label: string; hint: string }[] = [
   ...GOAL_METRICS.map((m) => ({ key: m.key as GoalView, label: m.label, hint: m.hint })),
 ];
 
-function pick(m: MonthGoal, metric: GoalMetric): { target: number; actual: number } {
-  if (metric === "interview") return { target: m.targetInterview, actual: m.interviewActual };
-  if (metric === "hire") return { target: m.targetHire, actual: m.hireActual };
-  return { target: m.targetApplied, actual: m.appliedActual };
+/**
+ * 月の目標と実績。
+ *
+ * 採用だけは「充足に効いた人数」を実績にする。目標3名の校舎で5名採れても、
+ * はみ出た2名は他の校舎の不足を埋めないので、進捗には乗せない。
+ * 消すと実際に採った人数が見えなくなるので、はみ出たぶんは over として別に返す。
+ */
+function pick(m: MonthGoal, metric: GoalMetric): { target: number; actual: number; over: number } {
+  if (metric === "interview") return { target: m.targetInterview, actual: m.interviewActual, over: 0 };
+  if (metric === "hire")
+    return {
+      target: m.targetHire,
+      actual: m.hireFilledActual,
+      over: m.hireActual - m.hireFilledActual,
+    };
+  return { target: m.targetApplied, actual: m.appliedActual, over: 0 };
+}
+
+/** 目標を超えて採れたぶん。進捗には乗らないが、採った事実は消さない。 */
+function Over({ n }: { n: number }) {
+  if (n <= 0) return null;
+  return (
+    <span style={{ color: "var(--text-muted)" }} title="目標を超えて採れたぶん。他の校舎の不足は埋まらないので、進捗には含めていません">
+      {" "}
+      +{n}
+    </span>
+  );
 }
 
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -94,6 +117,7 @@ function Cell({ m, view, showLabels = true }: { m: MonthGoal; view: GoalView; sh
               <span style={{ color: "var(--text-muted)" }}>{showLabels ? g.short : ""}</span>
               <span className="tabular" style={{ color: "var(--text-primary)", fontWeight: 600 }}>
                 {fmt(pick(m, g.key).actual)}
+                <Over n={pick(m, g.key).over} />
               </span>
             </div>
           ))}
@@ -103,7 +127,7 @@ function Cell({ m, view, showLabels = true }: { m: MonthGoal; view: GoalView; sh
     return (
       <div className="space-y-1">
         {GOAL_METRICS.map((g) => {
-          const { target, actual } = pick(m, g.key);
+          const { target, actual, over } = pick(m, g.key);
           const color = tone(actual, target, elapsed);
           return (
             <div key={g.key}>
@@ -113,6 +137,7 @@ function Cell({ m, view, showLabels = true }: { m: MonthGoal; view: GoalView; sh
                 <span style={{ color: "var(--text-muted)" }}>{showLabels ? g.short : ""}</span>
                 <span className="tabular">
                   <span style={{ color, fontWeight: 600 }}>{fmt(actual)}</span>
+                  <Over n={over} />
                   <span style={{ color: "var(--text-muted)" }}> / {fmtTarget(target)}</span>
                 </span>
               </div>
@@ -124,12 +149,13 @@ function Cell({ m, view, showLabels = true }: { m: MonthGoal; view: GoalView; sh
     );
   }
 
-  const { target, actual } = pick(m, view);
-  if (!m.actualOnly && target <= 0 && actual === 0) return <Dash />;
+  const { target, actual, over } = pick(m, view);
+  if (!m.actualOnly && target <= 0 && actual === 0 && over === 0) return <Dash />;
   if (m.actualOnly) {
     return (
       <div className="text-xs tabular whitespace-nowrap" style={{ color: "var(--text-primary)", fontWeight: 600 }}>
         {fmt(actual)}
+        <Over n={over} />
       </div>
     );
   }
@@ -139,6 +165,7 @@ function Cell({ m, view, showLabels = true }: { m: MonthGoal; view: GoalView; sh
     <div className="space-y-1">
       <div className="text-xs tabular whitespace-nowrap">
         <span style={{ color, fontWeight: 600 }}>{fmt(actual)}</span>
+        <Over n={over} />
         <span style={{ color: "var(--text-muted)" }}> / {fmtTarget(target)}</span>
       </div>
       <Bar ratio={target > 0 ? Math.min(actual / target, 1) : 0} color={color} />
@@ -191,7 +218,7 @@ export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
           </div>
           <dl className="space-y-1.5">
             {GOAL_METRICS.map((metric) => {
-              const { target, actual } = pick(m, metric.key);
+              const { target, actual, over } = pick(m, metric.key);
               const color = tone(actual, target, m.current ? m.elapsed : 0);
               return (
                 <div key={metric.key} className="grid grid-cols-[3.5rem_1fr_5rem] items-center gap-2">
@@ -205,6 +232,7 @@ export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
                     <span style={{ color: m.actualOnly ? "var(--text-primary)" : color, fontWeight: 600 }}>
                       {fmt(actual)}
                     </span>
+                    <Over n={over} />
                     {!m.actualOnly && <span style={{ color: "var(--text-muted)" }}> / {fmtTarget(target)}</span>}
                   </dd>
                 </div>

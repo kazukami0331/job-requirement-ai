@@ -45,6 +45,8 @@ export interface MonthGoal {
   appliedActual: number;
   interviewActual: number;
   hireActual: number;
+  /** そのうち充足に効いた人数（校舎の目標までで頭打ち） */
+  hireFilledActual: number;
   /** 集計基準日を含む月 */
   current: boolean;
   /** 按分期間より前の月。目標は無く、実績だけを出す。 */
@@ -265,15 +267,15 @@ export function monthlyGoals(
   const endMonth = monthsBetween(startMonth, win.to) > 0 ? win.to : startMonth;
 
   // 実績を 校舎 × 応募月 で数える
-  type Counts = { applied: number; interview: number; hire: number };
+  type Counts = { applied: number; interview: number; hire: number; hireFilled: number };
   const actual = new Map<string, Counts>();
   const bump = (shopKey: string, month: string, f: (c: Counts) => void) => {
     const k = `${shopKey}|${month}`;
-    const c = actual.get(k) ?? { applied: 0, interview: 0, hire: 0 };
+    const c = actual.get(k) ?? { applied: 0, interview: 0, hire: 0, hireFilled: 0 };
     f(c);
     actual.set(k, c);
   };
-  const observed: Counts = { applied: 0, interview: 0, hire: 0 };
+  const observed: Counts = { applied: 0, interview: 0, hire: 0, hireFilled: 0 };
   // 充足に効いた採用。目標はここからの残りぶんだけ積む。
   const hiredSoFar = new Map<string, number>();
   const hiredDates = new Map<string, string[]>();
@@ -290,7 +292,10 @@ export function monthlyGoals(
       c.applied++;
       // events を渡されたときは、面接・採用はそちらで数える
       if (!events && reachedInterview) c.interview++;
-      if (!events && hired) c.hire++;
+      if (!events && hired) {
+        c.hire++;
+        c.hireFilled++;
+      }
     });
     if (!events && hired) {
       hiredSoFar.set(key, (hiredSoFar.get(key) ?? 0) + 1);
@@ -307,10 +312,23 @@ export function monthlyGoals(
         c.interview++;
       });
     }
-    for (const a of events.hires) {
+    /**
+     * 採用を校舎ごとに決まった順へ並べ、目標の人数までを「充足に効いた採用」とする。
+     *
+     * 目標3名の校舎で5名採れても、充足は3名で止まる。残りの2名は
+     * 他の校舎の不足を埋めないので、月の進捗にも乗せない（乗せると
+     * 「10月 15/20」のように、充足していないぶんで達成に見えてしまう）。
+     */
+    const target = new Map(shortages.map((x) => [normalizeShopKey(x.shopShortName), x.shortage]));
+    const seen = new Map<string, number>();
+    for (const a of [...events.hires].sort((x, y) => movedOn(x).localeCompare(movedOn(y)))) {
       const key = normalizeShopKey(a.shopShortName);
+      const rank = seen.get(key) ?? 0;
+      seen.set(key, rank + 1);
+      const counted = rank < (target.get(key) ?? 0);
       bump(key, monthKey(movedOn(a)), (c) => {
         c.hire++;
+        if (counted) c.hireFilled++;
       });
       hiredSoFar.set(key, (hiredSoFar.get(key) ?? 0) + 1);
       // 「いつ決まった採用か」を出せるように、決まった日を控えておく
@@ -426,7 +444,7 @@ export function monthlyGoals(
       filledAtStart,
       planRemaining,
       months: months.map((m, i) => {
-        const c = actual.get(`${key}|${m.month}`) ?? { applied: 0, interview: 0, hire: 0 };
+        const c = actual.get(`${key}|${m.month}`) ?? { applied: 0, interview: 0, hire: 0, hireFilled: 0 };
         return {
           ...m,
           targetApplied: appliedPerMonth[i] ?? 0,
@@ -435,6 +453,7 @@ export function monthlyGoals(
           appliedActual: c.applied,
           interviewActual: c.interview,
           hireActual: c.hire,
+          hireFilledActual: c.hireFilled,
         };
       }),
     };
@@ -469,6 +488,7 @@ export function monthlyGoals(
             appliedActual: rows.reduce((a, r) => a + r.months[i].appliedActual, 0),
             interviewActual: rows.reduce((a, r) => a + r.months[i].interviewActual, 0),
             hireActual: rows.reduce((a, r) => a + r.months[i].hireActual, 0),
+            hireFilledActual: rows.reduce((a, r) => a + r.months[i].hireFilledActual, 0),
           })),
         };
 

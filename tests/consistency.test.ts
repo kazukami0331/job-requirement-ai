@@ -79,6 +79,11 @@ test("採用数は、採用タイル・週次グラフ・月次目標で一致�
     total.months.reduce((a, m) => a + m.hireActual, 0),
     hires.length
   );
+  // 充足のほうは、目標を超えたぶんを除いた数になる
+  assert.equal(
+    total.months.reduce((a, m) => a + m.hireFilledActual, 0),
+    total.filledHired
+  );
   assert.equal(
     weeklyHires(hires, weeklyTrend(apps).map((p) => p.week)).reduce((a, p) => a + p.hired, 0),
     hires.length
@@ -144,6 +149,18 @@ test("校舎名の略称が、店舗マスタの校舎に寄せられる", () =>
   assert.equal(normalizeShopKey("名古屋"), normalizeShopKey("名古屋駅前校"));
   // 似ているだけの別校舎は混ぜない。
   assert.notEqual(normalizeShopKey("新宿校"), normalizeShopKey("新宿本校"));
+});
+
+test("目標を超えて採れたぶんは、月の進捗に乗せない", () => {
+  // 目標3名の校舎で5名採れても、充足は3名まで。残り2名は他校舎の不足を埋めないので、
+  // 月の実績（進捗）には入れず、別枠（+N）で出す。
+  for (const r of [...goals.rows, total]) {
+    const filled = r.months.reduce((a, m) => a + m.hireFilledActual, 0);
+    const raw = r.months.reduce((a, m) => a + m.hireActual, 0);
+    assert.equal(filled, r.filledHired, `${r.shopShortName} の充足が月の合計と合わない`);
+    assert.equal(raw, r.alreadyHired, `${r.shopShortName} の採用が月の合計と合わない`);
+    assert.ok(filled <= raw);
+  }
 });
 
 test("月次目標の採用実績は、その月に決まった採用で数える", () => {
