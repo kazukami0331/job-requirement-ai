@@ -76,6 +76,30 @@ export function weeklyTrend(apps: Application[]): WeeklyPoint[] {
   return [...buckets.values()];
 }
 
+/**
+ * 採用が決まった週ごとの人数。
+ *
+ * 週次の応募数は「応募した週」で数えるが、こちらは「採用が決まった週」で数える。
+ * 先月応募した人が今週採用になることがあるので、同じ週でも応募側の数とは一致しない。
+ * 判定日はジョブオプの選考ステータス最終更新日を使う（採用で止まっている人は、
+ * その更新が採用になった時点のため）。
+ *
+ * 週は応募グラフと同じ並びを渡してもらい、x軸がずれないようにする。
+ */
+export function weeklyHires(apps: Application[], weeks: Week[]): { week: Week; hired: number }[] {
+  const index = new Map(weeks.map((w, i) => [w.key, i]));
+  const counts = new Array<number>(weeks.length).fill(0);
+
+  for (const app of apps) {
+    if (stageOf(app.statusId) !== "hired") continue;
+    const i = index.get(weekOfIso(app.statusUpdatedAt ?? app.receivedAt).key);
+    if (i === undefined) continue;
+    counts[i]++;
+  }
+
+  return weeks.map((week, i) => ({ week, hired: counts[i] }));
+}
+
 /** 現在の選考ステータス別プール（＝いま何人がどこに溜まっているか） */
 export function stagePool(
   apps: Application[]

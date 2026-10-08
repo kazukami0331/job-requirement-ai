@@ -14,6 +14,7 @@ import {
   rejectReasons,
   stagePool,
   weeklyMatrix,
+  weeklyHires,
   weeklyTrend,
 } from "@/lib/recruiting/aggregate";
 import { parsePlanFile, shortageByShop, totalShortage } from "@/lib/recruiting/plan";
@@ -35,7 +36,7 @@ import {
 } from "@/lib/recruiting/storage";
 import { fetchShared, publishShared } from "@/lib/recruiting/shared";
 import { Button, Card, EmptyState, Legend, StatTile } from "@/components/dashboard/ui";
-import { FunnelChart, StagePoolChart, WeeklyTrendChart } from "@/components/dashboard/charts";
+import { FunnelChart, StagePoolChart, WeeklyHireChart, WeeklyTrendChart } from "@/components/dashboard/charts";
 import { BreakdownTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
 import { DataMenu } from "@/components/dashboard/DataPanel";
 import { DEFAULT_RATES, GoalRates, GoalWindow, monthlyGoals } from "@/lib/recruiting/goal";
@@ -233,6 +234,14 @@ export default function DashboardPage() {
       ...points.slice(1),
     ];
   }, [apps, period, termFrom]);
+  /**
+   * 週ごとの採用数。応募グラフと同じ週の並びに、採用が決まった週で数えた人数を重ねる。
+   * 期間で絞る前の応募から数えるのは、8月に応募して9月に決まった人を落とさないため。
+   */
+  const hireTrend = useMemo(
+    () => weeklyHires(typedApps, trend.map((p) => p.week)),
+    [typedApps, trend]
+  );
   const pool = useMemo(() => stagePool(apps), [apps]);
   const funnelSteps = useMemo(() => funnel(apps), [apps]);
   const weekKeys = useMemo(() => recentWeekKeys(apps, asOf), [apps, asOf]);
@@ -603,6 +612,16 @@ export default function DashboardPage() {
               }
             >
               <WeeklyTrendChart points={trend} />
+            </Card>
+
+            <Card
+              title="週次の採用数"
+              subtitle={`この期間に採用が決まった人を、決まった週で数えています（応募がいつかは問いません）。計 ${hireTrend.reduce(
+                (a, p) => a + p.hired,
+                0
+              )}名。上のKPIと月次目標の採用 ${summary.hired}件は「この期間に応募した人のうち採用になった数」なので、数え方が違います。`}
+            >
+              <WeeklyHireChart points={hireTrend} />
             </Card>
 
             <div className="grid gap-4 sm:gap-5 lg:grid-cols-2">

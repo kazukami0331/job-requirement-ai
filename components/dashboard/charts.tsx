@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { WeeklyPoint, FunnelStep } from "@/lib/recruiting/aggregate";
 import { ratioLabel } from "@/lib/recruiting/format";
+import { Week } from "@/lib/recruiting/week";
 import { ChartTooltip, TooltipState, useMeasuredWidth } from "./ui";
 
 const AXIS_W = 30;
@@ -28,17 +29,28 @@ function niceMax(value: number): number {
  * 週次の応募数。1系列なのでタイトルが系列名を兼ね、凡例は置かない。
  * 数字はホバーで読ませ、直接ラベルは最新週だけに絞る。
  */
-export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
+interface Bar {
+  key: string;
+  label: string;
+  value: number;
+  tipTitle: string;
+  tipRows: { label: string; value: string }[];
+}
+
+/** 週ごとの棒グラフ。応募数と採用数で同じ見た目を使い回す。 */
+function WeeklyBars({ bars, color, aria }: { bars: Bar[]; color: string; aria: string }) {
   const { ref, width } = useMeasuredWidth<HTMLDivElement>();
   const [tip, setTip] = useState<TooltipState | null>(null);
 
-  if (points.length === 0) return null;
+  if (bars.length === 0) return null;
+
+  const points = bars;
 
   // 狭い画面では背を低くして、1画面に入る量を増やす
   const narrow = width < 480;
   const height = narrow ? 180 : 220;
   const plotW = Math.max(width - AXIS_W - PAD_R, 40);
-  const max = niceMax(Math.max(...points.map((p) => p.applied), 1));
+  const max = niceMax(Math.max(...points.map((p) => p.value), 1));
   const slot = plotW / points.length;
   const barW = Math.min(Math.max(slot - BAR_GAP, 2), MAX_BAR_W);
   const ticks = [0, max / 2, max];
@@ -53,7 +65,7 @@ export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
 
   return (
     <div ref={ref} className="relative w-full">
-      <svg width={width} height={height} role="img" aria-label="週ごとの応募数の推移">
+      <svg width={width} height={height} role="img" aria-label={aria}>
         {ticks.map((t) => {
           const y = padT + plotH - (t / max) * plotH;
           return (
@@ -70,23 +82,17 @@ export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
           const show = () =>
             setTip({
               x: AXIS_W + i * slot + slot / 2,
-              y: Math.max(padT + plotH - (p.applied / max) * plotH, padT + 12),
-              title: `${p.week.start} 〜 ${p.week.end}`,
-              rows: [
-                { label: "応募", value: `${p.applied}件` },
-                { label: "面接設定", value: `${p.scheduled}件` },
-                { label: "面接実施", value: `${p.interviewed}件` },
-                { label: "採用", value: `${p.hired}件` },
-                { label: "選考中", value: `${p.activePool}件` },
-              ],
+              y: Math.max(padT + plotH - (p.value / max) * plotH, padT + 12),
+              title: p.tipTitle,
+              rows: p.tipRows,
             });
 
-          const h = (p.applied / max) * plotH;
+          const h = (p.value / max) * plotH;
           const x = AXIS_W + i * slot + (slot - barW) / 2;
           const y = padT + plotH - h;
 
           return (
-            <g key={p.week.key}>
+            <g key={p.key}>
               {/* 当たり判定は棒より広く取る */}
               <rect
                 x={AXIS_W + i * slot}
@@ -103,18 +109,18 @@ export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
                 }}
                 onPointerDown={show}
               />
-              {p.applied > 0 && (
+              {p.value > 0 && (
                 <rect
                   x={x}
                   y={y}
                   width={barW}
                   height={h}
                   rx={Math.min(RADIUS, barW / 2)}
-                  fill="var(--series-1)"
+                  fill={color}
                   pointerEvents="none"
                 />
               )}
-              {p.applied > 0 && (
+              {p.value > 0 && (
                 <text
                   x={x + barW / 2}
                   y={y - 5}
@@ -125,7 +131,7 @@ export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
                   className="tabular"
                   pointerEvents="none"
                 >
-                  {p.applied}
+                  {p.value}
                 </text>
               )}
               {i % labelStep === 0 && (
@@ -137,7 +143,7 @@ export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
                   fill="var(--text-muted)"
                   pointerEvents="none"
                 >
-                  {p.week.label}
+                  {p.label}
                 </text>
               )}
             </g>
@@ -155,6 +161,46 @@ export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
       </svg>
       <ChartTooltip state={tip} containerWidth={width} />
     </div>
+  );
+}
+
+/** 週ごとの応募数。棒に触れるとその週の応募者が今どこまで進んだかが出る。 */
+export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
+  return (
+    <WeeklyBars
+      aria="週ごとの応募数の推移"
+      color="var(--series-1)"
+      bars={points.map((p) => ({
+        key: p.week.key,
+        label: p.week.label,
+        value: p.applied,
+        tipTitle: `${p.week.start} 〜 ${p.week.end}`,
+        tipRows: [
+          { label: "応募", value: `${p.applied}件` },
+          { label: "面接設定", value: `${p.scheduled}件` },
+          { label: "面接実施", value: `${p.interviewed}件` },
+          { label: "採用", value: `${p.hired}件` },
+          { label: "選考中", value: `${p.activePool}件` },
+        ],
+      }))}
+    />
+  );
+}
+
+/** 週ごとの採用数。応募日ではなく、採用が決まった日で数える。 */
+export function WeeklyHireChart({ points }: { points: { week: Week; hired: number }[] }) {
+  return (
+    <WeeklyBars
+      aria="週ごとの採用数の推移"
+      color="var(--status-good)"
+      bars={points.map((p) => ({
+        key: p.week.key,
+        label: p.week.label,
+        value: p.hired,
+        tipTitle: `${p.week.start} 〜 ${p.week.end}`,
+        tipRows: [{ label: "この週に決まった採用", value: `${p.hired}名` }],
+      }))}
+    />
   );
 }
 
