@@ -146,6 +146,26 @@ export async function applyShared(data: Backup, publishedAt: string): Promise<bo
   return true;
 }
 
+/**
+ * 按分する期間の選択。
+ *
+ * 選ばずにおくと既定（当月〜一番遅い期限）になり、月が変わるたびに
+ * 月ごとの目標が割り直される。経営会議に出す計画はそれでは困るので、
+ * 一度選んだ期間はこのブラウザに覚えさせて、開き直しても変わらないようにする。
+ */
+const GOAL_WINDOW_KEY = "goalWindow";
+
+export async function loadGoalWindow(): Promise<{ from: string; to: string } | null> {
+  return (
+    (await tx<{ from: string; to: string } | undefined>(SETTING_STORE, "readonly", (s) => s.get(GOAL_WINDOW_KEY))) ??
+    null
+  );
+}
+
+export async function saveGoalWindow(window: { from: string; to: string }): Promise<void> {
+  await tx(SETTING_STORE, "readwrite", (s) => s.put(window, GOAL_WINDOW_KEY) as IDBRequest<IDBValidKey>);
+}
+
 /** 初期データを読み込み済みにして、以後の自動読み込みを止める */
 export async function markSeedLoaded(): Promise<void> {
   await tx(SETTING_STORE, "readwrite", (s) => s.put(true, SEED_DONE_KEY) as IDBRequest<IDBValidKey>);

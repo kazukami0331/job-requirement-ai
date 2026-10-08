@@ -30,7 +30,9 @@ import {
   exportBackup,
   importBackup,
   listSnapshots,
+  loadGoalWindow,
   loadPlan,
+  saveGoalWindow,
   savePlan,
   saveSnapshot,
   setSharedAt,
@@ -134,9 +136,11 @@ export default function DashboardPage() {
 
         // 公開データが無いときだけ、同梱してある受領済みデータを入れる
         const seeded = remote?.data ? false : await loadSeedIfEmpty();
-        const [s, p] = await Promise.all([listSnapshots(), loadPlan()]);
+        const [s, p, w] = await Promise.all([listSnapshots(), loadPlan(), loadGoalWindow()]);
         setSnapshots(s);
         setPlan(p);
+        // 一度選んだ按分期間は覚えておく。開くたびに目標が割り直されると計画にならない。
+        if (w) setGoalWindow(w);
         if (pulled) {
           setMessage({ kind: "info", text: "公開データを読み込みました。" });
         } else if (seeded) {
@@ -672,7 +676,15 @@ export default function DashboardPage() {
                 }校舎を先頭に並べています。${hiredScopeNote}`}
               >
                 <div className="space-y-5">
-                  <GoalControls rates={rates} onRates={setRates} goals={goals} onWindow={setGoalWindow} />
+                  <GoalControls
+                    rates={rates}
+                    onRates={setRates}
+                    goals={goals}
+                    onWindow={(w) => {
+                      setGoalWindow(w);
+                      void saveGoalWindow(w);
+                    }}
+                  />
                   <MonthSummary goals={goals} />
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
