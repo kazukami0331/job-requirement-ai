@@ -79,11 +79,26 @@ export function findShopById(shopId: string): Shop | undefined {
   return BY_ID.get(shopId.trim());
 }
 
+function plain(name: string): string {
+  return name.trim().replace(/[\s\u3000]/g, "").replace(/校$/, "");
+}
+
+/** 店舗マスタの短縮名を素のキーにしたもの。突き合わせの正解表として使う。 */
+const CANONICAL = new Set(SHOP_MASTER.map((s) => plain(s.short)));
+
 /**
  * 採用計画側の校舎名と応募データ側の校舎名を突き合わせる。
- * 計画側が「北千住」、応募データ側が「北千住校」のように
- * 「校」の有無で揺れることがあるため、そこを吸収する。
+ *
+ * 「北千住」と「北千住校」のような「校」の有無のほか、
+ * 不足人数マスタが「名古屋」、応募データが「名古屋駅前校」のように
+ * 略して書かれることがある。略称が店舗マスタの1校だけに前方一致するなら、
+ * その校舎のことだと見なす。2校に当たるときは勝手に決めない
+ * （「新宿」と「新宿本」のように別の校舎を混ぜると数字が壊れるため）。
  */
 export function normalizeShopKey(name: string): string {
-  return name.trim().replace(/[\s\u3000]/g, "").replace(/校$/, "");
+  const key = plain(name);
+  if (CANONICAL.has(key)) return key;
+
+  const hit = [...CANONICAL].filter((c) => c.startsWith(key));
+  return hit.length === 1 ? hit[0] : key;
 }

@@ -92,7 +92,7 @@ export function WeeklyMatrixTable({ matrix, dimensionLabel }: { matrix: Matrix; 
                   {w.label}
                 </Th>
               ))}
-              <Th align="right">合計</Th>
+              <Th align="right">表示週計</Th>
             </tr>
           </thead>
           <tbody>

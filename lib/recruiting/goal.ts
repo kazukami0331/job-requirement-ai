@@ -90,7 +90,12 @@ export interface MonthlyGoals {
    * 不足人数マスタに無い校舎の応募は表に出てこないので、表の合計だけ見ると
    * 応募が実際より少なく見える。その差を数字で示すために持つ。
    */
-  coverage: { inTable: number; all: number };
+  coverage: {
+    inTable: number;
+    all: number;
+    /** 表に入らなかった校舎と件数（多い順）。どこが落ちているかを名前で出すため。 */
+    missing: { shopShortName: string; count: number }[];
+  };
 }
 
 const monthKey = (iso: string) => iso.slice(0, 7);
@@ -206,7 +211,13 @@ export function monthlyGoals(
   plan: HiringPlan | null,
   rates: GoalRates,
   asOfIso?: string,
-  window?: GoalWindow
+  window?: GoalWindow,
+  /**
+   * 「マスタに無い校舎の応募が何件あるか」を数えるための、校舎で絞る前の応募。
+   * 画面側でマスタ掲載校舎だけに絞ってから渡すと、apps だけでは差が0件になり、
+   * 取りこぼしに気づけなくなるため、絞る前のものを別に受け取る。
+   */
+  coverageApps?: Application[]
 ): MonthlyGoals {
   const asOf = asOfIso ?? new Date().toISOString();
   const win = window ?? defaultWindow(plan, asOf);
@@ -217,7 +228,7 @@ export function monthlyGoals(
     rows: [],
     total: null,
     observed: null,
-    coverage: { inTable: 0, all: 0 },
+    coverage: { inTable: 0, all: 0, missing: [] },
   };
 
   const perHire = appliesPerHire(rates);
@@ -403,11 +414,21 @@ export function monthlyGoals(
   const inWindow = months.map((m) => m.month);
   let inTable = 0;
   let all = 0;
-  for (const a of apps) {
+  const missed = new Map<string, number>();
+  for (const a of coverageApps ?? apps) {
     if (!inWindow.includes(monthKey(a.receivedDate))) continue;
     all++;
-    if (known.has(normalizeShopKey(a.shopShortName))) inTable++;
+    if (known.has(normalizeShopKey(a.shopShortName))) {
+      inTable++;
+    } else {
+      // 校舎名の揺れで落ちているのか、そもそも目標が無い校舎なのかを
+      // 名前で見分けられるようにしておく
+      missed.set(a.shopShortName, (missed.get(a.shopShortName) ?? 0) + 1);
+    }
   }
+  const missing = [...missed.entries()]
+    .map(([shopShortName, count]) => ({ shopShortName, count }))
+    .sort((a, b) => b.count - a.count);
 
   return {
     window: { from: startMonth, to: endMonth },
@@ -416,7 +437,7 @@ export function monthlyGoals(
     rows,
     total,
     observed: observed.applied > 0 ? observed : null,
-    coverage: { inTable, all },
+    coverage: { inTable, all, missing },
   };
 }
 

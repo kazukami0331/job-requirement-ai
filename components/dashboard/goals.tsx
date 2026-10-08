@@ -388,13 +388,25 @@ export function MetricSwitch({ value, onChange }: { value: GoalView; onChange: (
  * 数字だけ見ると応募が実際より少なく見えるので、差を明示する。
  */
 export function Coverage({ goals }: { goals: MonthlyGoals }) {
-  const { inTable, all } = goals.coverage;
+  const { inTable, all, missing } = goals.coverage;
   const gap = all - inTable;
   if (all === 0 || gap <= 0) return null;
+
+  // 校舎名を出す。名前の書き方が違うだけで落ちている校舎を見つけられるようにするため。
+  const top = missing.slice(0, 8);
+  const rest = missing.length - top.length;
+
   return (
-    <p className="text-[11px]" style={{ color: "var(--status-serious)" }}>
+    <p className="text-[11px] leading-relaxed" style={{ color: "var(--status-serious)" }}>
       この期間の応募 {all}件のうち、表に出ているのは {inTable}件です。残る {gap}
-      件は不足人数マスタに校舎が無いため、どの行にも入っていません（合計にも含まれません）。
+      件は不足人数マスタに採用目標が無いため、どの行にも入っていません（合計にも含まれません）。
+      {top.length > 0 && (
+        <>
+          {" "}内訳: {top.map((m) => `${m.shopShortName} ${m.count}件`).join(" / ")}
+          {rest > 0 ? ` ほか${rest}校舎` : ""}。
+          マスタに載っているはずの校舎がここに出ていたら、名前の書き方がマスタと違っています。
+        </>
+      )}
     </p>
   );
 }

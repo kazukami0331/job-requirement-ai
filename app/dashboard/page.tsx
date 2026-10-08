@@ -210,26 +210,48 @@ export default function DashboardPage() {
     [typedApps, period, termFrom]
   );
 
-  const trend = useMemo(() => weeklyTrend(apps), [apps]);
+  /** 校舎で絞る前の、期間だけ合わせた応募。マスタ外が何件あるかを出すのに使う。 */
+  const periodApps = useMemo(() => {
+    const byType =
+      employmentFilter === "すべて" ? allApps : allApps.filter((a) => a.employmentType === employmentFilter);
+    return period === "term" ? byType.filter((a) => a.receivedDate >= termFrom) : byType;
+  }, [allApps, employmentFilter, period, termFrom]);
+
+  /**
+   * 週次の応募数。
+   *
+   * 期の初日が週の途中だと、先頭の棒は「8/31週」と書いてあるのに
+   * 9/1以降しか数えていない、という読み違いが起きる。ラベルと範囲を実態に合わせる。
+   */
+  const trend = useMemo(() => {
+    const points = weeklyTrend(apps);
+    const first = points[0];
+    if (period !== "term" || !first || first.week.start >= termFrom) return points;
+    const [, m, d] = termFrom.split("-");
+    return [
+      { ...first, week: { ...first.week, start: termFrom, label: `${Number(m)}/${Number(d)}週` } },
+      ...points.slice(1),
+    ];
+  }, [apps, period, termFrom]);
   const pool = useMemo(() => stagePool(apps), [apps]);
   const funnelSteps = useMemo(() => funnel(apps), [apps]);
   const weekKeys = useMemo(() => recentWeekKeys(apps, asOf), [apps, asOf]);
-  const summary = useMemo(() => kpis(apps, weekKeys), [apps, weekKeys]);
+  const summary = useMemo(() => kpis(apps, weekKeys, asOf), [apps, weekKeys, asOf]);
   const rows = useMemo(() => breakdown(apps, dimension, weekKeys), [apps, dimension, weekKeys]);
   const matrix = useMemo(() => weeklyMatrix(apps, dimension, 12), [apps, dimension]);
   const reasons = useMemo(() => rejectReasons(apps), [apps]);
 
   const movements = useMemo(() => {
     if (snapshots.length < 2) return [];
-    return statusMovements(allApps, snapshots[snapshots.length - 2].takenAt);
-  }, [allApps, snapshots]);
+    return statusMovements(apps, snapshots[snapshots.length - 2].takenAt);
+  }, [apps, snapshots]);
 
   /** 採用目標から逆算した月次の応募目標と進捗 */
   const goals = useMemo(
     // 採用済みも画面の集計期間に合わせる。ここだけ全期間にしていたせいで、
     // KPIの採用と月次目標の採用済みが別の数字になって読めなくなっていた。
-    () => monthlyGoals(apps, plan, rates, asOf, goalWindow ?? undefined),
-    [apps, plan, rates, asOf, goalWindow]
+    () => monthlyGoals(apps, plan, rates, asOf, goalWindow ?? undefined, periodApps),
+    [apps, plan, rates, asOf, goalWindow, periodApps]
   );
 
   const handleUploadApplications = useCallback(async (file: File) => {
@@ -640,7 +662,7 @@ export default function DashboardPage() {
           <div className={`space-y-4 sm:space-y-5 ${section === "trend" ? "" : "hidden sm:block"}`}>
             <Card
               title={`${DIMENSION_LABEL[dimension]}ごとの週次推移`}
-              subtitle="直近12週。色が濃いほど応募が多い週です。"
+              subtitle="直近12週まで。色が濃いほど応募が多い週です。右端の計は、この表に出ている週ぶんの合計です（集計期間がこれより長いときは、下の選考状況の応募数と一致しません）。"
               actions={<DimensionSwitch value={dimension} onChange={setDimension} />}
             >
               <WeeklyMatrixTable matrix={matrix} dimensionLabel={DIMENSION_LABEL[dimension]} />

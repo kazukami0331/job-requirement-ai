@@ -217,13 +217,17 @@ export interface Kpis {
   hireRate: number;
 }
 
-export function kpis(apps: Application[], weeks?: RecentWeeks): Kpis {
+export function kpis(apps: Application[], weeks?: RecentWeeks, asOfIso?: string): Kpis {
   const trend = weeklyTrend(apps);
   const at = (key?: string) => (key ? (trend.find((p) => p.week.key === key)?.applied ?? 0) : 0);
   // 週の指定があればそれに従う。無ければ「データがある最後の週」を直近週とみなす。
   const lastWeekApplied = weeks?.lastWeek ? at(weeks.lastWeekKey) : (trend[trend.length - 1]?.applied ?? 0);
   const prevWeekApplied = weeks?.prevWeek ? at(weeks.prevWeekKey) : (trend[trend.length - 2]?.applied ?? 0);
-  const recent = trend.slice(-4);
+  // 平均は確定した週だけで出す。集計の途中の週を混ぜると、
+  // 4日ぶんしかない週が1週として効いて平均が実態より低く出る。
+  const asOfDate = asOfIso?.slice(0, 10);
+  const settled = asOfDate ? trend.filter((p) => p.week.end <= asOfDate) : trend;
+  const recent = (settled.length > 0 ? settled : trend).slice(-4);
   const pool = stagePool(apps);
   const activePool = pool.filter((p) => ACTIVE_STAGES.includes(p.stage)).reduce((a, b) => a + b.count, 0);
   const hired = pool.find((p) => p.stage === "hired")?.count ?? 0;
