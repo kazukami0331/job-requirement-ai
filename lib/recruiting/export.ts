@@ -4,6 +4,7 @@ import { ACTIVE_STAGES, FUNNEL_STEPS, STAGES, stageOf } from "./status";
 import { Dimension, DIMENSION_LABEL, funnel, recentWeekKeys, weeklyMatrix, weeklyTrend } from "./aggregate";
 import { weekOfIso } from "./week";
 import { planToGrid, shortageByShop } from "./plan";
+import { normalizeShopKey } from "./shops";
 import { DEFAULT_RATES, GoalRates, appliesPerHire, monthlyGoals } from "./goal";
 
 export interface SheetSpec {
@@ -122,6 +123,58 @@ export function detailGrid(apps: Application[]): unknown[][] {
       a.rejectReason ?? "",
     ]);
   }
+  return grid;
+}
+
+/**
+ * 採用明細シート。
+ *
+ * 画面の数字と手集計が合わないときに、1件ずつ突き合わせるためのもの。
+ * 校舎や期間で絞らず、採用になった人を全部出したうえで、
+ * 画面がどの条件で数えているか（マスタ掲載か、いつ決まったか）を列にする。
+ */
+export function hireDetailGrid(apps: Application[], plan: HiringPlan | null): unknown[][] {
+  const master = new Set(
+    plan
+      ? shortageByShop(plan)
+          .filter((s) => s.shortage > 0)
+          .map((s) => normalizeShopKey(s.shopShortName))
+      : []
+  );
+  const hires = apps
+    .filter((a) => stageOf(a.statusId) === "hired")
+    .map((a) => ({ a, decided: (a.statusUpdatedAt ?? a.receivedAt).slice(0, 10) }))
+    .sort((x, y) => y.decided.localeCompare(x.decided));
+
+  const grid: unknown[][] = [
+    ["採用になった人の一覧。画面はこの中から「採用目標あり」かつ「決まった日が集計期間内」のものを数えています。"],
+    [],
+    [
+      "応募ID",
+      "校舎",
+      "採用目標あり",
+      "応募受付日",
+      "採用が決まった日",
+      "雇用形態",
+      "媒体",
+      "職種",
+    ],
+  ];
+  for (const { a, decided } of hires) {
+    grid.push([
+      a.applicationId,
+      a.shopShortName,
+      master.has(normalizeShopKey(a.shopShortName)) ? "○" : "−",
+      a.receivedDate,
+      decided,
+      a.employmentType,
+      a.media,
+      a.jobTitle,
+    ]);
+  }
+  grid.push([]);
+  grid.push(["合計", hires.length]);
+  grid.push(["うち採用目標あり", hires.filter(({ a }) => master.has(normalizeShopKey(a.shopShortName))).length]);
   return grid;
 }
 
@@ -260,7 +313,9 @@ export function buildWorkbookSheets(
   apps: Application[],
   plan: HiringPlan | null,
   rates: GoalRates = DEFAULT_RATES,
-  asOf?: string
+  asOf?: string,
+  /** 採用明細に使う、校舎や期間で絞る前の応募。突き合わせのために全部出す。 */
+  allApps?: Application[]
 ): SheetSpec[] {
   const sheets: SheetSpec[] = [
     { name: "週次推移", grid: weeklyTrendGrid(apps) },
@@ -269,6 +324,7 @@ export function buildWorkbookSheets(
     { name: "媒体別×週", grid: matrixGrid(apps, "media") },
     { name: "ファネル", grid: funnelGrid(apps) },
     { name: "応募明細", grid: detailGrid(apps) },
+    { name: "採用明細", grid: hireDetailGrid(allApps ?? apps, plan) },
   ];
   if (plan) {
     sheets.push({ name: "計画vs実績", grid: planVsActualGrid(apps, plan) });

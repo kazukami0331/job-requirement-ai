@@ -365,7 +365,7 @@ export default function DashboardPage() {
 
   const handleExportWorkbook = useCallback(() => {
     downloadWorkbook(
-      buildWorkbookSheets(apps, plan, rates, asOf),
+      buildWorkbookSheets(apps, plan, rates, asOf, allApps),
       `採用モニタリング_${new Date().toISOString().slice(0, 10)}.xlsx`
     );
   }, [apps, plan, rates, asOf]);
