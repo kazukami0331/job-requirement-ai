@@ -226,9 +226,10 @@ export default function DashboardPage() {
 
   /** 採用目標から逆算した月次の応募目標と進捗 */
   const goals = useMemo(
-    // 充足は「いつ応募した人でも採れていれば充足」なので、ここだけ全期間で見る
-    () => monthlyGoals(typedApps, plan, rates, asOf, goalWindow ?? undefined),
-    [typedApps, plan, rates, asOf, goalWindow]
+    // 採用済みも画面の集計期間に合わせる。ここだけ全期間にしていたせいで、
+    // KPIの採用と月次目標の採用済みが別の数字になって読めなくなっていた。
+    () => monthlyGoals(apps, plan, rates, asOf, goalWindow ?? undefined),
+    [apps, plan, rates, asOf, goalWindow]
   );
 
   const handleUploadApplications = useCallback(async (file: File) => {
@@ -360,10 +361,10 @@ export default function DashboardPage() {
    */
   const hiredScopeNote = useMemo(() => {
     const t = goals.total;
-    if (!t || t.alreadyHired === 0) return "採用済みは不足人数マスタに載っている校舎ぶんだけを数えています。";
-    const j = (d: string) => d.slice(5).replace("-", "/");
-    const span = t.hiredFrom && t.hiredTo ? `${j(t.hiredFrom)}〜${j(t.hiredTo)}に応募した人` : "全期間";
-    return `採用済み${t.alreadyHired}名は、上の集計期間に関わらず全期間で数えています（いまは${span}）。上のKPIの採用${summary.hired}件は選んだ集計期間ぶんなので、期間を全期間にすると一致します。`;
+    if (!t || t.alreadyHired === 0) return "上で選んだ集計期間・対象校舎のぶんだけを数えています。";
+    const j = (d: string) => d.replace(/-/g, "/");
+    const span = t.hiredFrom && t.hiredTo ? `${j(t.hiredFrom)}〜${j(t.hiredTo)}に応募した人` : "";
+    return `採用済み${t.alreadyHired}名は、上で選んだ集計期間ぶんです（${span}）。上のKPIの採用${summary.hired}件と同じ数字です。`;
   }, [goals, summary.hired]);
 
   /**
@@ -561,9 +562,7 @@ export default function DashboardPage() {
                 value={summary.hired}
                 unit="件"
                 tone={summary.hired > 0 ? "good" : "neutral"}
-                hint={`応募からの採用率 ${(summary.hireRate * 100).toFixed(1)}%${
-                  goals.total ? ` ／ 月次目標の採用済み（全期間）は${goals.total.alreadyHired}名` : ""
-                }`}
+                hint={`応募からの採用率 ${(summary.hireRate * 100).toFixed(1)}%`}
                 className="col-span-2 lg:col-span-1"
               />
             </div>
