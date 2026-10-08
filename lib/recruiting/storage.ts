@@ -166,6 +166,20 @@ export async function saveGoalWindow(window: { from: string; to: string }): Prom
   await tx(SETTING_STORE, "readwrite", (s) => s.put(window, GOAL_WINDOW_KEY) as IDBRequest<IDBValidKey>);
 }
 
+/**
+ * 施策の開始日。ここから先の応募と採用を「今回の取り組み」として数える。
+ * 既定は2026/07/23（求人を出し直した日）。
+ */
+const START_DATE_KEY = "projectStart";
+
+export async function loadProjectStart(): Promise<string | null> {
+  return (await tx<string | undefined>(SETTING_STORE, "readonly", (s) => s.get(START_DATE_KEY))) ?? null;
+}
+
+export async function saveProjectStart(date: string): Promise<void> {
+  await tx(SETTING_STORE, "readwrite", (s) => s.put(date, START_DATE_KEY) as IDBRequest<IDBValidKey>);
+}
+
 /** 初期データを読み込み済みにして、以後の自動読み込みを止める */
 export async function markSeedLoaded(): Promise<void> {
   await tx(SETTING_STORE, "readwrite", (s) => s.put(true, SEED_DONE_KEY) as IDBRequest<IDBValidKey>);

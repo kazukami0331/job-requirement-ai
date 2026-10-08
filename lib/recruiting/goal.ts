@@ -239,7 +239,12 @@ export function monthlyGoals(
    * 渡すのは、画面と同じ絞り込みをかけたうえで、採用・面接に至った日が
    * 期間内のものだけ。省略すると応募月で数える（旧来の見方）。
    */
-  events?: { hires: Application[]; interviews: Application[] }
+  events?: { hires: Application[]; interviews: Application[] },
+  /**
+   * 実績だけを並べる月の開始。既定は採用期の頭（9月）。
+   * 施策の開始が7/23のように期の途中なら、その月から実績を出す。
+   */
+  actualFrom?: string
 ): MonthlyGoals {
   const asOf = asOfIso ?? new Date().toISOString();
   const win = window ?? defaultWindow(plan, asOf);
@@ -346,7 +351,11 @@ export function monthlyGoals(
    * その月に何件来たのかが追えなくなるため。目標は持たせない。
    */
   const leading: string[] = [];
-  for (let m = termStart(nowMonth); monthsBetween(m, startMonth) > 0 && leading.length < 12; m = addMonths(m, 1)) {
+  for (
+    let m = actualFrom ?? termStart(nowMonth);
+    monthsBetween(m, startMonth) > 0 && leading.length < 12;
+    m = addMonths(m, 1)
+  ) {
     leading.push(m);
   }
 

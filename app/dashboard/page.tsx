@@ -32,8 +32,10 @@ import {
   listSnapshots,
   loadGoalWindow,
   loadPlan,
+  loadProjectStart,
   saveGoalWindow,
   savePlan,
+  saveProjectStart,
   saveSnapshot,
   setSharedAt,
 } from "@/lib/recruiting/storage";
@@ -86,8 +88,14 @@ function DimensionSwitch({ value, onChange }: { value: Dimension; onChange: (d: 
   );
 }
 
-/** 集計期間の選択肢。今期＝9月始まりの採用期。 */
-type Period = "term" | "all";
+/**
+ * 集計期間の選択肢。
+ * project＝施策の開始日から（既定）。term＝今期（9月始まりの採用期）。all＝全期間。
+ */
+type Period = "project" | "term" | "all";
+
+/** 施策の開始日の既定値。求人を出し直した日。 */
+const DEFAULT_PROJECT_START = "2026-07-23";
 
 /** 対象の校舎。master＝不足人数マスタに採用目標がある校舎だけ。 */
 type Scope = "master" | "all";
@@ -112,7 +120,8 @@ export default function DashboardPage() {
     publishedAt: null,
   });
   // 集計期間。既定は今期（9月始まり）。全期間は旧運用ぶんも含めて見たいときだけ。
-  const [period, setPeriod] = useState<Period>("term");
+  const [period, setPeriod] = useState<Period>("project");
+  const [projectStart, setProjectStart] = useState(DEFAULT_PROJECT_START);
   // 対象の校舎。既定は不足人数マスタに載っている校舎だけ。
   const [scope, setScope] = useState<Scope>("master");
   // 歩留まりの想定値。実績を見ながら手で動かせるようにしておく。
@@ -136,11 +145,17 @@ export default function DashboardPage() {
 
         // 公開データが無いときだけ、同梱してある受領済みデータを入れる
         const seeded = remote?.data ? false : await loadSeedIfEmpty();
-        const [s, p, w] = await Promise.all([listSnapshots(), loadPlan(), loadGoalWindow()]);
+        const [s, p, w, start] = await Promise.all([
+          listSnapshots(),
+          loadPlan(),
+          loadGoalWindow(),
+          loadProjectStart(),
+        ]);
         setSnapshots(s);
         setPlan(p);
         // 一度選んだ按分期間は覚えておく。開くたびに目標が割り直されると計画にならない。
         if (w) setGoalWindow(w);
+        if (start) setProjectStart(start);
         if (pulled) {
           setMessage({ kind: "info", text: "公開データを読み込みました。" });
         } else if (seeded) {
@@ -182,6 +197,17 @@ export default function DashboardPage() {
     return `${Number(base.slice(5, 7)) >= 9 ? y : y - 1}-09-01`;
   }, [asOf]);
 
+  /**
+   * 集計の起点。応募も採用もこの日から数える。
+   *
+   * 応募だけ9月から、採用は7月に応募した人も含む、という状態だと母数が揃わず、
+   * 採用率も予実も比べられない。1本の日付で切る。
+   */
+  const periodFrom = useMemo(
+    () => (period === "project" ? projectStart : period === "term" ? termFrom : null),
+    [period, projectStart, termFrom]
+  );
+
   /** 不足人数マスタに採用目標がある校舎。これ以外は既定で画面から外す。 */
   const masterKeys = useMemo(() => {
     if (!plan) return null;
@@ -212,8 +238,8 @@ export default function DashboardPage() {
    * 2年ぶんの母数で出ると、同じ画面の中で数字が食い違って見える。
    */
   const apps = useMemo(
-    () => (period === "term" ? typedApps.filter((a) => a.receivedDate >= termFrom) : typedApps),
-    [typedApps, period, termFrom]
+    () => (periodFrom ? typedApps.filter((a) => a.receivedDate >= periodFrom) : typedApps),
+    [typedApps, periodFrom]
   );
 
   /**
@@ -225,10 +251,7 @@ export default function DashboardPage() {
    * 更新日＝決まった日になる）。
    */
   const movedOn = useCallback((a: MergedApplication) => (a.statusUpdatedAt ?? a.receivedAt).slice(0, 10), []);
-  const inPeriod = useCallback(
-    (date: string) => period === "all" || date >= termFrom,
-    [period, termFrom]
-  );
+  const inPeriod = useCallback((date: string) => !periodFrom || date >= periodFrom, [periodFrom]);
   const hires = useMemo(
     () => typedApps.filter((a) => stageOf(a.statusId) === "hired" && inPeriod(movedOn(a))),
     [typedApps, inPeriod, movedOn]
@@ -242,8 +265,8 @@ export default function DashboardPage() {
   const periodApps = useMemo(() => {
     const byType =
       employmentFilter === "すべて" ? allApps : allApps.filter((a) => a.employmentType === employmentFilter);
-    return period === "term" ? byType.filter((a) => a.receivedDate >= termFrom) : byType;
-  }, [allApps, employmentFilter, period, termFrom]);
+    return periodFrom ? byType.filter((a) => a.receivedDate >= periodFrom) : byType;
+  }, [allApps, employmentFilter, periodFrom]);
 
   /**
    * 週次の応募数。
@@ -254,13 +277,13 @@ export default function DashboardPage() {
   const trend = useMemo(() => {
     const points = weeklyTrend(apps);
     const first = points[0];
-    if (period !== "term" || !first || first.week.start >= termFrom) return points;
-    const [, m, d] = termFrom.split("-");
+    if (!periodFrom || !first || first.week.start >= periodFrom) return points;
+    const [, m, d] = periodFrom.split("-");
     return [
       { ...first, week: { ...first.week, start: termFrom, label: `${Number(m)}/${Number(d)}週` } },
       ...points.slice(1),
     ];
-  }, [apps, period, termFrom]);
+  }, [apps, periodFrom]);
   /**
    * 週ごとの採用数。応募グラフと同じ週の並びに、採用が決まった週で数えた人数を重ねる。
    * 期間で絞る前の応募から数えるのは、8月に応募して9月に決まった人を落とさないため。
@@ -283,8 +306,9 @@ export default function DashboardPage() {
   const goals = useMemo(
     // 採用済みも画面の集計期間に合わせる。ここだけ全期間にしていたせいで、
     // KPIの採用と月次目標の採用済みが別の数字になって読めなくなっていた。
-    () => monthlyGoals(apps, plan, rates, asOf, goalWindow ?? undefined, periodApps, { hires, interviews }),
-    [apps, plan, rates, asOf, goalWindow, periodApps, hires, interviews]
+    () =>
+      monthlyGoals(apps, plan, rates, asOf, goalWindow ?? undefined, periodApps, { hires, interviews }, periodFrom?.slice(0, 7)),
+    [apps, plan, rates, asOf, goalWindow, periodApps, hires, interviews, periodFrom]
   );
 
   const handleUploadApplications = useCallback(async (file: File) => {
@@ -516,6 +540,7 @@ export default function DashboardPage() {
               </span>
               <div className="flex gap-1" role="group" aria-label="集計期間">
                 {([
+                  { key: "project" as Period, label: `施策開始から（${projectStart.slice(5).replace("-", "/")}〜）` },
                   { key: "term" as Period, label: `今期（${termFrom.slice(0, 4)}/09〜）` },
                   { key: "all" as Period, label: "全期間" },
                 ]).map((p) => (
@@ -534,10 +559,27 @@ export default function DashboardPage() {
                   </button>
                 ))}
               </div>
+              {period === "project" && (
+                <label className="flex items-center gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+                  開始日
+                  <input
+                    type="date"
+                    value={projectStart}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (!v) return;
+                      setProjectStart(v);
+                      void saveProjectStart(v);
+                    }}
+                    className="rounded border px-1.5 py-0.5 text-xs"
+                    style={{ borderColor: "var(--gridline)", background: "var(--background)", color: "var(--text-primary)" }}
+                  />
+                </label>
+              )}
               <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                {period === "term"
-                  ? `${periodLabel} の ${apps.length}件で集計しています（全期間では${typedApps.length}件）`
-                  : `${periodLabel} の ${apps.length}件。2024年からの旧運用ぶんを含みます`}
+                {period === "all"
+                  ? `${periodLabel} の ${apps.length}件。2024年からの旧運用ぶんを含みます`
+                  : `${periodLabel} の ${apps.length}件で集計しています（全期間では${typedApps.length}件）。応募も採用も同じ起点で数えています`}
               </span>
             </div>
 
