@@ -1,0 +1,348 @@
+"use client";
+
+import { useState } from "react";
+import { WeeklyPoint, FunnelStep } from "@/lib/recruiting/aggregate";
+import { ratioLabel } from "@/lib/recruiting/format";
+import { Week } from "@/lib/recruiting/week";
+import { ChartTooltip, TooltipState, useMeasuredWidth } from "./ui";
+
+const AXIS_W = 30;
+const PAD_R = 8;
+const AXIS_H = 26;
+const BAR_GAP = 2; // 隣り合う棒のあいだに入れる地の色の隙間
+const RADIUS = 4;
+
+const MAX_BAR_W = 44; // 週が少ないときに棒が太い塊にならないよう上限を置く
+
+/** 目盛りを読みやすい刻みに丸める。余白を取りすぎると棒が潰れるので刻みは細かめ。 */
+function niceMax(value: number): number {
+  if (value <= 4) return 4;
+  const pow = Math.pow(10, Math.floor(Math.log10(value)));
+  for (const step of [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) {
+    const candidate = step * pow;
+    if (candidate >= value) return candidate;
+  }
+  return 10 * pow;
+}
+
+/** 週ごとの棒グラフ。応募と採用を同じ週の中に並べて出す。 */
+interface Series {
+  label: string;
+  color: string;
+  /** cols と同じ並びの値 */
+  values: number[];
+}
+
+interface WeekCol {
+  key: string;
+  label: string;
+  tipTitle: string;
+  tipRows: { label: string; value: string }[];
+}
+
+function WeeklyBars({ cols, series, aria }: { cols: WeekCol[]; series: Series[]; aria: string }) {
+  const { ref, width } = useMeasuredWidth<HTMLDivElement>();
+  const [tip, setTip] = useState<TooltipState | null>(null);
+
+  if (cols.length === 0 || series.length === 0) return null;
+
+  // 狭い画面では背を低くして、1画面に入る量を増やす
+  const narrow = width < 480;
+  const height = narrow ? 180 : 220;
+  const plotW = Math.max(width - AXIS_W - PAD_R, 40);
+  const max = niceMax(Math.max(...series.flatMap((s) => s.values), 1));
+  const slot = plotW / cols.length;
+  // 1週ぶんの幅に系列の数だけ棒を並べる
+  const groupW = Math.min(Math.max(slot - BAR_GAP * 2, 2), MAX_BAR_W * series.length);
+  const inner = series.length > 1 ? BAR_GAP : 0;
+  const barW = Math.max((groupW - inner * (series.length - 1)) / series.length, 1);
+  const ticks = [0, max / 2, max];
+  // 棒が細いときに数字が重ならないよう、棒の幅に合わせて文字を詰める
+  const valueSize = Math.max(8, Math.min(11, barW * 0.55));
+  // 棒の上に件数を出すので、一番高い棒が上限に届いたときでも文字が切れないだけの余白を取る。
+  const padT = Math.ceil(valueSize) + 6;
+  const plotH = height - padT - AXIS_H;
+
+  // 週が多いときは軸ラベルを間引く
+  const labelStep = Math.ceil(cols.length / Math.max(Math.floor(plotW / 46), 1));
+
+  return (
+    <div ref={ref} className="relative w-full">
+      <svg width={width} height={height} role="img" aria-label={aria}>
+        {ticks.map((t) => {
+          const y = padT + plotH - (t / max) * plotH;
+          return (
+            <g key={t}>
+              <line x1={AXIS_W} x2={width - PAD_R} y1={y} y2={y} stroke="var(--gridline)" strokeWidth={1} />
+              <text x={AXIS_W - 6} y={y + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)" className="tabular">
+                {t}
+              </text>
+            </g>
+          );
+        })}
+
+        {cols.map((col, i) => {
+          const groupX = AXIS_W + i * slot + (slot - groupW) / 2;
+          const tallest = Math.max(...series.map((s) => s.values[i] ?? 0));
+          const show = () =>
+            setTip({
+              x: AXIS_W + i * slot + slot / 2,
+              y: Math.max(padT + plotH - (tallest / max) * plotH, padT + 12),
+              title: col.tipTitle,
+              rows: col.tipRows,
+            });
+
+          return (
+            <g key={col.key}>
+              {/* 当たり判定は棒より広く取る */}
+              <rect
+                x={AXIS_W + i * slot}
+                y={padT}
+                width={slot}
+                height={plotH}
+                fill="transparent"
+                // マウスはホバーで、タッチはタップで出す（タップ時は離しても消さない）
+                onPointerEnter={(e) => {
+                  if (e.pointerType === "mouse") show();
+                }}
+                onPointerLeave={(e) => {
+                  if (e.pointerType === "mouse") setTip(null);
+                }}
+                onPointerDown={show}
+              />
+
+              {series.map((s, j) => {
+                const v = s.values[i] ?? 0;
+                if (v <= 0) return null;
+                const h = (v / max) * plotH;
+                const x = groupX + j * (barW + inner);
+                const y = padT + plotH - h;
+                return (
+                  <g key={s.label}>
+                    <rect
+                      x={x}
+                      y={y}
+                      width={barW}
+                      height={h}
+                      rx={Math.min(RADIUS, barW / 2)}
+                      fill={s.color}
+                      pointerEvents="none"
+                    />
+                    <text
+                      x={x + barW / 2}
+                      y={y - 5}
+                      textAnchor="middle"
+                      fontSize={valueSize}
+                      fontWeight={600}
+                      fill="var(--text-primary)"
+                      className="tabular"
+                      pointerEvents="none"
+                    >
+                      {v}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {i % labelStep === 0 && (
+                <text
+                  x={AXIS_W + i * slot + slot / 2}
+                  y={height - 8}
+                  textAnchor="middle"
+                  fontSize={10}
+                  fill="var(--text-muted)"
+                  pointerEvents="none"
+                >
+                  {col.label}
+                </text>
+              )}
+            </g>
+          );
+        })}
+
+        <line
+          x1={AXIS_W}
+          x2={width - PAD_R}
+          y1={padT + plotH}
+          y2={padT + plotH}
+          stroke="var(--baseline)"
+          strokeWidth={1}
+        />
+      </svg>
+      <ChartTooltip state={tip} containerWidth={width} />
+    </div>
+  );
+}
+
+export const WEEKLY_SERIES_COLORS = { applied: "var(--series-1)", hired: "var(--status-good)" };
+
+/**
+ * 週ごとの応募数と採用数。
+ *
+ * 応募は「応募した週」、採用は「採用が決まった週」で数えている。
+ * 数え方が違うので、同じ週の青と緑は同じ人を指していない。
+ * それでも並べるのは、「集めた量」と「決まった量」の動きを同じ時間軸で見るため。
+ */
+export function WeeklyTrendChart({
+  points,
+  hires,
+}: {
+  points: WeeklyPoint[];
+  hires?: { week: Week; hired: number }[];
+}) {
+  const hiredByWeek = new Map((hires ?? []).map((h) => [h.week.key, h.hired]));
+  const series: Series[] = [
+    { label: "応募", color: WEEKLY_SERIES_COLORS.applied, values: points.map((p) => p.applied) },
+  ];
+  if (hires) {
+    series.push({
+      label: "採用",
+      color: WEEKLY_SERIES_COLORS.hired,
+      values: points.map((p) => hiredByWeek.get(p.week.key) ?? 0),
+    });
+  }
+
+  return (
+    <WeeklyBars
+      aria={hires ? "週ごとの応募数と採用数の推移" : "週ごとの応募数の推移"}
+      series={series}
+      cols={points.map((p) => ({
+        key: p.week.key,
+        label: p.week.label,
+        tipTitle: `${p.week.start} 〜 ${p.week.end}`,
+        tipRows: [
+          { label: "応募", value: `${p.applied}件` },
+          ...(hires ? [{ label: "この週に決まった採用", value: `${hiredByWeek.get(p.week.key) ?? 0}名` }] : []),
+          { label: "うち面接設定", value: `${p.scheduled}件` },
+          { label: "うち面接実施", value: `${p.interviewed}件` },
+          { label: "うち採用", value: `${p.hired}件` },
+          { label: "うち選考中", value: `${p.activePool}件` },
+        ],
+      }))}
+    />
+  );
+}
+
+/**
+ * 選考ステータス別の内訳。
+ *
+ * 「選考中」と「決着済み」を分けて、それぞれの中で棒の長さを比べる。
+ * ひと続きにすると不採用の棒だけが伸びて、まだ動いている応募が潰れて読めなくなるため。
+ * 件数の横の％は全応募に対する割合で、群の小計は見出しに出す。
+ */
+export function StagePoolChart({
+  rows,
+  total,
+}: {
+  rows: { stage: string; label: string; count: number; color: string; active: boolean }[];
+  total: number;
+}) {
+  const groups = [
+    { key: "active", title: "選考中", rows: rows.filter((r) => r.active) },
+    { key: "closed", title: "決着済み", rows: rows.filter((r) => !r.active) },
+  ].filter((g) => g.rows.length > 0);
+
+  return (
+    <div className="space-y-4">
+      {groups.map((g) => {
+        const sum = g.rows.reduce((a, r) => a + r.count, 0);
+        const max = Math.max(...g.rows.map((r) => r.count), 1);
+        return (
+          <section key={g.key}>
+            <h3 className="mb-1.5 flex items-baseline gap-1.5">
+              <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+                {g.title}
+              </span>
+              <span className="text-xs tabular" style={{ color: "var(--text-secondary)" }}>
+                {sum}件
+                {total > 0 && <span style={{ color: "var(--text-muted)" }}> / {ratioLabel(sum, total)}</span>}
+              </span>
+            </h3>
+            <ul className="space-y-2">
+              {g.rows.map((r) => (
+                <li
+                  key={r.stage}
+                  className="grid grid-cols-[1fr_5rem] items-center gap-x-2 gap-y-1 sm:grid-cols-[11rem_1fr_5rem]"
+                >
+                  <span
+                    className="col-span-2 truncate text-xs sm:col-span-1"
+                    style={{ color: "var(--text-secondary)" }}
+                    title={r.label}
+                  >
+                    {r.label}
+                  </span>
+                  <span
+                    className="flex h-4 items-center"
+                    style={{ background: "var(--gridline)", borderRadius: RADIUS }}
+                  >
+                    <span
+                      className="h-4"
+                      style={{
+                        width: `${(r.count / max) * 100}%`,
+                        background: r.color,
+                        borderRadius: RADIUS,
+                        minWidth: r.count > 0 ? 3 : 0,
+                      }}
+                    />
+                  </span>
+                  <span className="text-right text-xs tabular" style={{ color: "var(--text-primary)" }}>
+                    {r.count}
+                    <span style={{ color: "var(--text-muted)" }}>
+                      {total > 0 ? ` / ${ratioLabel(r.count, total)}` : ""}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 応募 → 面接設定 → 面接実施 → 採用 の通過ファネル */
+export function FunnelChart({ steps }: { steps: FunnelStep[] }) {
+  const top = steps[0]?.count ?? 0;
+  const ramp = [
+    "var(--stage-untouched)",
+    "var(--stage-scheduling)",
+    "var(--stage-interview-scheduled)",
+    "var(--stage-interviewed)",
+  ];
+
+  return (
+    <ol className="space-y-2.5">
+      {steps.map((s, i) => (
+        <li key={s.key}>
+          <div className="mb-1 flex items-baseline justify-between gap-2">
+            <span className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>
+              {s.label}
+            </span>
+            <span className="text-xs tabular" style={{ color: "var(--text-secondary)" }}>
+              {s.count}件
+              {/* 前段階が0件なら「〜から何%」は出しようがないので、行ごと出さない */}
+              {s.conversionFromPrev !== null && steps[i - 1].count > 0 && (
+                <span style={{ color: "var(--text-muted)" }}>
+                  {" "}
+                  / 前段階から {ratioLabel(s.count, steps[i - 1].count)}
+                </span>
+              )}
+            </span>
+          </div>
+          <div className="h-5 w-full overflow-hidden" style={{ background: "var(--gridline)", borderRadius: RADIUS }}>
+            <div
+              className="h-5"
+              style={{
+                width: `${top > 0 ? (s.count / top) * 100 : 0}%`,
+                background: ramp[Math.min(i, ramp.length - 1)],
+                borderRadius: RADIUS,
+                minWidth: s.count > 0 ? 3 : 0,
+              }}
+            />
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
