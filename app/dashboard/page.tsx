@@ -762,6 +762,46 @@ export default function DashboardPage() {
               </Card>
             )}
 
+            {/* 経営会議に出す数字なので、何をどう数えているかを画面の中に置いておく */}
+            <Card title="数字の定義">
+              <dl className="space-y-2 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                {[
+                  ["対象の校舎", "不足人数マスタに採用目標が1名以上ある校舎だけ（既定）。六本木オフィスなど目標の無い拠点は入りません。"],
+                  [
+                    "集計期間",
+                    "今期＝9月1日から（採用期は9月始まり）。応募は応募受付日、採用と面接は選考ステータス最終更新日で期間を判定します。",
+                  ],
+                  [
+                    "採用",
+                    "その期間に採用が決まった人数（応募がいつかは問いません）。採用タイル・週次グラフの緑・月次目標の採用済みは、すべてこの数です。",
+                  ],
+                  [
+                    "通過ファネルの採用",
+                    "その期間に応募した人を追いかけて、そこから採れた数です。上の採用とは数え方が違います（どちらも正しく、見ているものが違います）。",
+                  ],
+                  [
+                    "充足・残り",
+                    "充足は校舎の採用目標までで頭打ち。残り＝目標−充足。目標より多く採れたぶんは他の校舎の不足を埋めないので、残りからは引きません。",
+                  ],
+                  [
+                    "必要応募",
+                    "残りの人数 ÷（応募→面接率 × 面接→採用率）を校舎ごとに1回だけ切り上げた数。既定の30%×60%なら1名採るのに5.6件。",
+                  ],
+                  ["4週平均の応募", "確定した直近4週の平均。集計途中の週は入れません。"],
+                ].map(([term, body]) => (
+                  <div key={term}>
+                    <dt className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                      {term}
+                    </dt>
+                    <dd>{body}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="mt-3 text-xs" style={{ color: "var(--text-muted)" }}>
+                定義を変えるときは、画面を変える前に共有します。詳しい計算方法と変更履歴は docs/metrics.md にあります。
+              </p>
+            </Card>
+
             <Card title="凡例">
               <Legend items={pool.map((p) => ({ label: p.label, color: p.color }))} />
               <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
