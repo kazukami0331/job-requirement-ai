@@ -8,10 +8,12 @@ import {
   kpis,
   recentWeekKeys,
   stagePool,
+  weeklyHires,
   weeklyMatrix,
   weeklyTrend,
 } from "@/lib/recruiting/aggregate";
 import { DEFAULT_RATES, monthlyGoals } from "@/lib/recruiting/goal";
+import { FUNNEL_STEPS, stageOf } from "@/lib/recruiting/status";
 import { shortageByShop } from "@/lib/recruiting/plan";
 import { normalizeShopKey } from "@/lib/recruiting/shops";
 import { Application, HiringPlan, Snapshot } from "@/types/recruiting";
@@ -44,9 +46,18 @@ const apps: Application[] = everything.filter(
   (a) => master.has(normalizeShopKey(a.shopShortName)) && a.receivedDate >= termFrom
 );
 
+/**
+ * 採用は「採用が決まった日」で期間を切る。応募日で切ると、8月に応募して9月に
+ * 採れた人が今期の採用に入らず、週次グラフと月次表で数が食い違う。
+ */
+const movedOn = (a: Application) => (a.statusUpdatedAt ?? a.receivedAt).slice(0, 10);
+const scoped = everything.filter((a) => master.has(normalizeShopKey(a.shopShortName)));
+const hires = scoped.filter((a) => stageOf(a.statusId) === "hired" && movedOn(a) >= termFrom);
+const interviews = scoped.filter((a) => FUNNEL_STEPS[1].reached(stageOf(a.statusId)) && movedOn(a) >= termFrom);
+
 const weeks = recentWeekKeys(apps, asOf);
 const summary = kpis(apps, weeks, asOf);
-const goals = monthlyGoals(apps, plan, DEFAULT_RATES, asOf);
+const goals = monthlyGoals(apps, plan, DEFAULT_RATES, asOf, undefined, undefined, { hires, interviews });
 const total = goals.total!;
 
 test("応募数は、どの切り口で足しても同じになる", () => {
@@ -61,15 +72,25 @@ test("応募数は、どの切り口で足しても同じになる", () => {
   );
 });
 
-test("採用数は、KPI・ファネル・校舎別・月次目標で一致する", () => {
-  assert.equal(funnel(apps)[3].count, summary.hired);
-  assert.equal(breakdown(apps, "shopShortName", weeks).reduce((a, r) => a + r.hired, 0), summary.hired);
-  // 採用済み（充足）も同じ母数で数える。ここだけ全期間にすると画面で食い違う。
-  assert.equal(total.alreadyHired, summary.hired);
+test("採用数は、採用タイル・週次グラフ・月次目標で一致する", () => {
+  // 画面に出る「採用」は、どれも「この期間に採用が決まった人数」で揃える。
+  assert.equal(total.alreadyHired, hires.length);
   assert.equal(
     total.months.reduce((a, m) => a + m.hireActual, 0),
-    summary.hired
+    hires.length
   );
+  assert.equal(
+    weeklyHires(hires, weeklyTrend(apps).map((p) => p.week)).reduce((a, p) => a + p.hired, 0),
+    hires.length
+  );
+});
+
+test("ファネルの採用は、応募を追いかけたコホートとして筋が通っている", () => {
+  // ファネルだけは「この期間に応募した人がどこまで進んだか」。数が違うのは当然だが、
+  // 応募数を超えることはないし、校舎別の合計とは一致する。
+  const f = funnel(apps);
+  assert.ok(f[3].count <= apps.length);
+  assert.equal(breakdown(apps, "shopShortName", weeks).reduce((a, r) => a + r.hired, 0), f[3].count);
 });
 
 test("選考中プールは、ステータス内訳の選考中と一致する", () => {
@@ -116,6 +137,14 @@ test("校舎名の略称が、店舗マスタの校舎に寄せられる", () =>
   assert.equal(normalizeShopKey("名古屋"), normalizeShopKey("名古屋駅前校"));
   // 似ているだけの別校舎は混ぜない。
   assert.notEqual(normalizeShopKey("新宿校"), normalizeShopKey("新宿本校"));
+});
+
+test("月次目標の採用実績は、その月に決まった採用で数える", () => {
+  // 10/5週に9名決まったのに10月の実績が3名、のような食い違いを防ぐ。
+  for (const m of total.months) {
+    const inMonth = hires.filter((h) => movedOn(h).slice(0, 7) === m.month).length;
+    assert.equal(m.hireActual, inMonth, `${m.label} の採用実績が決定月と合わない`);
+  }
 });
 
 test("目標より多く採れた校舎があっても、採用 / 目標 / 残りの引き算が合う", () => {

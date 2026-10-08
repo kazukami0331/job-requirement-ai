@@ -75,7 +75,7 @@ export interface ShopGoalRow {
   deadlineNote: string;
   /** 残りの採用目標を満たすのに必要な応募の総数 */
   requiredApplied: number;
-  /** 採用済みとして数えた人の、応募日の最初と最後。1人も居なければ null。 */
+  /** 採用済みとして数えた人の、採用が決まった日の最初と最後。1人も居なければ null。 */
   hiredFrom: string | null;
   hiredTo: string | null;
   months: MonthGoal[];
@@ -223,7 +223,17 @@ export function monthlyGoals(
    * 画面側でマスタ掲載校舎だけに絞ってから渡すと、apps だけでは差が0件になり、
    * 取りこぼしに気づけなくなるため、絞る前のものを別に受け取る。
    */
-  coverageApps?: Application[]
+  coverageApps?: Application[],
+  /**
+   * 「その月に起きたこと」で数える実績。
+   *
+   * 採用は応募した月ではなく、採用が決まった月に立てる。
+   * 月ごとの目標は「その月に何名採るか」なので、実績も同じ数え方でないと
+   * 予実として比べられない（週次グラフの採用とも食い違う）。
+   * 渡すのは、画面と同じ絞り込みをかけたうえで、採用・面接に至った日が
+   * 期間内のものだけ。省略すると応募月で数える（旧来の見方）。
+   */
+  events?: { hires: Application[]; interviews: Application[] }
 ): MonthlyGoals {
   const asOf = asOfIso ?? new Date().toISOString();
   const win = window ?? defaultWindow(plan, asOf);
@@ -260,29 +270,48 @@ export function monthlyGoals(
     actual.set(k, c);
   };
   const observed: Counts = { applied: 0, interview: 0, hire: 0 };
-  // いまの採用者数。目標はここからの残りぶんだけ積む。
-  // 期間の前後で分けず全期間で数える。採れた人はいつ応募した人でも充足には変わりないため。
+  // 充足に効いた採用。目標はここからの残りぶんだけ積む。
   const hiredSoFar = new Map<string, number>();
   const hiredDates = new Map<string, string[]>();
+
+  /** 採用・面接に至った日。ジョブオプの選考ステータス最終更新日を使う。 */
+  const movedOn = (a: Application) => (a.statusUpdatedAt ?? a.receivedAt).slice(0, 10);
+
   for (const a of apps) {
     const stage = stageOf(a.statusId);
     const reachedInterview = FUNNEL_STEPS[1].reached(stage);
     const hired = stage === "hired";
     const key = normalizeShopKey(a.shopShortName);
-    const month = monthKey(a.receivedDate);
-    bump(key, month, (c) => {
+    bump(key, monthKey(a.receivedDate), (c) => {
       c.applied++;
-      if (reachedInterview) c.interview++;
-      if (hired) c.hire++;
+      // events を渡されたときは、面接・採用はそちらで数える
+      if (!events && reachedInterview) c.interview++;
+      if (!events && hired) c.hire++;
     });
-    if (hired) {
+    if (!events && hired) {
       hiredSoFar.set(key, (hiredSoFar.get(key) ?? 0) + 1);
-      // 採用済みが「いつ応募した人か」を出せるように、応募日も控えておく
       hiredDates.set(key, [...(hiredDates.get(key) ?? []), a.receivedDate]);
     }
     observed.applied++;
     if (reachedInterview) observed.interview++;
     if (hired) observed.hire++;
+  }
+
+  if (events) {
+    for (const a of events.interviews) {
+      bump(normalizeShopKey(a.shopShortName), monthKey(movedOn(a)), (c) => {
+        c.interview++;
+      });
+    }
+    for (const a of events.hires) {
+      const key = normalizeShopKey(a.shopShortName);
+      bump(key, monthKey(movedOn(a)), (c) => {
+        c.hire++;
+      });
+      hiredSoFar.set(key, (hiredSoFar.get(key) ?? 0) + 1);
+      // 「いつ決まった採用か」を出せるように、決まった日を控えておく
+      hiredDates.set(key, [...(hiredDates.get(key) ?? []), movedOn(a)]);
+    }
   }
 
   const windowSpan = Math.min(Math.max(monthsBetween(startMonth, endMonth), 0), 23);

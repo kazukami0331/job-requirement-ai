@@ -206,20 +206,38 @@ export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
  * 採用の進み具合。「採用済み / 目標（残り）」の並びにしている。
  * 目標・採用済み・残りを別々に書くと、2名なのか1名充足して残り2名なのかが読み取れないため。
  */
+/**
+ * 採用の進み具合。「採用 / 目標（率） 残りN名」。
+ *
+ * 目標3名のところに4名採れたら 4/3（133%）残り0名 と出す。
+ * 超過したぶんは他の校舎の不足を埋めないので、残りは0で止める。
+ */
 function HireCount({ row }: { row: ShopGoalRow }) {
-  const rate = row.hireTarget > 0 ? ratioLabel(row.filledHired, row.hireTarget) : null;
-  // 目標より多く採れたぶんは、他の校舎の不足を埋めないので残りには効かない。
-  // 「採用 / 目標 ＝ 残り」の引き算が合わなくなるので、超過は別に書く。
-  const over = row.alreadyHired - row.filledHired;
+  const rate = row.hireTarget > 0 ? ratioLabel(row.alreadyHired, row.hireTarget) : null;
   return (
     <span style={{ color: "var(--text-muted)" }}>
-      <span style={{ color: row.filledHired > 0 ? "var(--status-good)" : "var(--text-muted)", fontWeight: 600 }}>
-        {row.filledHired}
+      <span style={{ color: row.alreadyHired > 0 ? "var(--status-good)" : "var(--text-muted)", fontWeight: 600 }}>
+        {row.alreadyHired}
       </span>
       {" / "}
       {row.hireTarget}名{rate && `（${rate}）`} 残り
       <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>{row.remainingTarget}</span>名
-      {over > 0 && `（ほかに目標超過${over}名）`}
+    </span>
+  );
+}
+
+/**
+ * 合計行の注記。
+ * 目標より多く採れた校舎があると、合計では「目標 − 採用」が残りと一致しなくなる。
+ * 超過したぶんは他の校舎の不足を埋めないので、その理由をその場に書く。
+ */
+function OverNote({ total }: { total: ShopGoalRow }) {
+  const over = total.alreadyHired - total.filledHired;
+  if (over <= 0) return null;
+  return (
+    <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+      （うち{over}名は目標を超えて採れたぶん。他の校舎の不足は埋まらないので、残りは
+      {total.hireTarget} − {total.filledHired} ＝ {total.remainingTarget}名）
     </span>
   );
 }
@@ -465,6 +483,7 @@ export function MonthlyGoalTable({ goals, view }: { goals: MonthlyGoals; view: G
           >
             <div className="mb-1.5 flex flex-wrap items-baseline gap-x-2 font-semibold">
               <ShopName row={r} />
+              {total && r === total && <OverNote total={total} />}
               <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
                 必要応募 {r.requiredApplied}件
               </span>
@@ -503,7 +522,7 @@ export function MonthlyGoalTable({ goals, view }: { goals: MonthlyGoals; view: G
             {total && (
               <tr style={{ borderBottom: "1px solid var(--gridline)" }}>
                 <td className="px-2 py-1.5 text-xs" style={{ color: "var(--text-primary)" }}>
-                  <span className="font-semibold">合計</span> <HireCount row={total} />
+                  <span className="font-semibold">合計</span> <HireCount row={total} /> <OverNote total={total} />
                 </td>
                 <td className="px-2 py-1.5 text-right text-xs tabular" style={{ color: "var(--text-secondary)" }}>
                   {total.requiredApplied}

@@ -25,43 +25,46 @@ function niceMax(value: number): number {
   return 10 * pow;
 }
 
-/**
- * 週次の応募数。1系列なのでタイトルが系列名を兼ね、凡例は置かない。
- * 数字はホバーで読ませ、直接ラベルは最新週だけに絞る。
- */
-interface Bar {
+/** 週ごとの棒グラフ。応募と採用を同じ週の中に並べて出す。 */
+interface Series {
+  label: string;
+  color: string;
+  /** cols と同じ並びの値 */
+  values: number[];
+}
+
+interface WeekCol {
   key: string;
   label: string;
-  value: number;
   tipTitle: string;
   tipRows: { label: string; value: string }[];
 }
 
-/** 週ごとの棒グラフ。応募数と採用数で同じ見た目を使い回す。 */
-function WeeklyBars({ bars, color, aria }: { bars: Bar[]; color: string; aria: string }) {
+function WeeklyBars({ cols, series, aria }: { cols: WeekCol[]; series: Series[]; aria: string }) {
   const { ref, width } = useMeasuredWidth<HTMLDivElement>();
   const [tip, setTip] = useState<TooltipState | null>(null);
 
-  if (bars.length === 0) return null;
-
-  const points = bars;
+  if (cols.length === 0 || series.length === 0) return null;
 
   // 狭い画面では背を低くして、1画面に入る量を増やす
   const narrow = width < 480;
   const height = narrow ? 180 : 220;
   const plotW = Math.max(width - AXIS_W - PAD_R, 40);
-  const max = niceMax(Math.max(...points.map((p) => p.value), 1));
-  const slot = plotW / points.length;
-  const barW = Math.min(Math.max(slot - BAR_GAP, 2), MAX_BAR_W);
+  const max = niceMax(Math.max(...series.flatMap((s) => s.values), 1));
+  const slot = plotW / cols.length;
+  // 1週ぶんの幅に系列の数だけ棒を並べる
+  const groupW = Math.min(Math.max(slot - BAR_GAP * 2, 2), MAX_BAR_W * series.length);
+  const inner = series.length > 1 ? BAR_GAP : 0;
+  const barW = Math.max((groupW - inner * (series.length - 1)) / series.length, 1);
   const ticks = [0, max / 2, max];
-  // 全週に件数を出す。週が増えたら文字を詰めて重ならないようにする。
-  const valueSize = Math.max(9, Math.min(11, slot * 0.42));
-  // 棒の上に件数を出すので、一番高い棒がちょうど上限に届いたときでも文字が切れないだけの余白を取る。
+  // 棒が細いときに数字が重ならないよう、棒の幅に合わせて文字を詰める
+  const valueSize = Math.max(8, Math.min(11, barW * 0.55));
+  // 棒の上に件数を出すので、一番高い棒が上限に届いたときでも文字が切れないだけの余白を取る。
   const padT = Math.ceil(valueSize) + 6;
   const plotH = height - padT - AXIS_H;
 
   // 週が多いときは軸ラベルを間引く
-  const labelStep = Math.ceil(points.length / Math.max(Math.floor(plotW / 46), 1));
+  const labelStep = Math.ceil(cols.length / Math.max(Math.floor(plotW / 46), 1));
 
   return (
     <div ref={ref} className="relative w-full">
@@ -78,21 +81,19 @@ function WeeklyBars({ bars, color, aria }: { bars: Bar[]; color: string; aria: s
           );
         })}
 
-        {points.map((p, i) => {
+        {cols.map((col, i) => {
+          const groupX = AXIS_W + i * slot + (slot - groupW) / 2;
+          const tallest = Math.max(...series.map((s) => s.values[i] ?? 0));
           const show = () =>
             setTip({
               x: AXIS_W + i * slot + slot / 2,
-              y: Math.max(padT + plotH - (p.value / max) * plotH, padT + 12),
-              title: p.tipTitle,
-              rows: p.tipRows,
+              y: Math.max(padT + plotH - (tallest / max) * plotH, padT + 12),
+              title: col.tipTitle,
+              rows: col.tipRows,
             });
 
-          const h = (p.value / max) * plotH;
-          const x = AXIS_W + i * slot + (slot - barW) / 2;
-          const y = padT + plotH - h;
-
           return (
-            <g key={p.key}>
+            <g key={col.key}>
               {/* 当たり判定は棒より広く取る */}
               <rect
                 x={AXIS_W + i * slot}
@@ -109,41 +110,50 @@ function WeeklyBars({ bars, color, aria }: { bars: Bar[]; color: string; aria: s
                 }}
                 onPointerDown={show}
               />
-              {p.value > 0 && (
-                <rect
-                  x={x}
-                  y={y}
-                  width={barW}
-                  height={h}
-                  rx={Math.min(RADIUS, barW / 2)}
-                  fill={color}
-                  pointerEvents="none"
-                />
-              )}
-              {p.value > 0 && (
-                <text
-                  x={x + barW / 2}
-                  y={y - 5}
-                  textAnchor="middle"
-                  fontSize={valueSize}
-                  fontWeight={600}
-                  fill="var(--text-primary)"
-                  className="tabular"
-                  pointerEvents="none"
-                >
-                  {p.value}
-                </text>
-              )}
+
+              {series.map((s, j) => {
+                const v = s.values[i] ?? 0;
+                if (v <= 0) return null;
+                const h = (v / max) * plotH;
+                const x = groupX + j * (barW + inner);
+                const y = padT + plotH - h;
+                return (
+                  <g key={s.label}>
+                    <rect
+                      x={x}
+                      y={y}
+                      width={barW}
+                      height={h}
+                      rx={Math.min(RADIUS, barW / 2)}
+                      fill={s.color}
+                      pointerEvents="none"
+                    />
+                    <text
+                      x={x + barW / 2}
+                      y={y - 5}
+                      textAnchor="middle"
+                      fontSize={valueSize}
+                      fontWeight={600}
+                      fill="var(--text-primary)"
+                      className="tabular"
+                      pointerEvents="none"
+                    >
+                      {v}
+                    </text>
+                  </g>
+                );
+              })}
+
               {i % labelStep === 0 && (
                 <text
-                  x={x + barW / 2}
+                  x={AXIS_W + i * slot + slot / 2}
                   y={height - 8}
                   textAnchor="middle"
                   fontSize={10}
                   fill="var(--text-muted)"
                   pointerEvents="none"
                 >
-                  {p.label}
+                  {col.label}
                 </text>
               )}
             </g>
@@ -164,41 +174,50 @@ function WeeklyBars({ bars, color, aria }: { bars: Bar[]; color: string; aria: s
   );
 }
 
-/** 週ごとの応募数。棒に触れるとその週の応募者が今どこまで進んだかが出る。 */
-export function WeeklyTrendChart({ points }: { points: WeeklyPoint[] }) {
+export const WEEKLY_SERIES_COLORS = { applied: "var(--series-1)", hired: "var(--status-good)" };
+
+/**
+ * 週ごとの応募数と採用数。
+ *
+ * 応募は「応募した週」、採用は「採用が決まった週」で数えている。
+ * 数え方が違うので、同じ週の青と緑は同じ人を指していない。
+ * それでも並べるのは、「集めた量」と「決まった量」の動きを同じ時間軸で見るため。
+ */
+export function WeeklyTrendChart({
+  points,
+  hires,
+}: {
+  points: WeeklyPoint[];
+  hires?: { week: Week; hired: number }[];
+}) {
+  const hiredByWeek = new Map((hires ?? []).map((h) => [h.week.key, h.hired]));
+  const series: Series[] = [
+    { label: "応募", color: WEEKLY_SERIES_COLORS.applied, values: points.map((p) => p.applied) },
+  ];
+  if (hires) {
+    series.push({
+      label: "採用",
+      color: WEEKLY_SERIES_COLORS.hired,
+      values: points.map((p) => hiredByWeek.get(p.week.key) ?? 0),
+    });
+  }
+
   return (
     <WeeklyBars
-      aria="週ごとの応募数の推移"
-      color="var(--series-1)"
-      bars={points.map((p) => ({
+      aria={hires ? "週ごとの応募数と採用数の推移" : "週ごとの応募数の推移"}
+      series={series}
+      cols={points.map((p) => ({
         key: p.week.key,
         label: p.week.label,
-        value: p.applied,
         tipTitle: `${p.week.start} 〜 ${p.week.end}`,
         tipRows: [
           { label: "応募", value: `${p.applied}件` },
-          { label: "面接設定", value: `${p.scheduled}件` },
-          { label: "面接実施", value: `${p.interviewed}件` },
-          { label: "採用", value: `${p.hired}件` },
-          { label: "選考中", value: `${p.activePool}件` },
+          ...(hires ? [{ label: "この週に決まった採用", value: `${hiredByWeek.get(p.week.key) ?? 0}名` }] : []),
+          { label: "うち面接設定", value: `${p.scheduled}件` },
+          { label: "うち面接実施", value: `${p.interviewed}件` },
+          { label: "うち採用", value: `${p.hired}件` },
+          { label: "うち選考中", value: `${p.activePool}件` },
         ],
-      }))}
-    />
-  );
-}
-
-/** 週ごとの採用数。応募日ではなく、採用が決まった日で数える。 */
-export function WeeklyHireChart({ points }: { points: { week: Week; hired: number }[] }) {
-  return (
-    <WeeklyBars
-      aria="週ごとの採用数の推移"
-      color="var(--status-good)"
-      bars={points.map((p) => ({
-        key: p.week.key,
-        label: p.week.label,
-        value: p.hired,
-        tipTitle: `${p.week.start} 〜 ${p.week.end}`,
-        tipRows: [{ label: "この週に決まった採用", value: `${p.hired}名` }],
       }))}
     />
   );

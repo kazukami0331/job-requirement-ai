@@ -18,6 +18,7 @@ import {
   weeklyTrend,
 } from "@/lib/recruiting/aggregate";
 import { parsePlanFile, shortageByShop, totalShortage } from "@/lib/recruiting/plan";
+import { FUNNEL_STEPS, stageOf } from "@/lib/recruiting/status";
 import { normalizeShopKey } from "@/lib/recruiting/shops";
 import { buildWorkbookSheets, downloadJson, downloadWorkbook } from "@/lib/recruiting/export";
 import {
@@ -36,7 +37,7 @@ import {
 } from "@/lib/recruiting/storage";
 import { fetchShared, publishShared } from "@/lib/recruiting/shared";
 import { Button, Card, EmptyState, Legend, StatTile } from "@/components/dashboard/ui";
-import { FunnelChart, StagePoolChart, WeeklyHireChart, WeeklyTrendChart } from "@/components/dashboard/charts";
+import { FunnelChart, StagePoolChart, WEEKLY_SERIES_COLORS, WeeklyTrendChart } from "@/components/dashboard/charts";
 import { BreakdownTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
 import { DataMenu } from "@/components/dashboard/DataPanel";
 import { DEFAULT_RATES, GoalRates, GoalWindow, monthlyGoals } from "@/lib/recruiting/goal";
@@ -211,6 +212,28 @@ export default function DashboardPage() {
     [typedApps, period, termFrom]
   );
 
+  /**
+   * 「その期間に起きたこと」で数える採用と面接。
+   *
+   * 応募は応募日で絞るが、採用は応募がいつかに関わらず、採用が決まった日で絞る。
+   * 「9月に何名採ったか」を、9月に応募した人だけで数えると実態と合わないため。
+   * 日付はジョブオプの選考ステータス最終更新日を使う（採用はそこで止まるので、
+   * 更新日＝決まった日になる）。
+   */
+  const movedOn = useCallback((a: MergedApplication) => (a.statusUpdatedAt ?? a.receivedAt).slice(0, 10), []);
+  const inPeriod = useCallback(
+    (date: string) => period === "all" || date >= termFrom,
+    [period, termFrom]
+  );
+  const hires = useMemo(
+    () => typedApps.filter((a) => stageOf(a.statusId) === "hired" && inPeriod(movedOn(a))),
+    [typedApps, inPeriod, movedOn]
+  );
+  const interviews = useMemo(
+    () => typedApps.filter((a) => FUNNEL_STEPS[1].reached(stageOf(a.statusId)) && inPeriod(movedOn(a))),
+    [typedApps, inPeriod, movedOn]
+  );
+
   /** 校舎で絞る前の、期間だけ合わせた応募。マスタ外が何件あるかを出すのに使う。 */
   const periodApps = useMemo(() => {
     const byType =
@@ -238,10 +261,7 @@ export default function DashboardPage() {
    * 週ごとの採用数。応募グラフと同じ週の並びに、採用が決まった週で数えた人数を重ねる。
    * 期間で絞る前の応募から数えるのは、8月に応募して9月に決まった人を落とさないため。
    */
-  const hireTrend = useMemo(
-    () => weeklyHires(typedApps, trend.map((p) => p.week)),
-    [typedApps, trend]
-  );
+  const hireTrend = useMemo(() => weeklyHires(hires, trend.map((p) => p.week)), [hires, trend]);
   const pool = useMemo(() => stagePool(apps), [apps]);
   const funnelSteps = useMemo(() => funnel(apps), [apps]);
   const weekKeys = useMemo(() => recentWeekKeys(apps, asOf), [apps, asOf]);
@@ -259,8 +279,8 @@ export default function DashboardPage() {
   const goals = useMemo(
     // 採用済みも画面の集計期間に合わせる。ここだけ全期間にしていたせいで、
     // KPIの採用と月次目標の採用済みが別の数字になって読めなくなっていた。
-    () => monthlyGoals(apps, plan, rates, asOf, goalWindow ?? undefined, periodApps),
-    [apps, plan, rates, asOf, goalWindow, periodApps]
+    () => monthlyGoals(apps, plan, rates, asOf, goalWindow ?? undefined, periodApps, { hires, interviews }),
+    [apps, plan, rates, asOf, goalWindow, periodApps, hires, interviews]
   );
 
   const handleUploadApplications = useCallback(async (file: File) => {
@@ -394,9 +414,9 @@ export default function DashboardPage() {
     const t = goals.total;
     if (!t || t.alreadyHired === 0) return "上で選んだ集計期間・対象校舎のぶんだけを数えています。";
     const j = (d: string) => d.replace(/-/g, "/");
-    const span = t.hiredFrom && t.hiredTo ? `${j(t.hiredFrom)}〜${j(t.hiredTo)}に応募した人` : "";
+    const span = t.hiredFrom && t.hiredTo ? `${j(t.hiredFrom)}〜${j(t.hiredTo)}に決まった採用` : "";
     const over = t.alreadyHired - t.filledHired;
-    return `採用${t.alreadyHired}名は、上で選んだ集計期間ぶんです（${span}）。上のKPIの採用${summary.hired}件と同じ数字です。${
+    return `採用${t.alreadyHired}名は、この期間に採用が決まった人です（${span}）。上のKPIの採用、週次グラフの緑と同じ数字です。${
       over > 0
         ? `うち${over}名は目標より多く採れた校舎のぶんで、他の校舎の不足は埋まらないため、充足${t.filledHired}名・残り${t.remainingTarget}名には入れていません。`
         : ""
@@ -595,33 +615,32 @@ export default function DashboardPage() {
               <StatTile label="面接待ち" value={summary.interviewScheduled} unit="件" hint="日程確定済み" />
               <StatTile
                 label="採用"
-                value={summary.hired}
-                unit="件"
-                tone={summary.hired > 0 ? "good" : "neutral"}
-                hint={`応募からの採用率 ${(summary.hireRate * 100).toFixed(1)}%`}
+                value={hires.length}
+                unit="名"
+                tone={hires.length > 0 ? "good" : "neutral"}
+                hint={`この期間に採用が決まった人数。同じ期間の応募${apps.length}件に対して ${
+                  apps.length > 0 ? ((hires.length / apps.length) * 100).toFixed(1) : "0.0"
+                }%`}
                 className="col-span-2 lg:col-span-1"
               />
             </div>
 
             <Card
-              title="週次の応募数"
-              subtitle={
-                period === "term"
-                  ? "応募受付日ベース。今期（9月以降）の週だけを出しています。棒に触れるとその週の内訳が出ます。"
-                  : "応募受付日ベース。全期間の週を出しています。棒に触れるとその週の内訳が出ます。"
-              }
-            >
-              <WeeklyTrendChart points={trend} />
-            </Card>
-
-            <Card
-              title="週次の採用数"
-              subtitle={`この期間に採用が決まった人を、決まった週で数えています（応募がいつかは問いません）。計 ${hireTrend.reduce(
+              title="週次の応募数と採用数"
+              subtitle={`青は応募した週、緑は採用が決まった週で数えています（採用は応募がいつかを問いません）。同じ週の青と緑は別の人なので対応しません。緑の合計 ${hireTrend.reduce(
                 (a, p) => a + p.hired,
                 0
-              )}名。上のKPIと月次目標の採用 ${summary.hired}件は「この期間に応募した人のうち採用になった数」なので、数え方が違います。`}
+              )}名は、上の採用タイルとも月次目標の採用実績とも同じ数字です。`}
+              actions={
+                <Legend
+                  items={[
+                    { label: "応募", color: WEEKLY_SERIES_COLORS.applied },
+                    { label: "採用（決まった週）", color: WEEKLY_SERIES_COLORS.hired },
+                  ]}
+                />
+              }
             >
-              <WeeklyHireChart points={hireTrend} />
+              <WeeklyTrendChart points={trend} hires={hireTrend} />
             </Card>
 
             <div className="grid gap-4 sm:gap-5 lg:grid-cols-2">
@@ -632,7 +651,12 @@ export default function DashboardPage() {
                 <StagePoolChart rows={pool} total={apps.length} />
               </Card>
 
-              <Card title="通過ファネル" subtitle={`応募がどこで落ちているか（${periodLabel}の全応募 ${apps.length}件）`}>
+              <Card
+                title="通過ファネル"
+                subtitle={`${periodLabel}に応募した ${apps.length}件を追いかけた結果です。採用${
+                  funnelSteps[3]?.count ?? 0
+                }件は「この応募の中から採れた数」なので、その期間に決まった採用${hires.length}名とは別の数え方です。`}
+              >
                 <FunnelChart steps={funnelSteps} />
               </Card>
             </div>
