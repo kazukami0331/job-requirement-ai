@@ -58,8 +58,14 @@ export interface ShopGoalRow {
   urgent: boolean;
   /** 採用目標（不足人数マスタの人数） */
   hireTarget: number;
-  /** いまの採用者数（全期間）。目標に対する充足ぶん。 */
+  /** 採用できた人数。目標を超えて採れた場合はその数のまま入る。 */
   alreadyHired: number;
+  /**
+   * そのうち目標の充足に効いた人数（目標までで頭打ち）。
+   * 目標1名の校舎で2名採れても、他の校舎の不足は埋まらないので1名として数える。
+   * 合計の「採用 / 目標 / 残り」はこちらで揃える。足し算が合わなくなるため。
+   */
+  filledHired: number;
   /** 目標から採用ぶんを引いた、これから採る人数 */
   remainingTarget: number;
   /** 充足率。目標0なら出せないので null。 */
@@ -329,7 +335,8 @@ export function monthlyGoals(
   const rows: ShopGoalRow[] = shortages.map((s) => {
     const key = normalizeShopKey(s.shopShortName);
     const alreadyHired = hiredSoFar.get(key) ?? 0;
-    const remainingTarget = Math.max(s.shortage - alreadyHired, 0);
+    const filledHired = Math.min(alreadyHired, s.shortage);
+    const remainingTarget = s.shortage - filledHired;
     const dates = [...(hiredDates.get(key) ?? [])].sort();
 
     // 期限の早い校舎も含め、どの校舎も同じ月に配る。
@@ -349,6 +356,7 @@ export function monthlyGoals(
       `${windowLabel} で均等に按分`,
       s.deadline && s.deadline !== "-" ? `期限 ${s.deadline}` : "期限未記入",
       alreadyHired > 0 ? `採用${alreadyHired}名ぶんを引いた残り${remainingTarget}名で計算` : null,
+      alreadyHired > s.shortage ? `目標より${alreadyHired - s.shortage}名多く採用` : null,
     ]
       .filter(Boolean)
       .join(" / ");
@@ -358,8 +366,9 @@ export function monthlyGoals(
       urgent: s.urgent,
       hireTarget: s.shortage,
       alreadyHired,
+      filledHired,
       remainingTarget,
-      fillRate: s.shortage > 0 ? alreadyHired / s.shortage : null,
+      fillRate: s.shortage > 0 ? filledHired / s.shortage : null,
       deadline: s.deadline,
       deadlineNote,
       requiredApplied,
@@ -388,10 +397,11 @@ export function monthlyGoals(
           urgent: false,
           hireTarget: rows.reduce((a, r) => a + r.hireTarget, 0),
           alreadyHired: rows.reduce((a, r) => a + r.alreadyHired, 0),
+          filledHired: rows.reduce((a, r) => a + r.filledHired, 0),
           remainingTarget: rows.reduce((a, r) => a + r.remainingTarget, 0),
           fillRate: (() => {
             const t = rows.reduce((a, r) => a + r.hireTarget, 0);
-            return t > 0 ? rows.reduce((a, r) => a + r.alreadyHired, 0) / t : null;
+            return t > 0 ? rows.reduce((a, r) => a + r.filledHired, 0) / t : null;
           })(),
           deadline: "",
           deadlineNote: `${windowLabel} で均等に按分`,

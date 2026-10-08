@@ -386,7 +386,12 @@ export default function DashboardPage() {
     if (!t || t.alreadyHired === 0) return "上で選んだ集計期間・対象校舎のぶんだけを数えています。";
     const j = (d: string) => d.replace(/-/g, "/");
     const span = t.hiredFrom && t.hiredTo ? `${j(t.hiredFrom)}〜${j(t.hiredTo)}に応募した人` : "";
-    return `採用済み${t.alreadyHired}名は、上で選んだ集計期間ぶんです（${span}）。上のKPIの採用${summary.hired}件と同じ数字です。`;
+    const over = t.alreadyHired - t.filledHired;
+    return `採用${t.alreadyHired}名は、上で選んだ集計期間ぶんです（${span}）。上のKPIの採用${summary.hired}件と同じ数字です。${
+      over > 0
+        ? `うち${over}名は目標より多く採れた校舎のぶんで、他の校舎の不足は埋まらないため、充足${t.filledHired}名・残り${t.remainingTarget}名には入れていません。`
+        : ""
+    }`;
   }, [goals, summary.hired]);
 
   /**

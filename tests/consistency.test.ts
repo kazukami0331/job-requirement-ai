@@ -90,7 +90,7 @@ test("月ごとの目標を足すと、全体の目標に戻る", () => {
     total.months.reduce((a, m) => a + m.targetHire, 0),
     total.remainingTarget
   );
-  assert.equal(total.remainingTarget, total.hireTarget - total.alreadyHired);
+  assert.equal(total.remainingTarget, total.hireTarget - total.filledHired);
   assert.equal(
     goals.rows.reduce((a, r) => a + r.requiredApplied, 0),
     total.requiredApplied
@@ -116,6 +116,35 @@ test("校舎名の略称が、店舗マスタの校舎に寄せられる", () =>
   assert.equal(normalizeShopKey("名古屋"), normalizeShopKey("名古屋駅前校"));
   // 似ているだけの別校舎は混ぜない。
   assert.notEqual(normalizeShopKey("新宿校"), normalizeShopKey("新宿本校"));
+});
+
+test("目標より多く採れた校舎があっても、採用 / 目標 / 残りの引き算が合う", () => {
+  // 目標1名の校舎で2名採れるケース。超過分を残りから引くと、合計が1名ぶん合わなくなる。
+  const over = goals.rows.filter((r) => r.alreadyHired > r.hireTarget);
+  for (const r of [...goals.rows, total]) {
+    assert.equal(r.filledHired + r.remainingTarget, r.hireTarget, `${r.shopShortName} の引き算が合わない`);
+    assert.ok(r.filledHired <= r.alreadyHired, `${r.shopShortName} の充足が採用を超えている`);
+  }
+  // 超過がある場合、採用の総数は充足の総数より多くなる
+  if (over.length > 0) assert.ok(total.alreadyHired > total.filledHired);
+});
+
+test("目標を超えて採れた校舎を作っても、合計が壊れない", () => {
+  // 実データに超過が無くても壊れないよう、採用済みを水増しした計画で確かめる
+  const one = shortageByShop(plan).find((s) => s.shortage > 0)!;
+  const key = normalizeShopKey(one.shopShortName);
+  const extra: Application[] = [...apps];
+  const sample = apps[0];
+  for (let i = 0; i < one.shortage + 2; i++) {
+    extra.push({ ...sample, applicationId: `dummy-${i}`, shopShortName: one.shopShortName, statusId: "5", statusName: "採用" });
+  }
+  const g = monthlyGoals(extra, plan, DEFAULT_RATES, asOf);
+  const t = g.total!;
+  assert.equal(t.filledHired + t.remainingTarget, t.hireTarget);
+  assert.ok(t.alreadyHired > t.filledHired);
+  const row = g.rows.find((r) => normalizeShopKey(r.shopShortName) === key)!;
+  assert.equal(row.remainingTarget, 0);
+  assert.equal(row.filledHired, row.hireTarget);
 });
 
 test("表に載らなかった応募は、校舎名まで出せる", () => {

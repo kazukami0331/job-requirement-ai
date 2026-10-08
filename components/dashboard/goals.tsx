@@ -207,15 +207,19 @@ export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
  * 目標・採用済み・残りを別々に書くと、2名なのか1名充足して残り2名なのかが読み取れないため。
  */
 function HireCount({ row }: { row: ShopGoalRow }) {
-  const rate = row.hireTarget > 0 ? ratioLabel(row.alreadyHired, row.hireTarget) : null;
+  const rate = row.hireTarget > 0 ? ratioLabel(row.filledHired, row.hireTarget) : null;
+  // 目標より多く採れたぶんは、他の校舎の不足を埋めないので残りには効かない。
+  // 「採用 / 目標 ＝ 残り」の引き算が合わなくなるので、超過は別に書く。
+  const over = row.alreadyHired - row.filledHired;
   return (
     <span style={{ color: "var(--text-muted)" }}>
-      <span style={{ color: row.alreadyHired > 0 ? "var(--status-good)" : "var(--text-muted)", fontWeight: 600 }}>
-        {row.alreadyHired}
+      <span style={{ color: row.filledHired > 0 ? "var(--status-good)" : "var(--text-muted)", fontWeight: 600 }}>
+        {row.filledHired}
       </span>
       {" / "}
       {row.hireTarget}名{rate && `（${rate}）`} 残り
       <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>{row.remainingTarget}</span>名
+      {over > 0 && `（ほかに目標超過${over}名）`}
     </span>
   );
 }
@@ -309,7 +313,7 @@ export function GoalControls({
           {total && (
             <span style={{ color: "var(--text-secondary)" }}>
               {total.alreadyHired > 0
-                ? `（目標${total.hireTarget}名 − 採用${total.alreadyHired}名 ＝ 残り${total.remainingTarget}名で計 ${total.requiredApplied}件）`
+                ? `（目標${total.hireTarget}名 − 充足${total.filledHired}名 ＝ 残り${total.remainingTarget}名で計 ${total.requiredApplied}件）`
                 : `（${total.hireTarget}名で計 ${total.requiredApplied}件）`}
             </span>
           )}
