@@ -54,6 +54,8 @@ export function DataMenu({
   plan,
   onUploadApplications,
   onUploadPlan,
+  onUploadHrSheet,
+  hrSheetInfo,
   onImportBackup,
   onExportBackup,
   onExportWorkbook,
@@ -67,6 +69,10 @@ export function DataMenu({
   plan: HiringPlan | null;
   onUploadApplications: (file: File) => void;
   onUploadPlan: (file: File) => void;
+  /** 採用チームが作っている採用管理表（コース別の集計に使う） */
+  onUploadHrSheet: (file: File) => void;
+  /** 取り込み済みの採用管理表の状態。未取り込みなら null。 */
+  hrSheetInfo: { sourceFileName: string; importedAt: string; rows: number } | null;
   onImportBackup: (file: File) => void;
   onExportBackup: () => void;
   onExportWorkbook: () => void;
@@ -129,6 +135,17 @@ export function DataMenu({
 
           <div className="space-y-1.5">
             <FilePicker label="不足人数マスタを取り込む" accept=".csv,.xls,.xlsx" onPick={onUploadPlan} block />
+            <FilePicker
+              label="採用管理表（Excel）を取り込む"
+              accept=".xls,.xlsx"
+              onPick={onUploadHrSheet}
+              block
+            />
+            <p className="px-0.5 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              {hrSheetInfo
+                ? `${hrSheetInfo.rows}行を取り込み済み（${fmt(hrSheetInfo.importedAt)}）。コース別の集計は「Excel集計」に出ます。`
+                : "採用チームの採用管理表。コース（分野）別の採用人数を出すのに使います。氏名・年齢・性別は読み取りません。"}
+            </p>
             <Button onClick={onExportWorkbook} disabled={snapshots.length === 0} block>
               スプレッドシートに書き出す（.xlsx）
             </Button>

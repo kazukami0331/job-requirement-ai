@@ -31,9 +31,11 @@ import {
   importBackup,
   listSnapshots,
   loadGoalWindow,
+  loadHrSheet,
   loadPlan,
   loadProjectStart,
   saveGoalWindow,
+  saveHrSheet,
   savePlan,
   saveProjectStart,
   saveSnapshot,
@@ -45,6 +47,8 @@ import { Button, Card, EmptyState, Legend, StatTile } from "@/components/dashboa
 import { FunnelChart, StagePoolChart, WEEKLY_SERIES_COLORS, WeeklyTrendChart } from "@/components/dashboard/charts";
 import { BreakdownTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
 import { DataMenu } from "@/components/dashboard/DataPanel";
+import { HrSheet, compareWithJobop, crossTab, parseHrSheet } from "@/lib/recruiting/hrsheet";
+import { HrCompareTable, HrCrossTable } from "@/components/dashboard/hrsheet";
 import { DEFAULT_RATES, GoalRates, GoalWindow, monthlyGoals } from "@/lib/recruiting/goal";
 import {
   Coverage,
@@ -60,7 +64,7 @@ type Message = { kind: "info" | "error"; text: string } | null;
 
 const DIMENSIONS: Dimension[] = ["shopShortName", "employmentType", "media", "route", "jobTitle"];
 
-type SectionKey = "summary" | "goal" | "trend" | "breakdown" | "activity";
+type SectionKey = "summary" | "goal" | "trend" | "breakdown" | "excel" | "activity";
 
 /** 2026-09-21 → 9/21 */
 const md = (d?: string) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : "");
@@ -71,6 +75,7 @@ const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: "goal", label: "月次目標" },
   { key: "trend", label: "週次推移" },
   { key: "breakdown", label: "選考状況" },
+  { key: "excel", label: "Excel集計" },
   { key: "activity", label: "動き" },
 ];
 
@@ -116,6 +121,8 @@ function readFile(file: File): Promise<ArrayBuffer> {
 export default function DashboardPage() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [plan, setPlan] = useState<HiringPlan | null>(null);
+  // 採用チームが作っている採用管理表（Excel）。コース別の集計に使う。
+  const [hrSheet, setHrSheet] = useState<HrSheet | null>(null);
   const [message, setMessage] = useState<Message>(null);
   const [loading, setLoading] = useState(true);
   const [dimension, setDimension] = useState<Dimension>("shopShortName");
@@ -159,14 +166,16 @@ export default function DashboardPage() {
 
         // 公開データが無いときだけ、同梱してある受領済みデータを入れる
         const seeded = remote?.data ? false : await loadSeedIfEmpty();
-        const [s, p, w, start] = await Promise.all([
+        const [s, p, w, start, hr] = await Promise.all([
           listSnapshots(),
           loadPlan(),
           loadGoalWindow(),
           loadProjectStart(),
+          loadHrSheet(),
         ]);
         setSnapshots(s);
         setPlan(p);
+        setHrSheet(hr);
         // 一度選んだ按分期間は覚えておく。開くたびに目標が割り直されると計画にならない。
         if (w) setGoalWindow(w);
         if (start) setProjectStart(start);
@@ -340,6 +349,36 @@ export default function DashboardPage() {
     [apps, plan, rates, asOf, goalWindow, periodApps, hires, interviews, periodFrom]
   );
 
+  /**
+   * 採用管理表（Excel）の集計。校舎 × コース。
+   * 期間の起点は画面の集計期間に合わせる（応募日で切る）。
+   */
+  const hrCross = useMemo(() => {
+    if (!hrSheet) return null;
+    const shopKey = shopFilter === "すべて" ? null : normalizeShopKey(shopFilter);
+    return crossTab(hrSheet, {
+      from: periodFrom,
+      // 画面の絞り込みと同じ条件で切る。ここだけ全校舎にすると、隣に並べたジョブオプ側と母数が変わる。
+      include: (key) =>
+        (shopKey ? key === shopKey : true) && (scope === "all" || !masterKeys || masterKeys.has(key)),
+    });
+  }, [hrSheet, periodFrom, shopFilter, scope, masterKeys]);
+
+  /** ジョブオプ側の校舎ごとの採用数。Excelとの差を出すのに使う。 */
+  const jobopByShop = useMemo(() => {
+    const out = new Map<string, number>();
+    for (const a of hires) {
+      const key = normalizeShopKey(a.shopShortName);
+      out.set(key, (out.get(key) ?? 0) + 1);
+    }
+    return out;
+  }, [hires]);
+
+  const hrCompare = useMemo(
+    () => (hrCross ? compareWithJobop(hrCross, jobopByShop) : []),
+    [hrCross, jobopByShop]
+  );
+
   const handleUploadApplications = useCallback(async (file: File) => {
     try {
       const snapshot = buildSnapshot(file.name, await readFile(file));
@@ -378,13 +417,43 @@ export default function DashboardPage() {
     }
   }, []);
 
+  /**
+   * 採用チームの採用管理表（Excel）を取り込む。
+   *
+   * ジョブオプのエクスポートには分野（コース）が入っていないので、校舎ごとの人数までしか出せない。
+   * こちらのシートには分野が入っているので、校舎 × コースで数えられる。
+   * 人が手で付けている表なので数字はジョブオプ側と一致しないことがあり、置き換えずに別タブで並べる。
+   */
+  const handleUploadHrSheet = useCallback(async (file: File) => {
+    try {
+      const sheet = parseHrSheet(file.name, await readFile(file));
+      if (sheet.rows.length === 0) {
+        setMessage({
+          kind: "error",
+          text: "採用管理表を読み取れませんでした。「元データ」シートに スクール / ステータス / 分野 の列があるか確認してください。",
+        });
+        return;
+      }
+      await saveHrSheet(sheet);
+      setHrSheet(sheet);
+      setSection("excel");
+      setMessage({
+        kind: "info",
+        text: `採用管理表から${sheet.rows.length}行を取り込みました（採用${sheet.rows.filter((r) => r.hired).length}名）。「Excel集計」に出ます。`,
+      });
+    } catch (e) {
+      setMessage({ kind: "error", text: `取り込みに失敗しました: ${e instanceof Error ? e.message : String(e)}` });
+    }
+  }, []);
+
   const handleImportBackup = useCallback(async (file: File) => {
     try {
       const backup = JSON.parse(await file.text());
       const result = await importBackup(backup);
-      const [s, p] = await Promise.all([listSnapshots(), loadPlan()]);
+      const [s, p, hr] = await Promise.all([listSnapshots(), loadPlan(), loadHrSheet()]);
       setSnapshots(s);
       setPlan(p);
+      setHrSheet(hr);
       setMessage({ kind: "info", text: `${result.snapshots}件のスナップショットを復元しました。` });
     } catch (e) {
       setMessage({ kind: "error", text: `復元に失敗しました: ${e instanceof Error ? e.message : String(e)}` });
@@ -562,6 +631,12 @@ export default function DashboardPage() {
           plan={plan}
           onUploadApplications={handleUploadApplications}
           onUploadPlan={handleUploadPlan}
+          onUploadHrSheet={handleUploadHrSheet}
+          hrSheetInfo={
+            hrSheet
+              ? { sourceFileName: hrSheet.sourceFileName, importedAt: hrSheet.importedAt, rows: hrSheet.rows.length }
+              : null
+          }
           onImportBackup={handleImportBackup}
           onExportBackup={handleExportBackup}
           onExportWorkbook={handleExportWorkbook}
@@ -901,6 +976,67 @@ export default function DashboardPage() {
             >
               <BreakdownTable rows={rows} dimensionLabel={DIMENSION_LABEL[dimension]} />
             </Card>
+          </div>
+
+          {/* Excel集計（採用チームの採用管理表） */}
+          <div className={`space-y-4 sm:space-y-5 ${section === "excel" ? "" : "hidden sm:block"}`}>
+            {hrCross ? (
+              <>
+                <Card
+                  title="校舎 × コースの採用人数（採用チームのExcel）"
+                  subtitle="ジョブオプのエクスポートに分野（コース）が無いため、この表は採用管理表だけから作っています。"
+                >
+                  <div className="space-y-4">
+                    <ul className="space-y-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+                      <li>
+                        採用（ステータス「合格」）<strong style={{ color: "var(--text-primary)" }}>{hrCross.total}名</strong>
+                        ／ 応募 {hrCross.totalApplied}件（採用率 {hrCross.totalApplied > 0 ? ((hrCross.total / hrCross.totalApplied) * 100).toFixed(1) : "0.0"}%）
+                      </li>
+                      <li>
+                        同じ絞り込みのジョブオプ側は{" "}
+                        <strong style={{ color: "var(--text-primary)" }}>{hires.length}名</strong>
+                        （差 {hrCross.total - hires.length > 0 ? "+" : ""}
+                        {hrCross.total - hires.length}名）
+                      </li>
+                      <li>
+                        {periodFrom ? `${periodFrom.replace(/-/g, "/")}以降の応募` : "全期間の応募"}
+                        {hrCross.excluded > 0 ? ` ／ 期間・対象校舎の条件で${hrCross.excluded}行を除外` : ""}
+                      </li>
+                      <li>
+                        取り込み {hrSheet ? `${hrSheet.rows.length}行（${hrSheet.sourceFileName}）` : ""}
+                      </li>
+                    </ul>
+                    <HrCrossTable cross={hrCross} />
+                  </div>
+                </Card>
+
+                <Card
+                  title="ジョブオプとの差（校舎ごとの採用数）"
+                  subtitle="置き換えずに並べています。どちらが正しいかはこの画面では決められないので、差が大きい校舎から確認してください。"
+                >
+                  <div className="space-y-4">
+                    <HrCompareTable rows={hrCompare} />
+                    <ul className="space-y-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                      <li>Excel … ステータスが「合格」の人数。採用チームが手で付けています。</li>
+                      <li>ジョブオプ … 選考ステータスが「採用」で、その更新日が期間内の人数。</li>
+                      <li>差が出る主な理由 … 判断を入れたタイミングのずれ、どちらかに入力が無い、校舎名の書き方の違い。</li>
+                      <li>分野が空欄の行は「(未記入)」にまとめています（Excel側で未入力のまま）。</li>
+                      <li>
+                        分野の欄に「※重複応募あり」などのメモが入っている行は、そのまま1列として出しています（Excelの記入を変えずに見せるため）。
+                      </li>
+                    </ul>
+                  </div>
+                </Card>
+              </>
+            ) : (
+              <Card title="Excel集計（採用チームの採用管理表）">
+                <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  右上の「その他」→「採用管理表（Excel）を取り込む」から、採用チームの管理表（.xlsx）を選んでください。
+                  「元データ」シートの スクール / 分野 / ステータス / 応募日時 だけを読み、校舎 × コースの採用人数を出します。
+                  氏名・年齢・性別は読み取りません。
+                </p>
+              </Card>
+            )}
           </div>
 
           {/* 動き */}

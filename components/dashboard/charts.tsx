@@ -52,9 +52,11 @@ function WeeklyBars({ cols, series, aria }: { cols: WeekCol[]; series: Series[];
   const plotW = Math.max(width - AXIS_W - PAD_R, 40);
   const max = niceMax(Math.max(...series.flatMap((s) => s.values), 1));
   const slot = plotW / cols.length;
-  // 1週ぶんの幅に系列の数だけ棒を並べる
-  const groupW = Math.min(Math.max(slot - BAR_GAP * 2, 2), MAX_BAR_W * series.length);
-  const inner = series.length > 1 ? BAR_GAP : 0;
+  // 1週ぶんの幅に系列の数だけ棒を並べる。
+  // 週と週のあいだは、棒どうしの隙間よりはっきり空ける。詰めると、
+  // どの棒が同じ週のものか分からなくなる。
+  const groupW = Math.min(Math.max(slot * 0.58, 4), MAX_BAR_W * series.length);
+  const inner = series.length > 1 ? 1 : 0;
   const barW = Math.max((groupW - inner * (series.length - 1)) / series.length, 1);
   const ticks = [0, max / 2, max];
   // 棒が細いときに数字が重ならないよう、棒の幅に合わせて文字を詰める
@@ -80,6 +82,21 @@ function WeeklyBars({ cols, series, aria }: { cols: WeekCol[]; series: Series[];
             </g>
           );
         })}
+
+        {series.length > 1 &&
+          cols.map((_, i) =>
+            i === 0 ? null : (
+              <line
+                key={`sep-${i}`}
+                x1={AXIS_W + i * slot}
+                x2={AXIS_W + i * slot}
+                y1={padT}
+                y2={padT + plotH}
+                stroke="var(--gridline)"
+                strokeWidth={1}
+              />
+            )
+          )}
 
         {cols.map((col, i) => {
           const groupX = AXIS_W + i * slot + (slot - groupW) / 2;
