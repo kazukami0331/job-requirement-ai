@@ -1,6 +1,5 @@
 import * as XLSX from "xlsx";
-import { PlanCategory } from "@/types/recruiting";
-import { PLAN_CATEGORIES, SHOP_MASTER, normalizeShopKey } from "./shops";
+import { SHOP_MASTER, normalizeShopKey } from "./shops";
 
 /**
  * 採用チームが管理しているExcel（採用管理表）の「元データ」シートを読む。
@@ -22,10 +21,10 @@ export interface HrRow {
   /** IT / WEBDTP / CAD など、シートに書かれている分野そのまま。空欄は「(未記入)」。 */
   course: string;
   /**
-   * 不足人数マスタと同じ3区分に寄せたもの。IT / D/W / C。
-   * 3区分にする前に取り込んだデータには入っていないので、読むときは必ず categoryOf を通す。
+   * コースの区分。IT / D/W（デザイン・Web）/ C（CAD）/ none（分野が空欄）。
+   * 区分を入れる前に取り込んだデータには無いので、読むときは必ず categoryOf を通す。
    */
-  category?: PlanCategory;
+  category?: HrCategory;
   status: string;
   hired: boolean;
   /** 応募日（YYYY-MM-DD）。読めなければ null。 */
@@ -57,17 +56,34 @@ function course(raw: string): string {
 }
 
 /**
- * 分野を、不足人数マスタと同じ3区分に寄せる。
+ * コースの区分。不足人数マスタの IT / D/W / C に、Excel側の未記入を足した4つ。
+ *
+ * 未記入を D/W に混ぜるとデザイン・Webの実績が実態より多く見えるので、列を分けて出す
+ * （2026-10-12 カズヒコさん指示）。
+ */
+export type HrCategory = "IT" | "D/W" | "C" | "none";
+
+export const HR_CATEGORIES: HrCategory[] = ["IT", "D/W", "C", "none"];
+
+export const HR_CATEGORY_LABEL: Record<HrCategory, string> = {
+  IT: "IT",
+  "D/W": "デザイン・Web",
+  C: "CAD",
+  none: "未記入",
+};
+
+/**
+ * 分野を区分に寄せる。
  *
  * Excelの分野欄は WEBDTP / WEB / DTP / 映像 / Office … と細かく、校舎ごとに書き方も違う。
  * 採用目標は IT / デザイン・Web / CAD の3区分で持っているので、そこに合わせないと
  * 「何がどれだけ足りないのか」と並べて見られない。
  *
- * IT と CAD だけを拾い、残りはすべて D/W に寄せる（2026-10-12 カズヒコさん指示）。
- * 未記入もD/Wに入るので、内訳は表の下に出して中身が分かるようにしておく。
+ * IT と CAD だけを拾い、残りは D/W。空欄だけは寄せずに未記入のまま残す。
  */
-export function courseCategory(raw: string): PlanCategory {
+export function courseCategory(raw: string): HrCategory {
   const t = course(raw).toUpperCase();
+  if (t === "(未記入)") return "none";
   if (t.startsWith("IT")) return "IT";
   if (t.includes("CAD")) return "C";
   return "D/W";
@@ -80,10 +96,8 @@ export function courseCategory(raw: string): PlanCategory {
  * category が入っていない。取り込み直しを強いると、その間だけ画面が壊れるので、
  * 無ければ分野から作り直す。
  */
-export function categoryOf(row: HrRow): PlanCategory {
-  return row.category === "IT" || row.category === "D/W" || row.category === "C"
-    ? row.category
-    : courseCategory(row.course);
+export function categoryOf(row: HrRow): HrCategory {
+  return row.category && HR_CATEGORIES.includes(row.category) ? row.category : courseCategory(row.course);
 }
 
 /** 「2026/10/07(水) 14:27」のような書き方から日付だけ取る */
@@ -128,30 +142,30 @@ export interface HrCrossShop {
   key: string;
   /** 表に出す校舎名。店舗マスタに当たれば正式な略称にそろえる。 */
   shopShortName: string;
-  /** 3区分ごとの採用数 */
-  byCategory: Record<PlanCategory, number>;
+  /** 区分ごとの採用数 */
+  byCategory: Record<HrCategory, number>;
   total: number;
   applied: number;
 }
 
 export interface HrCross {
-  /** 列。不足人数マスタと同じ IT / D/W / C の3つで固定する。 */
-  categories: PlanCategory[];
+  /** 列。IT / D/W / C / 未記入 で固定する。 */
+  categories: HrCategory[];
   /** 行（校舎）。採用が多い順。 */
   shops: HrCrossShop[];
-  totalByCategory: Record<PlanCategory, number>;
+  totalByCategory: Record<HrCategory, number>;
   /**
-   * 3区分それぞれに、Excelのどの分野が何件入ったか。
-   * 「D/W 11名」の中身が WEBDTP なのか未記入なのかを、表の下に出すために持つ。
+   * 区分それぞれに、Excelのどの分野が何件入ったか。
+   * 「デザイン・Web 13名」の中身が WEBDTP なのか映像なのかを、表の下に出すために持つ。
    */
-  rawByCategory: Record<PlanCategory, Record<string, number>>;
+  rawByCategory: Record<HrCategory, Record<string, number>>;
   total: number;
   totalApplied: number;
   /** 期間や対象校舎の条件で外した行数 */
   excluded: number;
 }
 
-const zero = (): Record<PlanCategory, number> => ({ IT: 0, "D/W": 0, C: 0 });
+const zero = (): Record<HrCategory, number> => ({ IT: 0, "D/W": 0, C: 0, none: 0 });
 
 /** 店舗マスタに当たる校舎は正式な略称にそろえる（「福岡天神」と「福岡天神校」を1行にする） */
 const MASTER_BY_KEY = new Map(SHOP_MASTER.map((s) => [normalizeShopKey(s.short), s.short]));
@@ -176,7 +190,7 @@ export function crossTab(sheet: HrSheet, options: CrossOptions | string | null =
 
   const byShop = new Map<string, HrCrossShop>();
   const totalByCategory = zero();
-  const rawByCategory: Record<PlanCategory, Record<string, number>> = { IT: {}, "D/W": {}, C: {} };
+  const rawByCategory: Record<HrCategory, Record<string, number>> = { IT: {}, "D/W": {}, C: {}, none: {} };
   let excluded = 0;
   let total = 0;
   let totalApplied = 0;
@@ -209,7 +223,7 @@ export function crossTab(sheet: HrSheet, options: CrossOptions | string | null =
   }
 
   return {
-    categories: PLAN_CATEGORIES,
+    categories: HR_CATEGORIES,
     shops: [...byShop.values()].sort(
       (a, b) => b.total - a.total || b.applied - a.applied || a.shopShortName.localeCompare(b.shopShortName, "ja")
     ),

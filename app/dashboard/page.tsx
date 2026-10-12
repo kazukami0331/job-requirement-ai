@@ -984,7 +984,7 @@ export default function DashboardPage() {
               <>
                 <Card
                   title="校舎 × コースの採用人数（採用チームのExcel）"
-                  subtitle="コースは不足人数マスタと同じ IT / デザイン・Web / CAD の3つに寄せています。ジョブオプのエクスポートに分野が無いため、この表は採用管理表だけから作っています。"
+                  subtitle="コースは 不足人数マスタと同じ IT / デザイン・Web / CAD と、Excel側で分野が空欄の 未記入 の4列です。見出しを押すと並び替わります。"
                 >
                   <div className="space-y-4">
                     <ul className="space-y-1 text-xs" style={{ color: "var(--text-secondary)" }}>
@@ -1022,8 +1022,8 @@ export default function DashboardPage() {
                       <li>ジョブオプ … 選考ステータスが「採用」で、その更新日が期間内の人数。</li>
                       <li>差が出る主な理由 … 判断を入れたタイミングのずれ、どちらかに入力が無い、校舎名の書き方の違い。</li>
                       <li>
-                        コースは IT と CAD だけを拾い、<strong>それ以外（WEBDTP・WEB・DTP・映像・未記入など）はすべて デザイン・Web</strong>
-                        に寄せています。何が入ったかは上の表の下に出しています。
+                        コースは IT と CAD だけを拾い、<strong>それ以外（WEBDTP・WEB・DTP・映像など）は デザイン・Web</strong>
+                        に寄せています。分野が空欄の行は寄せずに <strong>未記入</strong> の列に分けています。
                       </li>
                     </ul>
                   </div>

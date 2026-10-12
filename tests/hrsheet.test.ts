@@ -112,9 +112,9 @@ test("対象校舎の絞り込みは、画面と同じ条件で渡せる", () =>
   assert.equal(only.excluded, 4);
 });
 
-test("列は不足人数マスタと同じ IT / D/W / C の3つで固定する", () => {
+test("列は IT / D/W / C / 未記入 の4つで固定する", () => {
   const cross = crossTab(sheetOf(SAMPLE));
-  assert.deepEqual(cross.categories, ["IT", "D/W", "C"]);
+  assert.deepEqual(cross.categories, ["IT", "D/W", "C", "none"]);
 });
 
 test("分野の末尾の「？」が付いていても IT として数える", () => {
@@ -123,11 +123,12 @@ test("分野の末尾の「？」が付いていても IT として数える", (
   assert.deepEqual(cross.rawByCategory["IT"], { IT: 2 }, "「IT？」は「IT」に寄せる");
 });
 
-test("IT と CAD 以外は、未記入も含めて D/W に寄せる", () => {
+test("IT と CAD 以外は D/W に寄せる。分野が空欄の行だけは未記入として分ける", () => {
   const cross = crossTab(sheetOf(SAMPLE));
-  // WEBDTP 1名 ＋ 分野が空欄の1名
-  assert.equal(cross.totalByCategory["D/W"], 2);
-  assert.deepEqual(cross.rawByCategory["D/W"], { WEBDTP: 1, "(未記入)": 1 });
+  assert.equal(cross.totalByCategory["D/W"], 1, "WEBDTPの1名だけ");
+  assert.deepEqual(cross.rawByCategory["D/W"], { WEBDTP: 1 });
+  assert.equal(cross.totalByCategory["none"], 1, "分野が空欄の1名はD/Wに混ぜない");
+  assert.deepEqual(cross.rawByCategory["none"], { "(未記入)": 1 });
   assert.equal(cross.totalByCategory["C"], 0, "CADの応募はあるが採用には至っていない");
 });
 
@@ -136,7 +137,7 @@ test("分野ごとの中身は、寄せる前の書き方のまま残す", () =>
   assert.equal(sheet.rows[2].course, "IT", "「IT？」は表記ゆれとして「IT」に寄せる");
   assert.equal(sheet.rows[2].category, "IT");
   assert.equal(sheet.rows[4].course, "(未記入)");
-  assert.equal(sheet.rows[4].category, "D/W");
+  assert.equal(sheet.rows[4].category, "none");
 });
 
 test("ジョブオプとの比較は、片側しかない校舎も残す", () => {
@@ -162,12 +163,13 @@ test("ジョブオプとの比較は、片側しかない校舎も残す", () =>
   );
 });
 
-test("3区分より前に取り込んだデータでも壊れない", () => {
+test("区分を入れる前に取り込んだデータでも壊れない", () => {
   const sheet = sheetOf(SAMPLE);
   // 保存済みのデータ・古いバックアップ・公開データには category が入っていない
   const old: HrSheet = { ...sheet, rows: sheet.rows.map(({ category, ...r }) => r) };
   const cross = crossTab(old);
   assert.equal(cross.total, 4);
   assert.equal(cross.totalByCategory["IT"], 2, "分野から区分を作り直す");
-  assert.equal(cross.totalByCategory["D/W"], 2);
+  assert.equal(cross.totalByCategory["D/W"], 1);
+  assert.equal(cross.totalByCategory["none"], 1);
 });
