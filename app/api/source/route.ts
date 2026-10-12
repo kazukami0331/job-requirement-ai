@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
+import { buildSnapshot } from "@/lib/recruiting/parse";
+import { parsePlanFile } from "@/lib/recruiting/plan";
 
 /**
  * 人事チームが更新しているExcelを、サーバー側から直接読みに行く。
  *
  * 画面を開くたびにここを叩くので、ファイルが更新されていればそのまま反映される。
  * 取り込みの操作は要らない。
+ *
+ * ファイルには候補者の個人情報が入っている前提で扱う。
+ * 読み取りと解釈はこのサーバー側だけで済ませ、ブラウザへ返すのは集計に使う項目だけ。
+ * 氏名・連絡先・住所は元から読まない。年齢・性別も使っていないので落とす。
+ * ダッシュボードのURLは社外にも渡るので、ここから先に個人情報を出さない。
  *
  * 取り方は2つ。どちらか設定されていれば動く。
  *
@@ -125,6 +132,36 @@ export async function GET() {
 
   try {
     const file = useGraph ? await fetchViaGraph(url) : await fetchDirect(url);
+
+    // ここで中身を解釈し、ブラウザへは集計に使う項目だけを返す
+    const parsed =
+      kind === "applications"
+        ? (() => {
+            const snap = buildSnapshot(file.name, file.bytes);
+            return {
+              snapshot: {
+                id: snap.id,
+                takenAt: snap.takenAt,
+                sourceFileName: snap.sourceFileName,
+                // 年齢・性別は集計に使っていないので持ち出さない
+                applications: snap.applications.map((a) => ({ ...a, age: null, gender: null })),
+              },
+              count: snap.applications.length,
+            };
+          })()
+        : (() => {
+            const plan = parsePlanFile(file.name, file.bytes);
+            return { plan, count: plan.rows.length };
+          })();
+
+    if (parsed.count === 0) {
+      throw new Error(
+        kind === "applications"
+          ? "応募データを1件も読み取れませんでした。ジョブオプの応募エクスポートか確認してください"
+          : "不足人数マスタの行を読み取れませんでした。シートの形を確認してください"
+      );
+    }
+
     return NextResponse.json(
       {
         configured: true,
@@ -133,7 +170,7 @@ export async function GET() {
         fileName: file.name,
         lastModified: file.modified,
         fetchedAt: new Date().toISOString(),
-        base64: Buffer.from(file.bytes).toString("base64"),
+        ...parsed,
       },
       { headers }
     );

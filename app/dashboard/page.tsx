@@ -40,7 +40,7 @@ import {
   setSharedAt,
 } from "@/lib/recruiting/storage";
 import { fetchShared, publishShared } from "@/lib/recruiting/shared";
-import { ExternalSource, fetchExternalSource, toArrayBuffer } from "@/lib/recruiting/source";
+import { ExternalSource, fetchExternalSource } from "@/lib/recruiting/source";
 import { Button, Card, EmptyState, Legend, StatTile } from "@/components/dashboard/ui";
 import { FunnelChart, StagePoolChart, WEEKLY_SERIES_COLORS, WeeklyTrendChart } from "@/components/dashboard/charts";
 import { BreakdownTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
@@ -402,34 +402,25 @@ export default function DashboardPage() {
     try {
       const got = await fetchExternalSource();
       setSource(got);
-      if (!got?.configured || !got.base64) {
-        if (!quiet && got?.error) setMessage({ kind: "error", text: `Excelを読めませんでした: ${got.error}` });
+      if (!got?.configured) return;
+      if (got.error) {
+        if (!quiet) setMessage({ kind: "error", text: `Excelを読めませんでした: ${got.error}` });
         return;
       }
 
-      const buf = toArrayBuffer(got.base64);
-      if (got.kind === "applications") {
-        const snapshot = buildSnapshot(got.fileName ?? "excel.xlsx", buf);
-        if (snapshot.applications.length === 0) throw new Error("応募データを1件も読み取れませんでした");
-        await saveSnapshot({
-          id: snapshot.id,
-          takenAt: snapshot.takenAt,
-          sourceFileName: snapshot.sourceFileName,
-          applications: snapshot.applications,
-        });
+      if (got.snapshot) {
+        await saveSnapshot(got.snapshot);
         setSnapshots(await listSnapshots());
         if (!quiet) {
-          setMessage({ kind: "info", text: `Excelから応募${snapshot.applications.length}件を読み込みました。` });
+          setMessage({ kind: "info", text: `Excelから応募${got.snapshot.applications.length}件を読み込みました。` });
         }
-      } else {
-        const parsed = parsePlanFile(got.fileName ?? "excel.xlsx", buf);
-        if (parsed.rows.length === 0) throw new Error("不足人数マスタの行を読み取れませんでした");
-        await savePlan(parsed);
-        setPlan(parsed);
+      } else if (got.plan) {
+        await savePlan(got.plan);
+        setPlan(got.plan);
         if (!quiet) {
           setMessage({
             kind: "info",
-            text: `Excelから採用計画 ${parsed.rows.length}行（不足人数 計${totalShortage(parsed)}名）を読み込みました。`,
+            text: `Excelから採用計画 ${got.plan.rows.length}行（不足人数 計${totalShortage(got.plan)}名）を読み込みました。`,
           });
         }
       }

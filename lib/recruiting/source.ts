@@ -1,8 +1,13 @@
+import { HiringPlan, Snapshot } from "@/types/recruiting";
+
 /**
  * 人事チームが更新しているExcelを、サーバー経由で取りに行く。
  *
  * 画面を開いたときに自動で読みに行くので、取り込みの操作をしなくても最新になる。
  * 設定されていない環境では configured:false が返るだけで、何も起きない。
+ *
+ * ファイルの読み取りはサーバー側で済ませ、ここへ返ってくるのは集計に使う項目だけ。
+ * 氏名・連絡先・住所は元から読まず、年齢・性別も落としてある。
  */
 
 export interface ExternalSource {
@@ -15,7 +20,11 @@ export interface ExternalSource {
   /** Excel側の最終更新日時。これが変わっていなければ取り込み直さない。 */
   lastModified?: string | null;
   fetchedAt?: string;
-  base64?: string;
+  /** 不足人数マスタとして読んだ結果 */
+  plan?: HiringPlan;
+  /** 応募エクスポートとして読んだ結果 */
+  snapshot?: Snapshot;
+  count?: number;
   error?: string;
 }
 
@@ -28,11 +37,4 @@ export async function fetchExternalSource(): Promise<ExternalSource | null> {
     // 外部ファイルが読めなくても、手元のデータで使えればよい
     return null;
   }
-}
-
-export function toArrayBuffer(base64: string): ArrayBuffer {
-  const bin = atob(base64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes.buffer;
 }
