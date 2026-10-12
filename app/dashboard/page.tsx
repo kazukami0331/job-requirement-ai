@@ -650,48 +650,51 @@ export default function DashboardPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-5 sm:py-8">
-      <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <header className="mb-4 flex flex-wrap items-center gap-2">
         <h1 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
           採用モニタリング
         </h1>
-        {source?.configured && (
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span style={{ color: "var(--text-muted)" }}>
-              {source.error
-                ? `Excel連携エラー：${source.error}`
-                : `人事チームのExcelから自動取得（${source.fileName ?? ""}${
-                    source.lastModified ? ` / 更新 ${md(source.lastModified.slice(0, 10))}` : ""
-                  }）`}
-            </span>
-            <Button onClick={() => void syncExternal(false)} disabled={syncing}>
-              {syncing ? "取得中…" : "最新に更新"}
-            </Button>
-          </div>
-        )}
-        <div className="flex items-center gap-1.5">
+        {/* 操作はすべて右端にまとめる。間に挟むと「前提情報」が真ん中に落ちる。 */}
+        <div className="ml-auto flex items-center gap-1.5">
           <Button onClick={() => setShowGuide(true)}>前提情報</Button>
+          <DataMenu
+            snapshots={snapshots}
+            plan={plan}
+            onUploadApplications={handleUploadApplications}
+            onUploadPlan={handleUploadPlan}
+            onUploadHrSheet={handleUploadHrSheet}
+            hrSheetInfo={
+              hrSheet
+                ? { sourceFileName: hrSheet.sourceFileName, importedAt: hrSheet.importedAt, rows: hrSheet.rows.length }
+                : null
+            }
+            onImportBackup={handleImportBackup}
+            onExportBackup={handleExportBackup}
+            onExportWorkbook={handleExportWorkbook}
+            onPublish={handlePublish}
+            sharedConfigured={shared.configured}
+            sharedPublishedAt={shared.publishedAt}
+            onDeleteSnapshot={handleDeleteSnapshot}
+            onResetPlan={handleResetPlan}
+          />
         </div>
-        <DataMenu
-          snapshots={snapshots}
-          plan={plan}
-          onUploadApplications={handleUploadApplications}
-          onUploadPlan={handleUploadPlan}
-          onUploadHrSheet={handleUploadHrSheet}
-          hrSheetInfo={
-            hrSheet
-              ? { sourceFileName: hrSheet.sourceFileName, importedAt: hrSheet.importedAt, rows: hrSheet.rows.length }
-              : null
-          }
-          onImportBackup={handleImportBackup}
-          onExportBackup={handleExportBackup}
-          onExportWorkbook={handleExportWorkbook}
-          onPublish={handlePublish}
-          sharedConfigured={shared.configured}
-          sharedPublishedAt={shared.publishedAt}
-          onDeleteSnapshot={handleDeleteSnapshot}
-          onResetPlan={handleResetPlan}
-        />
       </header>
+
+      {/* Excel連携の状態。1行が長いので、見出しの行には混ぜない。 */}
+      {source?.configured && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+          <span style={{ color: "var(--text-muted)" }}>
+            {source.error
+              ? `Excel連携エラー：${source.error}`
+              : `人事チームのExcelから自動取得（${source.fileName ?? ""}${
+                  source.lastModified ? ` / 更新 ${md(source.lastModified.slice(0, 10))}` : ""
+                }）`}
+          </span>
+          <Button onClick={() => void syncExternal(false)} disabled={syncing}>
+            {syncing ? "取得中…" : "最新に更新"}
+          </Button>
+        </div>
+      )}
 
       {message && (
         <p
