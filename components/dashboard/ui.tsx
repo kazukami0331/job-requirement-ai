@@ -59,7 +59,8 @@ export function StatTile({
   /** 前週差など。正が良い前提で色を付ける。 */
   delta?: number | null;
   deltaLabel?: string;
-  hint?: string;
+  /** 補足。配列で渡すと1行ずつ縦に並べる（1行に詰め込むと読めないため）。 */
+  hint?: string | string[];
   tone?: "neutral" | "good" | "critical";
   className?: string;
 }) {
@@ -93,8 +94,10 @@ export function StatTile({
         </div>
       )}
       {hint && (
-        <div className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-          {hint}
+        <div className="mt-1 space-y-0.5 text-[11px] leading-snug" style={{ color: "var(--text-muted)" }}>
+          {(Array.isArray(hint) ? hint : [hint]).map((line) => (
+            <div key={line}>{line}</div>
+          ))}
         </div>
       )}
     </div>

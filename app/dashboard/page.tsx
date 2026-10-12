@@ -45,7 +45,15 @@ import { FunnelChart, StagePoolChart, WEEKLY_SERIES_COLORS, WeeklyTrendChart } f
 import { BreakdownTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
 import { DataMenu } from "@/components/dashboard/DataPanel";
 import { DEFAULT_RATES, GoalRates, GoalWindow, monthlyGoals } from "@/lib/recruiting/goal";
-import { Coverage, GoalControls, GoalView, MetricSwitch, MonthSummary, MonthlyGoalTable } from "@/components/dashboard/goals";
+import {
+  Coverage,
+  GoalControls,
+  GoalFacts,
+  GoalView,
+  MetricSwitch,
+  MonthSummary,
+  MonthlyGoalTable,
+} from "@/components/dashboard/goals";
 
 type Message = { kind: "info" | "error"; text: string } | null;
 
@@ -111,6 +119,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [dimension, setDimension] = useState<Dimension>("shopShortName");
   const [employmentFilter, setEmploymentFilter] = useState<string>("すべて");
+  // 校舎の絞り込み。1校舎だけを見たいときに使う。
+  const [shopFilter, setShopFilter] = useState<string>("すべて");
   // スマホでは縦に長くなりすぎるのでセクションを切り替える。画面が広いときは全部並べる。
   const [section, setSection] = useState<SectionKey>("summary");
   // 公開データ（サーバーに置いてある共有データ）の状態。
@@ -224,11 +234,23 @@ export default function DashboardPage() {
    * 応募や採用が混ざると、同じ画面のKPIと月次目標で母数が変わってしまうため。
    */
   const typedApps = useMemo(() => {
-    const byType =
+    let out =
       employmentFilter === "すべて" ? allApps : allApps.filter((a) => a.employmentType === employmentFilter);
-    if (scope === "all" || !masterKeys) return byType;
-    return byType.filter((a) => masterKeys.has(normalizeShopKey(a.shopShortName)));
-  }, [allApps, employmentFilter, scope, masterKeys]);
+    if (scope !== "all" && masterKeys) out = out.filter((a) => masterKeys.has(normalizeShopKey(a.shopShortName)));
+    if (shopFilter !== "すべて") {
+      const key = normalizeShopKey(shopFilter);
+      out = out.filter((a) => normalizeShopKey(a.shopShortName) === key);
+    }
+    return out;
+  }, [allApps, employmentFilter, scope, masterKeys, shopFilter]);
+
+  /** 校舎の選択肢。応募がある校舎と、採用目標がある校舎の両方を並べる。 */
+  const shopOptions = useMemo(() => {
+    const names = new Set<string>();
+    for (const a of allApps) names.add(a.shopShortName);
+    if (plan) for (const s of shortageByShop(plan).filter((x) => x.shortage > 0)) names.add(s.shopShortName);
+    return ["すべて", ...[...names].sort((a, b) => a.localeCompare(b, "ja"))];
+  }, [allApps, plan]);
 
   /**
    * 画面に出す応募。既定では今期ぶんだけ。
@@ -432,24 +454,30 @@ export default function DashboardPage() {
     return `直近週 ${md(lastWeek.start)}〜${md(asOfDate)}（${partial}） ／ ${prev}（確定）`;
   }, [weekKeys, asOf]);
 
-  /**
-   * 採用済み（充足ぶん）が何を数えているか。
-   *
-   * 上のKPIの「採用」とは母数が違う（KPIは集計期間ぶんの全校舎、こちらは期間を問わず
-   * 不足人数マスタに載っている校舎だけ）。並べて見ると数が合わないので、ここで断っておく。
-   */
-  const hiredScopeNote = useMemo(() => {
-    const t = goals.total;
-    if (!t || t.alreadyHired === 0) return "上で選んだ集計期間・対象校舎のぶんだけを数えています。";
-    const j = (d: string) => d.replace(/-/g, "/");
-    const span = t.hiredFrom && t.hiredTo ? `${j(t.hiredFrom)}〜${j(t.hiredTo)}に決まった採用` : "";
-    const over = t.alreadyHired - t.filledHired;
-    return `採用${t.alreadyHired}名は、この期間に採用が決まった人です（${span}）。上のKPIの採用、週次グラフの緑と同じ数字です。${
-      over > 0
-        ? `うち${over}名は目標より多く採れた校舎のぶんで、他の校舎の不足は埋まらないため、充足${t.filledHired}名・残り${t.remainingTarget}名には入れていません。`
-        : ""
-    }`;
-  }, [goals, summary.hired]);
+  /** 直近週と前週の期間。1行に詰めると読めないので2行に分ける。 */
+  const weekRangeLines = useMemo(() => {
+    const { lastWeek, prevWeek } = weekKeys;
+    if (!lastWeek || !prevWeek) return undefined;
+    const asOfDate = asOf?.slice(0, 10);
+    const days = asOfDate
+      ? Math.round(
+          (new Date(`${asOfDate}T00:00:00`).getTime() - new Date(`${lastWeek.start}T00:00:00`).getTime()) / 86400000
+        ) + 1
+      : 7;
+    const end = asOfDate ?? lastWeek.end;
+    return [
+      `今週 ${md(lastWeek.start)}〜${md(end)}${days < 7 ? `（${days}日ぶん・集計中）` : "（確定）"}`,
+      `前週 ${md(prevWeek.start)}〜${md(prevWeek.end)}（確定）`,
+    ];
+  }, [weekKeys, asOf]);
+
+  /** 4週平均が、いつからいつまでの4週なのか。 */
+  const avg4wNote = useMemo(() => {
+    const settled = asOf ? trend.filter((p) => p.week.end <= asOf.slice(0, 10)) : trend;
+    const last4 = settled.slice(-4);
+    if (last4.length === 0) return "";
+    return `確定した直近${last4.length}週（${md(last4[0].week.start)}〜${md(last4[last4.length - 1].week.end)}）の平均`;
+  }, [trend, asOf]);
 
   /**
    * 集計している期間。ファネルなどが何を対象にしているかを示すのに使う。
@@ -529,9 +557,31 @@ export default function DashboardPage() {
                   </option>
                 ))}
               </select>
-              <span className="hidden text-xs lg:inline" style={{ color: "var(--text-muted)" }}>
-                正社員を扱い始めたら、ここで切り替えて同じ画面で見られます
-              </span>
+              <label className="text-xs" style={{ color: "var(--text-secondary)" }} htmlFor="shop-filter">
+                校舎
+              </label>
+              <select
+                id="shop-filter"
+                value={shopFilter}
+                onChange={(e) => setShopFilter(e.target.value)}
+                className="max-w-[12rem] rounded-lg border px-2 py-1.5 text-xs"
+                style={{ background: "var(--surface-1)", borderColor: "var(--hairline)", color: "var(--text-primary)" }}
+              >
+                {shopOptions.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              {shopFilter !== "すべて" && (
+                <button
+                  onClick={() => setShopFilter("すべて")}
+                  className="rounded-lg border px-2 py-1 text-xs"
+                  style={{ borderColor: "var(--hairline)", color: "var(--text-secondary)" }}
+                >
+                  絞り込みを外す
+                </button>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -654,9 +704,14 @@ export default function DashboardPage() {
                 unit="件"
                 delta={summary.wowDelta}
                 deltaLabel="前週差"
-                hint={weekRangeNote || undefined}
+                hint={weekRangeLines}
               />
-              <StatTile label="4週平均の応募" value={summary.avg4w.toFixed(1)} unit="件/週" />
+              <StatTile
+                label="4週平均の応募"
+                value={summary.avg4w.toFixed(1)}
+                unit="件/週"
+                hint={avg4wNote ? [avg4wNote] : undefined}
+              />
               <StatTile label="選考中プール" value={summary.activePool} unit="件" hint="未対応〜面接結果待ち" />
               <StatTile label="面接待ち" value={summary.interviewScheduled} unit="件" hint="日程確定済み" />
               <StatTile
@@ -664,9 +719,12 @@ export default function DashboardPage() {
                 value={hires.length}
                 unit="名"
                 tone={hires.length > 0 ? "good" : "neutral"}
-                hint={`この期間に採用が決まった人数。同じ期間の応募${apps.length}件に対して ${
-                  apps.length > 0 ? ((hires.length / apps.length) * 100).toFixed(1) : "0.0"
-                }%`}
+                hint={[
+                  "この期間に決まった採用",
+                  `同じ期間の応募${apps.length}件に対して ${
+                    apps.length > 0 ? ((hires.length / apps.length) * 100).toFixed(1) : "0.0"
+                  }%`,
+                ]}
                 className="col-span-2 lg:col-span-1"
               />
             </div>
@@ -713,11 +771,12 @@ export default function DashboardPage() {
             {goals.rows.length > 0 ? (
               <Card
                 title="月次の目標と進捗"
-                subtitle={`残りの採用人数を月に1名ずつ割り当て、そこから歩留まりで割り戻した月ごとの目標と実績です。緊急${
+                subtitle={`残りの採用人数を月に配り、歩留まりで割り戻した目標と実績です。緊急${
                   goals.rows.filter((r) => r.urgent).length
-                }校舎を先頭に並べています。${hiredScopeNote}`}
+                }校舎を先頭に並べています。`}
               >
                 <div className="space-y-5">
+                  <GoalFacts goals={goals} rates={rates} />
                   <GoalControls
                     rates={rates}
                     onRates={setRates}

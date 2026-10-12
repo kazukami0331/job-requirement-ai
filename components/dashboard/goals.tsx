@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { GoalRates, GoalWindow, MonthGoal, MonthlyGoals, ShopGoalRow, appliesPerHire } from "@/lib/recruiting/goal";
 import { ratioLabel } from "@/lib/recruiting/format";
 import { UrgentName } from "./tables";
@@ -106,19 +106,36 @@ function Cell({ m, view, showLabels = true }: { m: MonthGoal; view: GoalView; sh
     // 期間の対象外（目標も実績も無い）だけをハイフンにする。
     // 実績列は0件でも0と出す。応募が来なかったことも読みたい数字なので、消してはいけない。
     if (!m.actualOnly && GOAL_METRICS.every((g) => pick(m, g.key).target <= 0 && pick(m, g.key).actual === 0)) {
-      return <Dash />;
-    }
-    if (m.actualOnly) {
-      // 按分期間より前の月。目標が無いので実績だけを出す。
+      // 行の高さは他の月と揃える。ここだけ詰まると、左の月とラベルの位置がずれる。
       return (
         <div className="space-y-1">
           {GOAL_METRICS.map((g) => (
-            <div key={g.key} className="flex items-baseline justify-between gap-1.5 text-[11px] whitespace-nowrap">
-              <span style={{ color: "var(--text-muted)" }}>{showLabels ? g.short : ""}</span>
-              <span className="tabular" style={{ color: "var(--text-primary)", fontWeight: 600 }}>
-                {fmt(pick(m, g.key).actual)}
-                <Over n={pick(m, g.key).over} />
-              </span>
+            <div key={g.key}>
+              <div className="flex items-baseline justify-between gap-1.5 text-[11px] whitespace-nowrap">
+                <span style={{ color: "var(--text-muted)" }}>{showLabels ? g.short : ""}</span>
+                <span style={{ color: "var(--text-muted)" }}>—</span>
+              </div>
+              <Bar ratio={0} color="transparent" height={3} />
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (m.actualOnly) {
+      // 按分期間より前の月。目標が無いので実績だけを出す。
+      // 棒が無いぶん行が詰まって、隣の月と高さがずれるので、同じ高さの空きを入れる。
+      return (
+        <div className="space-y-1">
+          {GOAL_METRICS.map((g) => (
+            <div key={g.key}>
+              <div className="flex items-baseline justify-between gap-1.5 text-[11px] whitespace-nowrap">
+                <span style={{ color: "var(--text-muted)" }}>{showLabels ? g.short : ""}</span>
+                <span className="tabular" style={{ color: "var(--text-primary)", fontWeight: 600 }}>
+                  {fmt(pick(m, g.key).actual)}
+                  <Over n={pick(m, g.key).over} />
+                </span>
+              </div>
+              <Bar ratio={0} color="transparent" height={3} />
             </div>
           ))}
         </div>
@@ -181,26 +198,8 @@ export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
   const { total, months } = goals;
   if (!total) return null;
 
-  // 月の採用目標を足しても採用目標（58名）にはならない。配っているのは「残り」だけで、
-  // すでに充足したぶんは配る必要が無いため。その内訳をその場に出しておく。
-  const spread = total.months.reduce((a, m) => a + m.targetHire, 0);
-  const over = total.alreadyHired - total.filledHired;
-  const win = total.months.filter((m) => !m.actualOnly);
-  const first = win[0]?.label ?? "";
-  const last = win[win.length - 1]?.label ?? "";
-  // 按分期間に入ってから充足したぶん。目標はこれで減らさない（目標は期間の頭で固定）。
-  const filledInWindow = total.filledHired - total.filledAtStart;
-
   return (
     <>
-      <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-        採用目標 {total.hireTarget}名 ＝ {first}より前に充足した {total.filledAtStart}名 ＋ {first}〜{last}
-        に配った {spread}名。月ごとの目標は{first}の頭で決めたまま動かしません（期間中に採れたぶんで目標を
-        減らすと、その採用が「残りを減らす」と「その月の目標を埋める」の両方に効いてしまうため）。
-        {filledInWindow > 0 &&
-          `${first}以降すでに${filledInWindow}名が充足し、いまの残りは${total.remainingTarget}名です。`}
-        {over > 0 && `採用${total.alreadyHired}名のうち${over}名は目標を超えて採れたぶんで、充足には入れていません。`}
-      </p>
       <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {total.months.map((m, i) => (
         <li
@@ -275,18 +274,64 @@ function HireCount({ row }: { row: ShopGoalRow }) {
 }
 
 /**
- * 合計行の注記。
- * 目標より多く採れた校舎があると、合計では「目標 − 採用」が残りと一致しなくなる。
- * 超過したぶんは他の校舎の不足を埋めないので、その理由をその場に書く。
+ * 月次目標の前提を、短い箇条書きで出す。
+ *
+ * 文章で続けて書くと読まれないので、「数字 ＝ 中身」の形で1行ずつ並べる。
  */
-function OverNote({ total }: { total: ShopGoalRow }) {
-  const over = total.alreadyHired - total.filledHired;
-  if (over <= 0) return null;
+export function GoalFacts({ goals, rates }: { goals: MonthlyGoals; rates: GoalRates }) {
+  const t = goals.total;
+  if (!t) return null;
+
+  const perHire = appliesPerHire(rates);
+  const over = t.alreadyHired - t.filledHired;
+  const spread = t.months.reduce((a, m) => a + m.targetHire, 0);
+  const win = t.months.filter((m) => !m.actualOnly);
+  const first = win[0]?.label ?? "";
+  const last = win[win.length - 1]?.label ?? "";
+  const day = (d: string | null) => (d ? d.slice(5).replace("-", "/") : "");
+
+  const facts: [string, string, string][] = [
+    [
+      "採用",
+      `${t.alreadyHired}名`,
+      `${day(t.hiredFrom)}〜${day(t.hiredTo)}に決まった採用。上のKPI・週次グラフの緑と同じ`,
+    ],
+    [
+      "充足",
+      `${t.filledHired}名`,
+      over > 0 ? `採用${t.alreadyHired}名のうち${over}名は目標超過。他校舎の不足は埋めないので充足に入れない` : "採用がそのまま目標の充足になっている",
+    ],
+    ["残り", `${t.remainingTarget}名`, `採用目標${t.hireTarget}名 − 充足${t.filledHired}名`],
+    [
+      `${first}〜${last}の目標`,
+      `${spread}名`,
+      `${first}の時点で残っていた人数。期間中に採れても動かさない`,
+    ],
+    [
+      "必要応募",
+      `${t.requiredApplied}件`,
+      perHire === null
+        ? ""
+        : `${spread}名 × ${perHire.toFixed(1)}件（1名採るのに必要な応募）。校舎ごとに端数を切り上げ`,
+    ],
+  ];
+
   return (
-    <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-      （うち{over}名は目標を超えて採れたぶん。他の校舎の不足は埋まらないので、残りは
-      {total.hireTarget} − {total.filledHired} ＝ {total.remainingTarget}名）
-    </span>
+    <dl className="grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2 lg:grid-cols-3">
+      {facts.map(([label, value, note]) => (
+        <div key={label} className="flex flex-wrap items-baseline gap-x-1.5">
+          <dt style={{ color: "var(--text-secondary)" }}>{label}</dt>
+          <dd className="font-semibold tabular" style={{ color: "var(--text-primary)" }}>
+            {value}
+          </dd>
+          {note && (
+            <dd className="w-full text-[11px] leading-snug" style={{ color: "var(--text-muted)" }}>
+              {note}
+            </dd>
+          )}
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -372,24 +417,14 @@ export function GoalControls({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <RateInput label="応募→面接" value={rates.applyToInterview} onChange={(v) => onRates({ ...rates, applyToInterview: v })} />
         <RateInput label="面接→採用" value={rates.interviewToHire} onChange={(v) => onRates({ ...rates, interviewToHire: v })} />
-        <span className="text-xs" style={{ color: "var(--text-primary)" }}>
-          1名採用するのに応募が
-          <strong className="tabular"> {perHire === null ? "—" : perHire.toFixed(1)} </strong>
-          件必要
-          {total && (
-            <span style={{ color: "var(--text-secondary)" }}>
-              {total.alreadyHired > 0
-                ? `（目標${total.hireTarget}名 − 充足${total.filledHired}名 ＝ 残り${total.remainingTarget}名で計 ${total.requiredApplied}件）`
-                : `（${total.hireTarget}名で計 ${total.requiredApplied}件）`}
-            </span>
-          )}
+        <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+          1名採用に必要な応募
+          <strong className="tabular" style={{ color: "var(--text-primary)" }}>
+            {" "}
+            {perHire === null ? "—" : perHire.toFixed(1)}{" "}
+          </strong>
+          件
         </span>
-        {total && perHire !== null && total.requiredApplied > Math.round(total.remainingTarget * perHire) && (
-          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-            校舎ごとに端数を切り上げているので、{total.remainingTarget}名 × {perHire.toFixed(1)}件 ＝{" "}
-            {Math.round(total.remainingTarget * perHire)}件 より少し多くなります
-          </span>
-        )}
       </div>
 
       {choices.length > 0 && (
@@ -415,9 +450,9 @@ export function GoalControls({
 
       {observed && (
         <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-          取り込み済みの実績では 応募→面接 {pct(observed.interview, observed.applied)}／面接→採用{" "}
-          {pct(observed.hire, observed.interview)}（応募{observed.applied}件・面接{observed.interview}件・採用
-          {observed.hire}件）。選考が途中の応募も分母に入っているので、募集を始めたばかりだと想定値より低く出ます。
+          実績の歩留まり：応募→面接 {pct(observed.interview, observed.applied)}／面接→採用{" "}
+          {pct(observed.hire, observed.interview)}（応募{observed.applied}・面接{observed.interview}・採用
+          {observed.hire}）。選考中の応募も分母に入るため、低めに出ます。
         </p>
       )}
     </div>
@@ -502,8 +537,103 @@ function Th({
 }
 
 /** 校舎 × 月の目標と実績。狭い画面ではカードに組み替える。 */
+type SortKey = "default" | "shop" | "hired" | "fill" | "remaining" | "required" | `m${number}`;
+
+/** 並び替え。見出しを押すたびに 降順 → 昇順 → 既定 と戻る。 */
+function useSort() {
+  const [key, setKey] = useState<SortKey>("default");
+  const [asc, setAsc] = useState(false);
+  const toggle = (k: SortKey) => {
+    if (k !== key) {
+      setKey(k);
+      setAsc(false);
+      return;
+    }
+    if (!asc) setAsc(true);
+    else {
+      setKey("default");
+      setAsc(false);
+    }
+  };
+  return { key, asc, toggle };
+}
+
+function sortRows(rows: ShopGoalRow[], key: SortKey, asc: boolean, metric: GoalMetric): ShopGoalRow[] {
+  if (key === "default") return rows;
+  const num = (r: ShopGoalRow): number | string => {
+    if (key === "shop") return r.shopShortName;
+    if (key === "hired") return r.alreadyHired;
+    if (key === "fill") return r.fillRate ?? -1;
+    if (key === "remaining") return r.remainingTarget;
+    if (key === "required") return r.requiredApplied;
+    const i = Number(key.slice(1));
+    const m = r.months[i];
+    if (!m) return 0;
+    return metric === "applied" ? m.appliedActual : metric === "interview" ? m.interviewActual : m.hireActual;
+  };
+  return [...rows].sort((a, b) => {
+    const x = num(a);
+    const y = num(b);
+    const d = typeof x === "string" ? String(x).localeCompare(String(y), "ja") : (x as number) - (y as number);
+    return asc ? d : -d;
+  });
+}
+
+/** 並び替えできる見出し。押せることが分かるよう、効いている列には矢印を出す。 */
+function SortTh({
+  children,
+  sortKey,
+  state,
+  align = "right",
+  width,
+}: {
+  children: ReactNode;
+  sortKey: SortKey;
+  state: ReturnType<typeof useSort>;
+  align?: "left" | "right";
+  width?: string;
+}) {
+  const on = state.key === sortKey;
+  return (
+    <th
+      scope="col"
+      className={`px-2 py-1.5 text-[11px] font-medium whitespace-nowrap ${align === "right" ? "text-right" : "text-left"}`}
+      style={{ color: on ? "var(--series-1)" : "var(--text-secondary)", width }}
+    >
+      <button type="button" onClick={() => state.toggle(sortKey)} className="inline-flex items-center gap-0.5">
+        {children}
+        <span aria-hidden style={{ opacity: on ? 1 : 0.25 }}>
+          {on ? (state.asc ? "▲" : "▼") : "▾"}
+        </span>
+      </button>
+    </th>
+  );
+}
+
+/** 月のセル。表として読めるよう、実績 / 目標 の1行だけにする。 */
+function MonthCell({ m, metric }: { m: MonthGoal; metric: GoalMetric }) {
+  const { target, actual, over } = pick(m, metric);
+  if (!m.actualOnly && target <= 0 && actual === 0 && over === 0) {
+    return <span style={{ color: "var(--text-muted)" }}>—</span>;
+  }
+  const color = tone(actual, target, m.current ? m.elapsed : 0);
+  return (
+    <span className="tabular whitespace-nowrap">
+      <span style={{ color: m.actualOnly ? "var(--text-primary)" : color, fontWeight: 600 }}>{fmt(actual)}</span>
+      <Over n={over} />
+      {!m.actualOnly && <span style={{ color: "var(--text-muted)" }}> / {fmtTarget(target)}</span>}
+    </span>
+  );
+}
+
 export function MonthlyGoalTable({ goals, view }: { goals: MonthlyGoals; view: GoalView }) {
   const { months, rows, total } = goals;
+  const sort = useSort();
+  // 「すべて」のときは、月の列に何を出すか決められないので採用を基準に並べる
+  const metric: GoalMetric = view === "all" ? "hire" : view;
+  const sorted = sortRows(rows, sort.key, sort.asc, metric);
+  const shown: GoalMetric[] = view === "all" ? GOAL_METRICS.map((g) => g.key) : [view];
+
   if (rows.length === 0) return null;
 
   const head = (m: (typeof months)[number]) => (
@@ -519,11 +649,73 @@ export function MonthlyGoalTable({ goals, view }: { goals: MonthlyGoals; view: G
     </>
   );
 
+  /** 1校舎ぶんの行。「すべて」のときは指標ごとに3行に分け、校舎名などは縦につなげる。 */
+  const shopRows = (r: ShopGoalRow, bold: boolean) =>
+    shown.map((key, i) => (
+      <tr
+        key={`${r.shopShortName}|${key}`}
+        style={{ borderBottom: i === shown.length - 1 ? "1px solid var(--hairline)" : undefined }}
+      >
+        {i === 0 && (
+          <>
+            <td className="px-2 py-1 whitespace-nowrap" rowSpan={shown.length}>
+              {bold ? (
+                <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+                  合計
+                </span>
+              ) : (
+                <span className="text-xs" title={r.deadlineNote}>
+                  <UrgentName name={r.shopShortName} urgent={r.urgent} />
+                </span>
+              )}
+            </td>
+            <td className="px-2 py-1 text-right text-xs tabular" rowSpan={shown.length}>
+              <span style={{ color: r.alreadyHired > 0 ? "var(--status-good)" : "var(--text-muted)", fontWeight: 600 }}>
+                {r.alreadyHired}
+              </span>
+              <span style={{ color: "var(--text-muted)" }}> / {r.hireTarget}</span>
+            </td>
+            <td
+              className="px-2 py-1 text-right text-xs tabular"
+              rowSpan={shown.length}
+              style={{ color: "var(--text-secondary)" }}
+            >
+              {r.fillRate === null ? "—" : ratioLabel(r.filledHired, r.hireTarget)}
+            </td>
+            <td
+              className="px-2 py-1 text-right text-xs tabular font-semibold"
+              rowSpan={shown.length}
+              style={{ color: "var(--text-primary)" }}
+            >
+              {r.remainingTarget}
+            </td>
+            <td
+              className="px-2 py-1 text-right text-xs tabular"
+              rowSpan={shown.length}
+              style={{ color: "var(--text-secondary)" }}
+            >
+              {r.requiredApplied}
+            </td>
+          </>
+        )}
+        {shown.length > 1 && (
+          <td className="px-2 py-1 text-[11px] whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
+            {GOAL_METRICS.find((g) => g.key === key)?.short}
+          </td>
+        )}
+        {r.months.map((m) => (
+          <td key={m.month} className="px-2 py-1 text-right text-xs">
+            <MonthCell m={m} metric={key} />
+          </td>
+        ))}
+      </tr>
+    ));
+
   return (
     <>
       {/* スマホ：校舎ごとのカード */}
       <ul className="space-y-2 sm:hidden">
-        {[...(total ? [total] : []), ...rows].map((r) => (
+        {[...(total ? [total] : []), ...sorted].map((r) => (
           <li
             key={r.shopShortName}
             className="overflow-hidden rounded-lg border px-3 py-2"
@@ -531,7 +723,6 @@ export function MonthlyGoalTable({ goals, view }: { goals: MonthlyGoals; view: G
           >
             <div className="mb-1.5 flex flex-wrap items-baseline gap-x-2 font-semibold">
               <ShopName row={r} />
-              {total && r === total && <OverNote total={total} />}
               <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
                 必要応募 {r.requiredApplied}件
               </span>
@@ -552,51 +743,37 @@ export function MonthlyGoalTable({ goals, view }: { goals: MonthlyGoals; view: G
         ))}
       </ul>
 
-      {/* 画面が広いとき：校舎 × 月の表 */}
+      {/* 画面が広いとき：校舎 × 月の表。見出しを押すと並び替わる。 */}
       <div className="-mx-1 hidden overflow-x-auto sm:block">
         <table className="w-full border-collapse">
           <thead>
             <tr style={{ borderBottom: "1px solid var(--gridline)" }}>
-              <Th>校舎（採用済み / 目標）</Th>
-              <Th align="right">必要応募</Th>
-              {months.map((m) => (
-                <Th key={m.month} align="right" width={`${Math.floor(62 / months.length)}%`}>
+              <SortTh sortKey="shop" state={sort} align="left">
+                校舎
+              </SortTh>
+              <SortTh sortKey="hired" state={sort}>
+                採用 / 目標
+              </SortTh>
+              <SortTh sortKey="fill" state={sort}>
+                充足率
+              </SortTh>
+              <SortTh sortKey="remaining" state={sort}>
+                残り
+              </SortTh>
+              <SortTh sortKey="required" state={sort}>
+                必要応募
+              </SortTh>
+              {shown.length > 1 && <Th>指標</Th>}
+              {months.map((m, i) => (
+                <SortTh key={m.month} sortKey={`m${i}` as SortKey} state={sort}>
                   {head(m)}
-                </Th>
+                </SortTh>
               ))}
             </tr>
           </thead>
           <tbody>
-            {total && (
-              <tr style={{ borderBottom: "1px solid var(--gridline)" }}>
-                <td className="px-2 py-1.5 text-xs" style={{ color: "var(--text-primary)" }}>
-                  <span className="font-semibold">合計</span> <HireCount row={total} /> <OverNote total={total} />
-                </td>
-                <td className="px-2 py-1.5 text-right text-xs tabular" style={{ color: "var(--text-secondary)" }}>
-                  {total.requiredApplied}
-                </td>
-                {total.months.map((m, i) => (
-                  <td key={m.month} className="px-2 py-1.5 align-top">
-                    <Cell m={m} view={view} showLabels={i === 0} />
-                  </td>
-                ))}
-              </tr>
-            )}
-            {rows.map((r) => (
-              <tr key={r.shopShortName} style={{ borderBottom: "1px solid var(--hairline)" }}>
-                <td className="px-2 py-1.5 whitespace-nowrap">
-                  <ShopName row={r} />
-                </td>
-                <td className="px-2 py-1.5 text-right text-xs tabular" style={{ color: "var(--text-secondary)" }}>
-                  {r.requiredApplied}
-                </td>
-                {r.months.map((m, i) => (
-                  <td key={m.month} className="px-2 py-1.5 align-top">
-                    <Cell m={m} view={view} showLabels={i === 0} />
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {total && shopRows(total, true)}
+            {sorted.map((r) => shopRows(r, false))}
           </tbody>
         </table>
       </div>
