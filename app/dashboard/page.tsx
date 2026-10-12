@@ -40,6 +40,7 @@ import {
   setSharedAt,
 } from "@/lib/recruiting/storage";
 import { fetchShared, publishShared } from "@/lib/recruiting/shared";
+import { ExternalSource, fetchExternalSource, toArrayBuffer } from "@/lib/recruiting/source";
 import { Button, Card, EmptyState, Legend, StatTile } from "@/components/dashboard/ui";
 import { FunnelChart, StagePoolChart, WEEKLY_SERIES_COLORS, WeeklyTrendChart } from "@/components/dashboard/charts";
 import { BreakdownTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
@@ -129,6 +130,9 @@ export default function DashboardPage() {
     configured: false,
     publishedAt: null,
   });
+  // 人事チームのExcel（SharePoint / OneDrive）から直接読んだ結果
+  const [source, setSource] = useState<ExternalSource | null>(null);
+  const [syncing, setSyncing] = useState(false);
   // 集計期間。既定は今期（9月始まり）。全期間は旧運用ぶんも含めて見たいときだけ。
   const [period, setPeriod] = useState<Period>("project");
   const [projectStart, setProjectStart] = useState(DEFAULT_PROJECT_START);
@@ -166,6 +170,9 @@ export default function DashboardPage() {
         // 一度選んだ按分期間は覚えておく。開くたびに目標が割り直されると計画にならない。
         if (w) setGoalWindow(w);
         if (start) setProjectStart(start);
+
+        // 人事チームのExcelが設定されていれば、開いた時点で読みに行く
+        void syncExternal(true);
         if (pulled) {
           setMessage({ kind: "info", text: "公開データを読み込みました。" });
         } else if (seeded) {
@@ -384,6 +391,55 @@ export default function DashboardPage() {
     }
   }, []);
 
+  /**
+   * 人事チームのExcelを読み込む。
+   *
+   * 不足人数マスタなら計画として、応募エクスポートならスナップショットとして取り込む。
+   * 画面を開くたびに走らせるので、Excel側が更新されていればそのまま反映される。
+   */
+  const syncExternal = useCallback(async (quiet: boolean) => {
+    setSyncing(true);
+    try {
+      const got = await fetchExternalSource();
+      setSource(got);
+      if (!got?.configured || !got.base64) {
+        if (!quiet && got?.error) setMessage({ kind: "error", text: `Excelを読めませんでした: ${got.error}` });
+        return;
+      }
+
+      const buf = toArrayBuffer(got.base64);
+      if (got.kind === "applications") {
+        const snapshot = buildSnapshot(got.fileName ?? "excel.xlsx", buf);
+        if (snapshot.applications.length === 0) throw new Error("応募データを1件も読み取れませんでした");
+        await saveSnapshot({
+          id: snapshot.id,
+          takenAt: snapshot.takenAt,
+          sourceFileName: snapshot.sourceFileName,
+          applications: snapshot.applications,
+        });
+        setSnapshots(await listSnapshots());
+        if (!quiet) {
+          setMessage({ kind: "info", text: `Excelから応募${snapshot.applications.length}件を読み込みました。` });
+        }
+      } else {
+        const parsed = parsePlanFile(got.fileName ?? "excel.xlsx", buf);
+        if (parsed.rows.length === 0) throw new Error("不足人数マスタの行を読み取れませんでした");
+        await savePlan(parsed);
+        setPlan(parsed);
+        if (!quiet) {
+          setMessage({
+            kind: "info",
+            text: `Excelから採用計画 ${parsed.rows.length}行（不足人数 計${totalShortage(parsed)}名）を読み込みました。`,
+          });
+        }
+      }
+    } catch (e) {
+      if (!quiet) setMessage({ kind: "error", text: `Excelの取り込みに失敗しました: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setSyncing(false);
+    }
+  }, []);
+
   const handleExportBackup = useCallback(async () => {
     downloadJson(await exportBackup(), `採用モニタリング_バックアップ_${new Date().toISOString().slice(0, 10)}.json`);
   }, []);
@@ -496,6 +552,20 @@ export default function DashboardPage() {
         <h1 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
           採用モニタリング
         </h1>
+        {source?.configured && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span style={{ color: "var(--text-muted)" }}>
+              {source.error
+                ? `Excel連携エラー：${source.error}`
+                : `人事チームのExcelから自動取得（${source.fileName ?? ""}${
+                    source.lastModified ? ` / 更新 ${md(source.lastModified.slice(0, 10))}` : ""
+                  }）`}
+            </span>
+            <Button onClick={() => void syncExternal(false)} disabled={syncing}>
+              {syncing ? "取得中…" : "最新に更新"}
+            </Button>
+          </div>
+        )}
         <DataMenu
           snapshots={snapshots}
           plan={plan}
