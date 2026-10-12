@@ -44,7 +44,14 @@ test("氏名・年齢・性別は読み取らない", () => {
   const dumped = JSON.stringify(sheet);
   assert.equal(dumped.includes("テスト 太郎"), false);
   assert.equal(dumped.includes("男性"), false);
-  assert.deepEqual(Object.keys(sheet.rows[0]).sort(), ["course", "hired", "receivedDate", "shopShortName", "status"]);
+  assert.deepEqual(Object.keys(sheet.rows[0]).sort(), [
+    "category",
+    "course",
+    "hired",
+    "receivedDate",
+    "shopShortName",
+    "status",
+  ]);
 });
 
 test("採用とみなすのは「合格」「採用」だけ", () => {
@@ -68,7 +75,7 @@ test("どこを足しても採用の合計に戻る", () => {
     cross.total
   );
   assert.equal(
-    cross.courses.reduce((a, c) => a + (cross.totalByCourse[c] ?? 0), 0),
+    cross.categories.reduce((a, c) => a + cross.totalByCategory[c], 0),
     cross.total
   );
   assert.equal(
@@ -77,9 +84,9 @@ test("どこを足しても採用の合計に戻る", () => {
   );
   for (const s of cross.shops) {
     assert.equal(
-      Object.values(s.byCourse).reduce((a, b) => a + b, 0),
+      cross.categories.reduce((a, c) => a + s.byCategory[c], 0),
       s.total,
-      `${s.shopShortName} の分野ごとの合計が採用数と合わない`
+      `${s.shopShortName} の区分ごとの合計が採用数と合わない`
     );
   }
 });
@@ -105,15 +112,31 @@ test("対象校舎の絞り込みは、画面と同じ条件で渡せる", () =>
   assert.equal(only.excluded, 4);
 });
 
-test("分野の末尾の「？」は同じコースとして数える", () => {
+test("列は不足人数マスタと同じ IT / D/W / C の3つで固定する", () => {
   const cross = crossTab(sheetOf(SAMPLE));
-  assert.equal(cross.courses.includes("IT？"), false);
-  assert.equal(cross.totalByCourse["IT"], 2, "福岡天神のITと北千住のIT？で2名");
+  assert.deepEqual(cross.categories, ["IT", "D/W", "C"]);
 });
 
-test("分野が空欄の行は (未記入) にまとまる", () => {
+test("分野の末尾の「？」が付いていても IT として数える", () => {
   const cross = crossTab(sheetOf(SAMPLE));
-  assert.equal(cross.totalByCourse["(未記入)"], 1);
+  assert.equal(cross.totalByCategory["IT"], 2, "福岡天神のITと北千住のIT？で2名");
+  assert.deepEqual(cross.rawByCategory["IT"], { IT: 2 }, "「IT？」は「IT」に寄せる");
+});
+
+test("IT と CAD 以外は、未記入も含めて D/W に寄せる", () => {
+  const cross = crossTab(sheetOf(SAMPLE));
+  // WEBDTP 1名 ＋ 分野が空欄の1名
+  assert.equal(cross.totalByCategory["D/W"], 2);
+  assert.deepEqual(cross.rawByCategory["D/W"], { WEBDTP: 1, "(未記入)": 1 });
+  assert.equal(cross.totalByCategory["C"], 0, "CADの応募はあるが採用には至っていない");
+});
+
+test("分野ごとの中身は、寄せる前の書き方のまま残す", () => {
+  const sheet = sheetOf(SAMPLE);
+  assert.equal(sheet.rows[2].course, "IT", "「IT？」は表記ゆれとして「IT」に寄せる");
+  assert.equal(sheet.rows[2].category, "IT");
+  assert.equal(sheet.rows[4].course, "(未記入)");
+  assert.equal(sheet.rows[4].category, "D/W");
 });
 
 test("ジョブオプとの比較は、片側しかない校舎も残す", () => {
@@ -137,4 +160,14 @@ test("ジョブオプとの比較は、片側しかない校舎も残す", () =>
     rows.reduce((a, r) => a + r.diff, 0),
     cross.total - 4
   );
+});
+
+test("3区分より前に取り込んだデータでも壊れない", () => {
+  const sheet = sheetOf(SAMPLE);
+  // 保存済みのデータ・古いバックアップ・公開データには category が入っていない
+  const old: HrSheet = { ...sheet, rows: sheet.rows.map(({ category, ...r }) => r) };
+  const cross = crossTab(old);
+  assert.equal(cross.total, 4);
+  assert.equal(cross.totalByCategory["IT"], 2, "分野から区分を作り直す");
+  assert.equal(cross.totalByCategory["D/W"], 2);
 });

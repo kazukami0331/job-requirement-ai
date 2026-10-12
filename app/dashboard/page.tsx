@@ -48,7 +48,7 @@ import { FunnelChart, StagePoolChart, WEEKLY_SERIES_COLORS, WeeklyTrendChart } f
 import { BreakdownTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
 import { DataMenu } from "@/components/dashboard/DataPanel";
 import { HrSheet, compareWithJobop, crossTab, parseHrSheet } from "@/lib/recruiting/hrsheet";
-import { HrCompareTable, HrCrossTable } from "@/components/dashboard/hrsheet";
+import { HrCategoryNote, HrCompareTable, HrCrossTable } from "@/components/dashboard/hrsheet";
 import { DEFAULT_RATES, GoalRates, GoalWindow, monthlyGoals } from "@/lib/recruiting/goal";
 import {
   Coverage,
@@ -984,7 +984,7 @@ export default function DashboardPage() {
               <>
                 <Card
                   title="校舎 × コースの採用人数（採用チームのExcel）"
-                  subtitle="ジョブオプのエクスポートに分野（コース）が無いため、この表は採用管理表だけから作っています。"
+                  subtitle="コースは不足人数マスタと同じ IT / デザイン・Web / CAD の3つに寄せています。ジョブオプのエクスポートに分野が無いため、この表は採用管理表だけから作っています。"
                 >
                   <div className="space-y-4">
                     <ul className="space-y-1 text-xs" style={{ color: "var(--text-secondary)" }}>
@@ -1007,6 +1007,7 @@ export default function DashboardPage() {
                       </li>
                     </ul>
                     <HrCrossTable cross={hrCross} />
+                    <HrCategoryNote cross={hrCross} />
                   </div>
                 </Card>
 
@@ -1020,9 +1021,9 @@ export default function DashboardPage() {
                       <li>Excel … ステータスが「合格」の人数。採用チームが手で付けています。</li>
                       <li>ジョブオプ … 選考ステータスが「採用」で、その更新日が期間内の人数。</li>
                       <li>差が出る主な理由 … 判断を入れたタイミングのずれ、どちらかに入力が無い、校舎名の書き方の違い。</li>
-                      <li>分野が空欄の行は「(未記入)」にまとめています（Excel側で未入力のまま）。</li>
                       <li>
-                        分野の欄に「※重複応募あり」などのメモが入っている行は、そのまま1列として出しています（Excelの記入を変えずに見せるため）。
+                        コースは IT と CAD だけを拾い、<strong>それ以外（WEBDTP・WEB・DTP・映像・未記入など）はすべて デザイン・Web</strong>
+                        に寄せています。何が入ったかは上の表の下に出しています。
                       </li>
                     </ul>
                   </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { HrCompareRow, HrCross } from "@/lib/recruiting/hrsheet";
+import { CATEGORY_LABEL } from "@/lib/recruiting/shops";
 import { ratioLabel } from "@/lib/recruiting/format";
 
 /**
@@ -36,9 +37,9 @@ export function HrCrossTable({ cross }: { cross: HrCross }) {
             <Th align="right">採用</Th>
             <Th align="right">応募</Th>
             <Th align="right">採用率</Th>
-            {cross.courses.map((c) => (
+            {cross.categories.map((c) => (
               <Th key={c} align="right">
-                {c}
+                {CATEGORY_LABEL[c]}
               </Th>
             ))}
           </tr>
@@ -57,9 +58,9 @@ export function HrCrossTable({ cross }: { cross: HrCross }) {
             <td className={`${cell} text-right`} style={{ color: "var(--text-secondary)" }}>
               {ratioLabel(cross.total, cross.totalApplied)}
             </td>
-            {cross.courses.map((c) => (
+            {cross.categories.map((c) => (
               <td key={c} className={`${cell} text-right font-semibold`} style={{ color: "var(--text-primary)" }}>
-                {cross.totalByCourse[c] ?? 0}
+                {cross.totalByCategory[c]}
               </td>
             ))}
           </tr>
@@ -80,13 +81,13 @@ export function HrCrossTable({ cross }: { cross: HrCross }) {
               <td className={`${cell} text-right`} style={{ color: "var(--text-secondary)" }}>
                 {ratioLabel(s.total, s.applied)}
               </td>
-              {cross.courses.map((c) => (
+              {cross.categories.map((c) => (
                 <td
                   key={c}
                   className={`${cell} text-right`}
-                  style={{ color: s.byCourse[c] ? "var(--text-primary)" : "var(--text-muted)" }}
+                  style={{ color: s.byCategory[c] ? "var(--text-primary)" : "var(--text-muted)" }}
                 >
-                  {s.byCourse[c] ?? "–"}
+                  {s.byCategory[c] || "–"}
                 </td>
               ))}
             </tr>
@@ -94,6 +95,33 @@ export function HrCrossTable({ cross }: { cross: HrCross }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+/**
+ * 3区分それぞれに、Excelのどの分野が入ったかを出す。
+ *
+ * IT と CAD 以外はすべて D/W に寄せているので、中身を見せないと
+ * 「D/W 11名」が何なのか分からない。未記入がどれだけ混ざっているかもここで分かる。
+ */
+export function HrCategoryNote({ cross }: { cross: HrCross }) {
+  const lines = cross.categories
+    .map((c) => {
+      const entries = Object.entries(cross.rawByCategory[c]).sort((a, b) => b[1] - a[1]);
+      return entries.length === 0 ? null : { c, text: entries.map(([k, v]) => `${k} ${v}`).join("・") };
+    })
+    .filter((x): x is { c: (typeof cross.categories)[number]; text: string } => x !== null);
+
+  if (lines.length === 0) return null;
+
+  return (
+    <ul className="space-y-1 text-xs" style={{ color: "var(--text-muted)" }}>
+      {lines.map((l) => (
+        <li key={l.c}>
+          <span style={{ color: "var(--text-secondary)" }}>{CATEGORY_LABEL[l.c]}</span> の内訳 … {l.text}
+        </li>
+      ))}
+    </ul>
   );
 }
 

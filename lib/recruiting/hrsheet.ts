@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
-import { SHOP_MASTER, normalizeShopKey } from "./shops";
+import { PlanCategory } from "@/types/recruiting";
+import { PLAN_CATEGORIES, SHOP_MASTER, normalizeShopKey } from "./shops";
 
 /**
  * 採用チームが管理しているExcel（採用管理表）の「元データ」シートを読む。
@@ -18,8 +19,13 @@ const HIRED = new Set(["合格", "採用"]);
 export interface HrRow {
   /** 「栄校」など。ジョブオプ側と突き合わせるときは normalizeShopKey を通す。 */
   shopShortName: string;
-  /** IT / WEBDTP / CAD など、シートに書かれている分野。空欄は「(未記入)」。 */
+  /** IT / WEBDTP / CAD など、シートに書かれている分野そのまま。空欄は「(未記入)」。 */
   course: string;
+  /**
+   * 不足人数マスタと同じ3区分に寄せたもの。IT / D/W / C。
+   * 3区分にする前に取り込んだデータには入っていないので、読むときは必ず categoryOf を通す。
+   */
+  category?: PlanCategory;
   status: string;
   hired: boolean;
   /** 応募日（YYYY-MM-DD）。読めなければ null。 */
@@ -50,6 +56,36 @@ function course(raw: string): string {
   return t || "(未記入)";
 }
 
+/**
+ * 分野を、不足人数マスタと同じ3区分に寄せる。
+ *
+ * Excelの分野欄は WEBDTP / WEB / DTP / 映像 / Office … と細かく、校舎ごとに書き方も違う。
+ * 採用目標は IT / デザイン・Web / CAD の3区分で持っているので、そこに合わせないと
+ * 「何がどれだけ足りないのか」と並べて見られない。
+ *
+ * IT と CAD だけを拾い、残りはすべて D/W に寄せる（2026-10-12 カズヒコさん指示）。
+ * 未記入もD/Wに入るので、内訳は表の下に出して中身が分かるようにしておく。
+ */
+export function courseCategory(raw: string): PlanCategory {
+  const t = course(raw).toUpperCase();
+  if (t.startsWith("IT")) return "IT";
+  if (t.includes("CAD")) return "C";
+  return "D/W";
+}
+
+/**
+ * 行の区分を取る。
+ *
+ * 3区分に分ける前に取り込んだ行（保存済みのデータ・古いバックアップ・公開データ）には
+ * category が入っていない。取り込み直しを強いると、その間だけ画面が壊れるので、
+ * 無ければ分野から作り直す。
+ */
+export function categoryOf(row: HrRow): PlanCategory {
+  return row.category === "IT" || row.category === "D/W" || row.category === "C"
+    ? row.category
+    : courseCategory(row.course);
+}
+
 /** 「2026/10/07(水) 14:27」のような書き方から日付だけ取る */
 function dateOf(raw: string): string | null {
   const m = text(raw).match(/(\d{4})[/\-年](\d{1,2})[/\-月](\d{1,2})/);
@@ -73,9 +109,11 @@ export function parseHrSheet(fileName: string, buf: ArrayBuffer): HrSheet {
       continue;
     }
     const status = text(r["ステータス"]);
+    const raw = String(r["分野"] ?? "");
     rows.push({
       shopShortName: shop,
-      course: course(String(r["分野"] ?? "")),
+      course: course(raw),
+      category: courseCategory(raw),
       status: status || "(未記入)",
       hired: HIRED.has(status),
       receivedDate: dateOf(String(r["応募日時"] ?? "")),
@@ -90,22 +128,30 @@ export interface HrCrossShop {
   key: string;
   /** 表に出す校舎名。店舗マスタに当たれば正式な略称にそろえる。 */
   shopShortName: string;
-  byCourse: Record<string, number>;
+  /** 3区分ごとの採用数 */
+  byCategory: Record<PlanCategory, number>;
   total: number;
   applied: number;
 }
 
 export interface HrCross {
-  /** 列（分野）。多い順。 */
-  courses: string[];
+  /** 列。不足人数マスタと同じ IT / D/W / C の3つで固定する。 */
+  categories: PlanCategory[];
   /** 行（校舎）。採用が多い順。 */
   shops: HrCrossShop[];
-  totalByCourse: Record<string, number>;
+  totalByCategory: Record<PlanCategory, number>;
+  /**
+   * 3区分それぞれに、Excelのどの分野が何件入ったか。
+   * 「D/W 11名」の中身が WEBDTP なのか未記入なのかを、表の下に出すために持つ。
+   */
+  rawByCategory: Record<PlanCategory, Record<string, number>>;
   total: number;
   totalApplied: number;
   /** 期間や対象校舎の条件で外した行数 */
   excluded: number;
 }
+
+const zero = (): Record<PlanCategory, number> => ({ IT: 0, "D/W": 0, C: 0 });
 
 /** 店舗マスタに当たる校舎は正式な略称にそろえる（「福岡天神」と「福岡天神校」を1行にする） */
 const MASTER_BY_KEY = new Map(SHOP_MASTER.map((s) => [normalizeShopKey(s.short), s.short]));
@@ -129,7 +175,8 @@ export function crossTab(sheet: HrSheet, options: CrossOptions | string | null =
   const { from = null, include } = typeof options === "string" || options === null ? { from: options } : options;
 
   const byShop = new Map<string, HrCrossShop>();
-  const byCourse = new Map<string, number>();
+  const totalByCategory = zero();
+  const rawByCategory: Record<PlanCategory, Record<string, number>> = { IT: {}, "D/W": {}, C: {} };
   let excluded = 0;
   let total = 0;
   let totalApplied = 0;
@@ -147,26 +194,27 @@ export function crossTab(sheet: HrSheet, options: CrossOptions | string | null =
 
     let e = byShop.get(key);
     if (!e) {
-      e = { key, shopShortName: MASTER_BY_KEY.get(key) ?? r.shopShortName, byCourse: {}, total: 0, applied: 0 };
+      e = { key, shopShortName: MASTER_BY_KEY.get(key) ?? r.shopShortName, byCategory: zero(), total: 0, applied: 0 };
       byShop.set(key, e);
     }
     e.applied++;
     totalApplied++;
     if (!r.hired) continue;
-    e.byCourse[r.course] = (e.byCourse[r.course] ?? 0) + 1;
+    const cat = categoryOf(r);
+    e.byCategory[cat]++;
     e.total++;
     total++;
-    byCourse.set(r.course, (byCourse.get(r.course) ?? 0) + 1);
+    totalByCategory[cat]++;
+    rawByCategory[cat][r.course] = (rawByCategory[cat][r.course] ?? 0) + 1;
   }
 
-  const courses = [...byCourse.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ja")).map(([c]) => c);
-
   return {
-    courses,
+    categories: PLAN_CATEGORIES,
     shops: [...byShop.values()].sort(
       (a, b) => b.total - a.total || b.applied - a.applied || a.shopShortName.localeCompare(b.shopShortName, "ja")
     ),
-    totalByCourse: Object.fromEntries(byCourse),
+    totalByCategory,
+    rawByCategory,
     total,
     totalApplied,
     excluded,
