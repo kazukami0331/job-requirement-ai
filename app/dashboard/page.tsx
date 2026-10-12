@@ -47,7 +47,7 @@ import { Button, Card, EmptyState, Legend, Modal, StatTile } from "@/components/
 import { FunnelChart, StagePoolChart, WEEKLY_SERIES_COLORS, WeeklyTrendChart } from "@/components/dashboard/charts";
 import { BreakdownTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
 import { DataMenu } from "@/components/dashboard/DataPanel";
-import { HrSheet, compareWithJobop, crossTab, parseHrSheet } from "@/lib/recruiting/hrsheet";
+import { HrSheet, compareWithJobop, crossTab, parseHrSheet, planTargets } from "@/lib/recruiting/hrsheet";
 import { HrCategoryNote, HrCompareTable, HrCrossTable } from "@/components/dashboard/hrsheet";
 import { DEFAULT_RATES, GoalRates, GoalWindow, monthlyGoals } from "@/lib/recruiting/goal";
 import {
@@ -411,6 +411,15 @@ export default function DashboardPage() {
     () => (hrCross ? compareWithJobop(hrCross, jobopByShop) : []),
     [hrCross, jobopByShop]
   );
+
+  /**
+   * 不足人数管理表から作った、校舎 × コースの採用目標。
+   * Excel集計の分母に使う。絞り込みはExcel集計の表と揃える。
+   */
+  const hrTargets = useMemo(() => {
+    const shopKey = shopFilter === "すべて" ? null : normalizeShopKey(shopFilter);
+    return planTargets(plan, (key) => (shopKey ? key === shopKey : true));
+  }, [plan, shopFilter]);
 
   const handleUploadApplications = useCallback(async (file: File) => {
     try {
@@ -1035,7 +1044,7 @@ export default function DashboardPage() {
               <>
                 <Card
                   title="校舎 × コースの採用人数（採用チームのExcel）"
-                  subtitle="コースは 不足人数マスタと同じ IT / デザイン・Web / CAD と、Excel側で分野が空欄の 未記入 の4列です。見出しを押すと並び替わります。"
+                  subtitle="「採用 / 目標」の形です。目標は不足人数管理表の「不足」から、不足のあるコースに1名ずつ置いています。見出しを押すと並び替わります。"
                 >
                   <div className="space-y-4">
                     <ul className="space-y-1 text-xs" style={{ color: "var(--text-secondary)" }}>
@@ -1056,8 +1065,16 @@ export default function DashboardPage() {
                       <li>
                         取り込み {hrSheet ? `${hrSheet.rows.length}行（${hrSheet.sourceFileName}）` : ""}
                       </li>
+                      {hrTargets && (
+                        <li>
+                          目標は不足人数管理表から。コース別は<strong>不足のあるコースに1名</strong>（朝昼・夜・土日のどれかに不足があれば1名）で計
+                          {hrTargets.totalByCategory.IT + hrTargets.totalByCategory["D/W"] + hrTargets.totalByCategory.C}名、
+                          校舎の目標は<strong>最小採用人数（全分野充足）</strong>で計{hrTargets.minHires}名。
+                          1人に2コース持たせる前提の校舎があるため、コース別の合計のほうが少し多くなります。
+                        </li>
+                      )}
                     </ul>
-                    <HrCrossTable cross={hrCross} />
+                    <HrCrossTable cross={hrCross} targets={hrTargets} />
                     <HrCategoryNote cross={hrCross} />
                   </div>
                 </Card>

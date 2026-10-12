@@ -1,5 +1,7 @@
 import * as XLSX from "xlsx";
-import { SHOP_MASTER, normalizeShopKey } from "./shops";
+import { HiringPlan } from "@/types/recruiting";
+import { PLAN_CATEGORIES, SHOP_MASTER, normalizeShopKey } from "./shops";
+import { shortageByShop } from "./plan";
 
 /**
  * 採用チームが管理しているExcel（採用管理表）の「元データ」シートを読む。
@@ -263,4 +265,57 @@ export function compareWithJobop(cross: HrCross, jobopByShop: Map<string, number
     .map((r) => ({ ...r, diff: r.excel - r.jobop }))
     .filter((r) => r.excel > 0 || r.jobop > 0)
     .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff) || b.excel - a.excel);
+}
+
+/**
+ * 不足人数管理表から、校舎 × コースの採用目標を作る。
+ *
+ * 管理表は 校舎 × コース × 時間帯（朝昼・夜・土日）の枠ごとに「不足」を持っていて、
+ * ピンクで 1 と書かれているところが足りていない枠。
+ *
+ * **コースの目標は「不足のあるコースに1名」**。枠の数をそのまま分母にすると
+ * 「IT 15 / 50」のようになり、1人が朝昼も夜も持つ実態と合わない。
+ * 校舎の「最小採用人数（全分野充足）」も、ほとんどの校舎で不足のあるコース数と一致していて、
+ * 1コースにつき1名を採る前提で置かれている。
+ *
+ * ただし一致しない校舎もある（1人に2コース持たせる前提で最小採用人数を減らしている校舎）。
+ * 勝手に片方へ寄せると元の表と食い違うので、校舎の目標は最小採用人数のまま出し、
+ * コース別の合計と差が出ることは画面に書いておく。
+ */
+export interface HrTargets {
+  byShop: Map<string, { minHires: number; slots: number; byCategory: Record<HrCategory, number> }>;
+  /** 校舎の最小採用人数の合計（＝不足人数マスタの採用目標・58名） */
+  minHires: number;
+  /** 不足している枠（校舎 × コース × 時間帯）の合計。説明用。 */
+  slots: number;
+  totalByCategory: Record<HrCategory, number>;
+}
+
+export function planTargets(plan: HiringPlan | null, include?: (key: string) => boolean): HrTargets | null {
+  if (!plan) return null;
+
+  const byShop = new Map<string, { minHires: number; slots: number; byCategory: Record<HrCategory, number> }>();
+  const totalByCategory = zero();
+  let minHires = 0;
+  let slots = 0;
+
+  for (const s of shortageByShop(plan)) {
+    const key = normalizeShopKey(s.shopShortName);
+    if (include && !include(key)) continue;
+
+    const byCategory = zero();
+    let shopSlots = 0;
+    for (const c of PLAN_CATEGORIES) {
+      byCategory[c] = s.byCategory[c] > 0 ? 1 : 0;
+      totalByCategory[c] += byCategory[c];
+      shopSlots += s.byCategory[c];
+    }
+    if (s.shortage === 0 && shopSlots === 0) continue;
+
+    byShop.set(key, { minHires: s.shortage, slots: shopSlots, byCategory });
+    minHires += s.shortage;
+    slots += shopSlots;
+  }
+
+  return { byShop, minHires, slots, totalByCategory };
 }

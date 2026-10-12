@@ -1,7 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as XLSX from "xlsx";
-import { HrSheet, compareWithJobop, crossTab, parseHrSheet } from "@/lib/recruiting/hrsheet";
+import { HrSheet, compareWithJobop, crossTab, parseHrSheet, planTargets } from "@/lib/recruiting/hrsheet";
+import { DEFAULT_PLAN_LABELS, HiringPlan, PlanCategory, PlanRow } from "@/types/recruiting";
+
+/** テスト用の不足人数マスタの行。使うのは校舎・区分・不足（groupC）・校舎計だけ。 */
+function row(shop: string, category: PlanCategory, groupC: [number, number, number], shortage: number | null): PlanRow {
+  return {
+    id: `${shop}-${category}`,
+    phase: "存続校舎",
+    shopShortName: shop,
+    category,
+    groupA: [0, 0, 0],
+    groupB: [0, 0, 0],
+    groupC,
+    shortage,
+    deadline: "2026/12/31",
+    flag: "",
+    note: "",
+    urgent: false,
+  };
+}
 
 /**
  * 採用チームのExcel（採用管理表）から作る集計のテスト。
@@ -172,4 +191,39 @@ test("区分を入れる前に取り込んだデータでも壊れない", () =>
   assert.equal(cross.totalByCategory["IT"], 2, "分野から区分を作り直す");
   assert.equal(cross.totalByCategory["D/W"], 1);
   assert.equal(cross.totalByCategory["none"], 1);
+});
+
+test("コースの目標は、不足のあるコースに1名ずつ置く", () => {
+  const plan: HiringPlan = {
+    labels: DEFAULT_PLAN_LABELS,
+    updatedAt: "2026-10-12T00:00:00.000Z",
+    rows: [
+      // 朝昼・夜・土日のどこかに不足があれば、そのコースは1名必要
+      row("豊田", "IT", [1, 1, 1], 2),
+      row("豊田", "D/W", [1, 1, 1], null),
+      row("豊田", "C", [0, 0, 0], null),
+      row("梅田", "IT", [0, 1, 0], 3),
+      row("梅田", "D/W", [0, 1, 0], null),
+      row("梅田", "C", [0, 1, 0], null),
+    ],
+  };
+
+  const t = planTargets(plan)!;
+  assert.equal(t.byShop.get("豊田")?.byCategory["IT"], 1, "枠が3つあっても1名");
+  assert.equal(t.byShop.get("豊田")?.byCategory["C"], 0, "不足が無いコースは0");
+  assert.equal(t.byShop.get("梅田")?.byCategory["IT"], 1, "夜だけの不足でも1名");
+  assert.deepEqual(t.totalByCategory, { IT: 2, "D/W": 2, C: 1, none: 0 });
+  assert.equal(t.minHires, 5, "校舎の目標は最小採用人数のまま（豊田2＋梅田3）");
+  assert.equal(t.slots, 9, "不足の枠数も説明用に持つ");
+});
+
+test("対象の校舎を絞ると、目標もその校舎だけになる", () => {
+  const plan: HiringPlan = {
+    labels: DEFAULT_PLAN_LABELS,
+    updatedAt: "2026-10-12T00:00:00.000Z",
+    rows: [row("豊田", "IT", [1, 0, 0], 1), row("梅田", "IT", [1, 0, 0], 1)],
+  };
+  const t = planTargets(plan, (key) => key === "豊田")!;
+  assert.deepEqual([...t.byShop.keys()], ["豊田"]);
+  assert.equal(t.minHires, 1);
 });

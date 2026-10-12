@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode, useState } from "react";
-import { HR_CATEGORY_LABEL, HrCategory, HrCompareRow, HrCross, HrCrossShop } from "@/lib/recruiting/hrsheet";
+import { HR_CATEGORY_LABEL, HrCategory, HrCompareRow, HrCross, HrCrossShop, HrTargets } from "@/lib/recruiting/hrsheet";
 import { ratioLabel } from "@/lib/recruiting/format";
 
 /**
@@ -80,13 +80,42 @@ function SortTh<K extends string>({
 
 const cell = "px-2 py-1 text-xs tabular whitespace-nowrap";
 /** 数値の列。中身に合わせて詰め、余った幅は校舎名の列に渡す。 */
-const NUM_W = "5.5rem";
+const NUM_W = "6.5rem";
+
+/**
+ * 「実績 / 目標」のセル。
+ *
+ * 目標が無い（不足人数管理表に記入が無い）ところは分母を出さない。
+ * 0 / 1 のように分母を付けると、埋めるべき枠かどうかが一目で分かる。
+ */
+function Fill({ actual, target }: { actual: number; target: number | null }) {
+  if (target === null) {
+    return <span style={{ color: actual ? "var(--text-primary)" : "var(--text-muted)" }}>{actual || "–"}</span>;
+  }
+  if (target === 0 && actual === 0) return <span style={{ color: "var(--text-muted)" }}>–</span>;
+
+  const done = target > 0 && actual >= target;
+  return (
+    <span>
+      <span style={{ color: done ? "var(--status-good)" : actual ? "var(--text-primary)" : "var(--status-serious)", fontWeight: 600 }}>
+        {actual}
+      </span>
+      <span style={{ color: "var(--text-muted)" }}> / {target}</span>
+    </span>
+  );
+}
 
 type CrossKey = "shop" | "total" | "applied" | "rate" | HrCategory;
 
-export function HrCrossTable({ cross }: { cross: HrCross }) {
+export function HrCrossTable({ cross, targets }: { cross: HrCross; targets?: HrTargets | null }) {
   const sort = useSort<CrossKey>();
   if (cross.shops.length === 0) return null;
+
+  /** 目標が無い区分（未記入）と、管理表に載っていない校舎は分母を出さない */
+  const targetOf = (key: string, c: HrCategory): number | null => {
+    if (!targets || c === "none") return null;
+    return targets.byShop.get(key)?.byCategory[c] ?? null;
+  };
 
   const value = (s: HrCrossShop, key: CrossKey): number | string => {
     if (key === "shop") return s.shopShortName;
@@ -127,6 +156,7 @@ export function HrCrossTable({ cross }: { cross: HrCross }) {
             </td>
             <td className={`${cell} text-right font-semibold`} style={{ color: "var(--status-good)" }}>
               {cross.total}
+              {targets && <span style={{ color: "var(--text-muted)", fontWeight: 400 }}> / {targets.minHires}</span>}
             </td>
             <td className={`${cell} text-right`} style={{ color: "var(--text-secondary)" }}>
               {cross.totalApplied}
@@ -137,6 +167,9 @@ export function HrCrossTable({ cross }: { cross: HrCross }) {
             {cross.categories.map((c) => (
               <td key={c} className={`${cell} text-right font-semibold`} style={{ color: "var(--text-primary)" }}>
                 {cross.totalByCategory[c]}
+                {targets && c !== "none" && (
+                  <span style={{ color: "var(--text-muted)", fontWeight: 400 }}> / {targets.totalByCategory[c]}</span>
+                )}
               </td>
             ))}
           </tr>
@@ -145,11 +178,8 @@ export function HrCrossTable({ cross }: { cross: HrCross }) {
               <td className={cell} style={{ color: "var(--text-primary)" }}>
                 {s.shopShortName}
               </td>
-              <td
-                className={`${cell} text-right font-semibold`}
-                style={{ color: s.total > 0 ? "var(--status-good)" : "var(--text-muted)" }}
-              >
-                {s.total}
+              <td className={`${cell} text-right`}>
+                <Fill actual={s.total} target={targets ? (targets.byShop.get(s.key)?.minHires ?? null) : null} />
               </td>
               <td className={`${cell} text-right`} style={{ color: "var(--text-secondary)" }}>
                 {s.applied}
@@ -158,12 +188,8 @@ export function HrCrossTable({ cross }: { cross: HrCross }) {
                 {ratioLabel(s.total, s.applied)}
               </td>
               {cross.categories.map((c) => (
-                <td
-                  key={c}
-                  className={`${cell} text-right`}
-                  style={{ color: s.byCategory[c] ? "var(--text-primary)" : "var(--text-muted)" }}
-                >
-                  {s.byCategory[c] || "–"}
+                <td key={c} className={`${cell} text-right`}>
+                  <Fill actual={s.byCategory[c]} target={targetOf(s.key, c)} />
                 </td>
               ))}
             </tr>
