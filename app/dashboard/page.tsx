@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { HiringPlan, MergedApplication, Snapshot } from "@/types/recruiting";
 import { buildSnapshot } from "@/lib/recruiting/parse";
-import { mergeSnapshots, statusMovements } from "@/lib/recruiting/merge";
+import { mergeSnapshots } from "@/lib/recruiting/merge";
 import {
   Dimension,
   DIMENSION_LABEL,
@@ -43,7 +43,7 @@ import {
 } from "@/lib/recruiting/storage";
 import { fetchShared, publishShared } from "@/lib/recruiting/shared";
 import { ExternalSource, fetchExternalSource } from "@/lib/recruiting/source";
-import { Button, Card, EmptyState, Legend, StatTile } from "@/components/dashboard/ui";
+import { Button, Card, EmptyState, Legend, Modal, StatTile } from "@/components/dashboard/ui";
 import { FunnelChart, StagePoolChart, WEEKLY_SERIES_COLORS, WeeklyTrendChart } from "@/components/dashboard/charts";
 import { BreakdownTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
 import { DataMenu } from "@/components/dashboard/DataPanel";
@@ -62,9 +62,46 @@ import {
 
 type Message = { kind: "info" | "error"; text: string } | null;
 
+/**
+ * 数字の定義。経営会議に出す数字なので、何をどう数えているかを画面から辿れるようにしておく。
+ * ただし常時出しておくと本題が埋もれるので、右上のボタンから開く。
+ */
+const DEFINITIONS: [string, string][] = [
+  ["対象の校舎", "不足人数マスタに採用目標が1名以上ある校舎だけ（既定）。六本木オフィスなど目標の無い拠点は入りません。"],
+  [
+    "集計期間",
+    "既定は施策開始（2026/07/23）から。応募は応募受付日、採用と面接は選考ステータス最終更新日で期間を判定します。",
+  ],
+  [
+    "採用",
+    "その期間に採用が決まった人数（応募がいつかは問いません）。採用タイル・週次グラフの緑・月次目標の採用済みは、すべてこの数です。",
+  ],
+  [
+    "採用が決まった日",
+    "ジョブオプに採用日の項目が無いため、選考ステータス最終更新日を使っています。まとめてステータスを更新すると、前に決まっていた人もその日の採用として立ちます。週ごとの山が不自然なときは、書き出しの「採用明細」で日付を確かめてください。",
+  ],
+  [
+    "通過ファネルの採用",
+    "その期間に応募した人を追いかけて、そこから採れた数です。上の採用とは数え方が違います（どちらも正しく、見ているものが違います）。",
+  ],
+  [
+    "充足・残り",
+    "充足は校舎の採用目標までで頭打ち。残り＝目標−充足。目標より多く採れたぶんは他の校舎の不足を埋めないので、残りからは引きません。",
+  ],
+  [
+    "必要応募",
+    "残りの人数 ÷（応募→面接率 × 面接→採用率）を校舎ごとに1回だけ切り上げた数。既定の30%×60%なら1名採るのに5.6件。",
+  ],
+  ["4週平均の応募", "確定した直近4週の平均。集計途中の週は入れません。"],
+  [
+    "Excel集計のコース",
+    "採用チームの採用管理表から、校舎 × コースで数えた表です。IT と CAD だけを拾い、それ以外は デザイン・Web、分野が空欄の行は 未記入 に分けています。",
+  ],
+];
+
 const DIMENSIONS: Dimension[] = ["shopShortName", "employmentType", "media", "route", "jobTitle"];
 
-type SectionKey = "summary" | "goal" | "trend" | "breakdown" | "excel" | "activity";
+type SectionKey = "summary" | "goal" | "trend" | "breakdown" | "excel";
 
 /** 2026-09-21 → 9/21 */
 const md = (d?: string) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : "");
@@ -76,7 +113,6 @@ const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: "trend", label: "週次推移" },
   { key: "breakdown", label: "選考状況" },
   { key: "excel", label: "Excel集計" },
-  { key: "activity", label: "動き" },
 ];
 
 /** 集計の軸を切り替える。週次推移と選考状況の2枚が離れた位置に出るので、両方に置く。 */
@@ -131,6 +167,8 @@ export default function DashboardPage() {
   const [shopFilter, setShopFilter] = useState<string>("すべて");
   // スマホでは縦に長くなりすぎるのでセクションを切り替える。画面が広いときは全部並べる。
   const [section, setSection] = useState<SectionKey>("summary");
+  // 数字の定義と凡例。画面に常時置くと情報が多すぎるので、押したときだけ出す。
+  const [showGuide, setShowGuide] = useState(false);
   // 公開データ（サーバーに置いてある共有データ）の状態。
   // configured が false のときは保存先が未設定で、同梱データだけで動いている。
   const [shared, setShared] = useState<{ configured: boolean; publishedAt: string | null }>({
@@ -334,11 +372,6 @@ export default function DashboardPage() {
   const rows = useMemo(() => breakdown(apps, dimension, weekKeys), [apps, dimension, weekKeys]);
   const matrix = useMemo(() => weeklyMatrix(apps, dimension, 12), [apps, dimension]);
   const reasons = useMemo(() => rejectReasons(apps), [apps]);
-
-  const movements = useMemo(() => {
-    if (snapshots.length < 2) return [];
-    return statusMovements(apps, snapshots[snapshots.length - 2].takenAt);
-  }, [apps, snapshots]);
 
   /** 採用目標から逆算した月次の応募目標と進捗 */
   const goals = useMemo(
@@ -626,6 +659,9 @@ export default function DashboardPage() {
             </Button>
           </div>
         )}
+        <div className="flex items-center gap-1.5">
+          <Button onClick={() => setShowGuide(true)}>前提情報</Button>
+        </div>
         <DataMenu
           snapshots={snapshots}
           plan={plan}
@@ -976,6 +1012,21 @@ export default function DashboardPage() {
             >
               <BreakdownTable rows={rows} dimensionLabel={DIMENSION_LABEL[dimension]} />
             </Card>
+
+            {reasons.length > 0 && (
+              <Card title="不採用・辞退の理由" subtitle="どこで取りこぼしているかの手掛かり">
+                <ul className="space-y-1">
+                  {reasons.map((r) => (
+                    <li key={r.reason} className="flex justify-between gap-3 text-xs">
+                      <span style={{ color: "var(--text-primary)" }}>{r.reason}</span>
+                      <span className="tabular" style={{ color: "var(--text-secondary)" }}>
+                        {r.count}件
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
           </div>
 
           {/* Excel集計（採用チームの採用管理表） */}
@@ -1040,99 +1091,41 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* 動き */}
-          <div className={`space-y-4 sm:space-y-5 ${section === "activity" ? "" : "hidden sm:block"}`}>
-            {movements.length > 0 && (
-              <Card title="前回取り込み以降に動いた選考" subtitle={`${movements.length}件のステータスが変わりました`}>
-                <ul className="space-y-1.5">
-                  {movements.slice(0, 30).map((m) => (
-                    <li key={m.app.applicationId} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                      <span style={{ color: "var(--text-primary)" }}>{m.app.shopShortName}</span>
-                      <span style={{ color: "var(--text-muted)" }}>{m.app.receivedDate} 応募</span>
-                      <span style={{ color: "var(--text-secondary)" }}>
-                        {m.from} → <strong style={{ color: "var(--text-primary)" }}>{m.to}</strong>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            )}
-
-            {reasons.length > 0 && (
-              <Card title="不採用・辞退の理由" subtitle="どこで取りこぼしているかの手掛かり">
-                <ul className="space-y-1">
-                  {reasons.map((r) => (
-                    <li key={r.reason} className="flex justify-between gap-3 text-xs">
-                      <span style={{ color: "var(--text-primary)" }}>{r.reason}</span>
-                      <span className="tabular" style={{ color: "var(--text-secondary)" }}>
-                        {r.count}件
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            )}
-
-            {/* 経営会議に出す数字なので、何をどう数えているかを画面の中に置いておく */}
-            <Card title="数字の定義">
-              <dl className="space-y-2 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                {[
-                  ["対象の校舎", "不足人数マスタに採用目標が1名以上ある校舎だけ（既定）。六本木オフィスなど目標の無い拠点は入りません。"],
-                  [
-                    "集計期間",
-                    "今期＝9月1日から（採用期は9月始まり）。応募は応募受付日、採用と面接は選考ステータス最終更新日で期間を判定します。",
-                  ],
-                  [
-                    "採用",
-                    "その期間に採用が決まった人数（応募がいつかは問いません）。採用タイル・週次グラフの緑・月次目標の採用済みは、すべてこの数です。",
-                  ],
-                  [
-                    "採用が決まった日",
-                    "ジョブオプに採用日の項目が無いため、選考ステータス最終更新日を使っています。まとめてステータスを更新すると、前に決まっていた人もその日の採用として立ちます。週ごとの山が不自然なときは、書き出しの「採用明細」で日付を確かめてください。",
-                  ],
-                  [
-                    "通過ファネルの採用",
-                    "その期間に応募した人を追いかけて、そこから採れた数です。上の採用とは数え方が違います（どちらも正しく、見ているものが違います）。",
-                  ],
-                  [
-                    "充足・残り",
-                    "充足は校舎の採用目標までで頭打ち。残り＝目標−充足。目標より多く採れたぶんは他の校舎の不足を埋めないので、残りからは引きません。",
-                  ],
-                  [
-                    "必要応募",
-                    "残りの人数 ÷（応募→面接率 × 面接→採用率）を校舎ごとに1回だけ切り上げた数。既定の30%×60%なら1名採るのに5.6件。",
-                  ],
-                  ["4週平均の応募", "確定した直近4週の平均。集計途中の週は入れません。"],
-                ].map(([term, body]) => (
-                  <div key={term}>
-                    <dt className="font-semibold" style={{ color: "var(--text-primary)" }}>
-                      {term}
-                    </dt>
-                    <dd>{body}</dd>
-                  </div>
-                ))}
-              </dl>
-              <p className="mt-3 text-xs" style={{ color: "var(--text-muted)" }}>
-                定義を変えるときは、画面を変える前に共有します。詳しい計算方法と変更履歴は docs/metrics.md にあります。
-              </p>
-            </Card>
-
-            <Card title="凡例">
-              <Legend items={pool.map((p) => ({ label: p.label, color: p.color }))} />
-              <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                「選考中プール」は 未対応・面接調整中・面接待ち・面接結果待ち の合計です。
-                「面接設定」は面接日が確定した以降（面接前の不採用・辞退は含みません）、
-                「面接実施」は面接結果待ち以降を指します。
-                <br />
-                「充足率」は、不足人数マスタの採用目標に対して採用まで至った人数の割合です。
-              </p>
-              <div className="mt-3">
-                <Button onClick={handleExportWorkbook}>この内容をスプレッドシートに書き出す</Button>
-              </div>
-            </Card>
-          </div>
         </div>
       )}
+
+      <Modal title="前提情報（数字の定義と凡例）" open={showGuide} onClose={() => setShowGuide(false)}>
+        <div className="space-y-5">
+          <dl className="space-y-2.5 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+            {DEFINITIONS.map(([term, body]) => (
+              <div key={term}>
+                <dt className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                  {term}
+                </dt>
+                <dd>{body}</dd>
+              </div>
+            ))}
+          </dl>
+
+          <div className="border-t pt-4" style={{ borderColor: "var(--gridline)" }}>
+            <h3 className="mb-2 text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+              凡例
+            </h3>
+            <Legend items={pool.map((p) => ({ label: p.label, color: p.color }))} />
+            <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              「選考中プール」は 未対応・面接調整中・面接待ち・面接結果待ち の合計です。
+              「面接設定」は面接日が確定した以降（面接前の不採用・辞退は含みません）、
+              「面接実施」は面接結果待ち以降を指します。
+              <br />
+              「充足率」は、不足人数マスタの採用目標に対して採用まで至った人数の割合です。
+            </p>
+          </div>
+
+          <p className="border-t pt-4 text-xs leading-relaxed" style={{ borderColor: "var(--gridline)", color: "var(--text-muted)" }}>
+            定義を変えるときは、画面を変える前に共有します。詳しい計算方法と変更履歴は docs/metrics.md にあります。
+          </p>
+        </div>
+      </Modal>
     </main>
   );
 }

@@ -190,6 +190,78 @@ export function EmptyState({ title, children }: { title: string; children?: Reac
   );
 }
 
+/**
+ * 前提情報を畳んでおくためのモーダル。
+ *
+ * 数字の定義や凡例は、見るのは最初の1回か、数字を疑ったときだけ。
+ * 画面に常に置いておくと本題の表やグラフが埋もれるので、押したときだけ出す。
+ */
+export function Modal({
+  title,
+  open,
+  onClose,
+  children,
+}: {
+  title: string;
+  open: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  // Escで閉じられないと、スマホでは戻る手段が分かりにくい
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    // 背面が一緒にスクロールすると、どこを見ているか分からなくなる
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = overflow;
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6"
+      style={{ background: "rgba(0,0,0,0.45)" }}
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
+      <div
+        className="flex max-h-[88vh] w-full max-w-2xl flex-col rounded-t-2xl border sm:rounded-2xl"
+        style={{ background: "var(--surface-1)", borderColor: "var(--hairline)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header
+          className="flex items-center justify-between gap-3 border-b px-4 py-3"
+          style={{ borderColor: "var(--gridline)" }}
+        >
+          <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+            {title}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="閉じる"
+            className="rounded-lg border px-2.5 py-1 text-xs"
+            style={{ borderColor: "var(--hairline)", color: "var(--text-secondary)" }}
+          >
+            閉じる
+          </button>
+        </header>
+        <div className="overflow-y-auto px-4 py-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export function Button({
   children,
   onClick,
