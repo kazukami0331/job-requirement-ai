@@ -64,7 +64,7 @@ export const PLAN_CATEGORIES: PlanCategory[] = ["IT", "D/W", "C"];
 
 export const CATEGORY_LABEL: Record<PlanCategory, string> = {
   IT: "IT",
-  "D/W": "デザイン/Web",
+  "D/W": "Webデザイン",
   C: "CAD",
 };
 

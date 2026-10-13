@@ -23,7 +23,7 @@ export interface HrRow {
   /** IT / WEBDTP / CAD など、シートに書かれている分野そのまま。空欄は「(未記入)」。 */
   course: string;
   /**
-   * コースの区分。IT / D/W（デザイン・Web）/ C（CAD）/ none（分野が空欄）。
+   * コースの区分。IT / D/W（Webデザイン）/ C（CAD）/ none（分野が空欄）。
    * 区分を入れる前に取り込んだデータには無いので、読むときは必ず categoryOf を通す。
    */
   category?: HrCategory;
@@ -60,7 +60,7 @@ function course(raw: string): string {
 /**
  * コースの区分。不足人数マスタの IT / D/W / C に、Excel側の未記入を足した4つ。
  *
- * 未記入を D/W に混ぜるとデザイン・Webの実績が実態より多く見えるので、列を分けて出す
+ * 未記入を D/W に混ぜるとWebデザインの実績が実態より多く見えるので、列を分けて出す
  * （2026-10-12 カズヒコさん指示）。
  */
 export type HrCategory = "IT" | "D/W" | "C" | "none";
@@ -69,7 +69,7 @@ export const HR_CATEGORIES: HrCategory[] = ["IT", "D/W", "C", "none"];
 
 export const HR_CATEGORY_LABEL: Record<HrCategory, string> = {
   IT: "IT",
-  "D/W": "デザイン・Web",
+  "D/W": "Webデザイン",
   C: "CAD",
   none: "未記入",
 };
@@ -78,7 +78,7 @@ export const HR_CATEGORY_LABEL: Record<HrCategory, string> = {
  * 分野を区分に寄せる。
  *
  * Excelの分野欄は WEBDTP / WEB / DTP / 映像 / Office … と細かく、校舎ごとに書き方も違う。
- * 採用目標は IT / デザイン・Web / CAD の3区分で持っているので、そこに合わせないと
+ * 採用目標は IT / Webデザイン / CAD の3区分で持っているので、そこに合わせないと
  * 「何がどれだけ足りないのか」と並べて見られない。
  *
  * IT と CAD だけを拾い、残りは D/W。空欄だけは寄せずに未記入のまま残す。
@@ -158,7 +158,7 @@ export interface HrCross {
   totalByCategory: Record<HrCategory, number>;
   /**
    * 区分それぞれに、Excelのどの分野が何件入ったか。
-   * 「デザイン・Web 13名」の中身が WEBDTP なのか映像なのかを、表の下に出すために持つ。
+   * 「Webデザイン 13名」の中身が WEBDTP なのか映像なのかを、表の下に出すために持つ。
    */
   rawByCategory: Record<HrCategory, Record<string, number>>;
   total: number;

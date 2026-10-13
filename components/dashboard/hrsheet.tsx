@@ -57,7 +57,7 @@ function SortTh<K extends string>({
   children: ReactNode;
   sortKey: K;
   state: SortState<K>;
-  align?: "left" | "right";
+  align?: "left" | "right" | "center";
   /** 数値の列は中身ぶんだけに詰める。空けると校舎名と数字が離れて読みにくい。 */
   width?: string;
 }) {
@@ -65,7 +65,9 @@ function SortTh<K extends string>({
   return (
     <th
       scope="col"
-      className={`px-2 py-1.5 text-[11px] font-medium whitespace-nowrap ${align === "right" ? "text-right" : "text-left"}`}
+      className={`px-2 py-1.5 text-[11px] font-medium whitespace-nowrap ${
+        align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"
+      }`}
       style={{ color: on ? "var(--series-1)" : "var(--text-secondary)", width }}
     >
       <button type="button" onClick={() => state.toggle(sortKey)} className="inline-flex items-center gap-0.5">
@@ -81,6 +83,8 @@ function SortTh<K extends string>({
 const cell = "px-2 py-1 text-xs tabular whitespace-nowrap";
 /** 数値の列。中身に合わせて詰め、余った幅は校舎名の列に渡す。 */
 const NUM_W = "6.5rem";
+/** コースの列。見出しが列からはみ出さないよう、見出しの長さぶんを確保する。 */
+const COURSE_W = "7.5rem";
 
 /**
  * 「実績 / 目標」のセル。
@@ -143,7 +147,7 @@ export function HrCrossTable({ cross, targets }: { cross: HrCross; targets?: HrT
               採用率
             </SortTh>
             {cross.categories.map((c) => (
-              <SortTh key={c} sortKey={c} state={sort} width={NUM_W}>
+              <SortTh key={c} sortKey={c} state={sort} align="center" width={COURSE_W}>
                 {HR_CATEGORY_LABEL[c]}
               </SortTh>
             ))}
@@ -165,7 +169,7 @@ export function HrCrossTable({ cross, targets }: { cross: HrCross; targets?: HrT
               {ratioLabel(cross.total, cross.totalApplied)}
             </td>
             {cross.categories.map((c) => (
-              <td key={c} className={`${cell} text-right font-semibold`} style={{ color: "var(--text-primary)" }}>
+              <td key={c} className={`${cell} text-center font-semibold`} style={{ color: "var(--text-primary)" }}>
                 {cross.totalByCategory[c]}
                 {targets && c !== "none" && (
                   <span style={{ color: "var(--text-muted)", fontWeight: 400 }}> / {targets.totalByCategory[c]}</span>
@@ -188,7 +192,7 @@ export function HrCrossTable({ cross, targets }: { cross: HrCross; targets?: HrT
                 {ratioLabel(s.total, s.applied)}
               </td>
               {cross.categories.map((c) => (
-                <td key={c} className={`${cell} text-right`}>
+                <td key={c} className={`${cell} text-center`}>
                   <Fill actual={s.byCategory[c]} target={targetOf(s.key, c)} />
                 </td>
               ))}
@@ -203,8 +207,8 @@ export function HrCrossTable({ cross, targets }: { cross: HrCross; targets?: HrT
 /**
  * 区分それぞれに、Excelのどの分野が入ったかを出す。
  *
- * IT・CAD・未記入 以外はすべて デザイン・Web に寄せているので、
- * 中身を見せないと「デザイン・Web 13名」が何なのか分からない。
+ * IT・CAD・未記入 以外はすべて Webデザイン に寄せているので、
+ * 中身を見せないと「Webデザイン 13名」が何なのか分からない。
  */
 export function HrCategoryNote({ cross }: { cross: HrCross }) {
   const lines = cross.categories
