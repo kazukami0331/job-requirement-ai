@@ -13,6 +13,7 @@ import {
   recentWeekKeys,
   rejectReasons,
   stagePool,
+  shopCourseMatrix,
   weeklyMatrix,
   weeklyHires,
   weeklyTrend,
@@ -46,6 +47,7 @@ import { ExternalSource, fetchExternalSource } from "@/lib/recruiting/source";
 import { Button, Card, EmptyState, Legend, Modal, StatTile } from "@/components/dashboard/ui";
 import { FunnelChart, StagePoolChart, WEEKLY_SERIES_COLORS, WeeklyTrendChart } from "@/components/dashboard/charts";
 import { BreakdownTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
+import { ShopCourseTable } from "@/components/dashboard/shopcourse";
 import { DataMenu } from "@/components/dashboard/DataPanel";
 import { HrSheet, compareWithJobop, crossTab, parseHrSheet, planTargets } from "@/lib/recruiting/hrsheet";
 import { HrCategoryNote, HrCompareTable, HrCrossTable } from "@/components/dashboard/hrsheet";
@@ -372,6 +374,8 @@ export default function DashboardPage() {
   const rows = useMemo(() => breakdown(apps, dimension, weekKeys), [apps, dimension, weekKeys]);
   const matrix = useMemo(() => weeklyMatrix(apps, dimension, 12), [apps, dimension]);
   const reasons = useMemo(() => rejectReasons(apps), [apps]);
+  /** 校舎 × コースの応募数。どの校舎のどのコースに応募が来ていないかを見る。 */
+  const shopCourse = useMemo(() => shopCourseMatrix(apps), [apps]);
 
   /** 採用目標から逆算した月次の応募目標と進捗 */
   const goals = useMemo(
@@ -1027,6 +1031,19 @@ export default function DashboardPage() {
               actions={<DimensionSwitch value={dimension} onChange={setDimension} />}
             >
               <BreakdownTable rows={rows} dimensionLabel={DIMENSION_LABEL[dimension]} />
+            </Card>
+
+            <Card
+              title="校舎 × コースの応募数"
+              subtitle={`どの校舎のどのコースに応募が来ていないかを見る表です。コースは求人の職種名から判定しています。コース分けして以降の求人からの応募は${shopCourse.split}件、分ける前の求人からの応募が${shopCourse.totalByCourse["コース分け前"]}件。見出しを押すと並び替わります。`}
+            >
+              <div className="space-y-3">
+                <ShopCourseTable matrix={shopCourse} />
+                <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  コース分け前の応募は、どのコース志望か分からないので推測で割らずにそのまま置いています。
+                  コース別の構成比を見るときは「小計」までの3列で見てください。
+                </p>
+              </div>
             </Card>
 
             {reasons.length > 0 && (

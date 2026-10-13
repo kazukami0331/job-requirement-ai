@@ -1,7 +1,7 @@
 import { Application, FunnelStage, MergedApplication } from "@/types/recruiting";
 import { ACTIVE_STAGES, FUNNEL_STEPS, STAGES, stageOf } from "./status";
 import { Week, weekOf, weekOfIso, weekRange } from "./week";
-import { courseOfJobTitle } from "./course";
+import { BEFORE_SPLIT, JOB_COURSES, courseOfJobTitle } from "./course";
 
 export type Dimension = "shopShortName" | "course" | "employmentType" | "media" | "route" | "jobTitle";
 
@@ -323,4 +323,67 @@ export function rejectReasons(apps: MergedApplication[] | Application[]): { reas
   return [...counts.entries()]
     .map(([reason, count]) => ({ reason, count }))
     .sort((a, b) => b.count - a.count);
+}
+
+export interface ShopCourseRow {
+  shopShortName: string;
+  /** コースごとの応募数。コース分け前も列として持つ。 */
+  byCourse: Record<string, number>;
+  applied: number;
+  /** コース分けして以降の求人からの応募だけの合計 */
+  split: number;
+}
+
+export interface ShopCourseMatrix {
+  /** 列。IT / Webデザイン / CAD / コース分け前 の順で固定する。 */
+  courses: string[];
+  rows: ShopCourseRow[];
+  totalByCourse: Record<string, number>;
+  applied: number;
+  split: number;
+}
+
+/**
+ * 校舎 × コースの応募数。
+ *
+ * コースは求人の職種名から判定する（lib/recruiting/course.ts）。
+ * どのコースの求人に応募が来ていないかを校舎単位で見るための表で、
+ * 「不足しているコースに応募が来ていない」校舎を探すのに使う。
+ */
+export function shopCourseMatrix(apps: Application[]): ShopCourseMatrix {
+  const courses = [...JOB_COURSES, BEFORE_SPLIT];
+  const zero = () => Object.fromEntries(courses.map((c) => [c, 0]));
+
+  const byShop = new Map<string, ShopCourseRow>();
+  const totalByCourse = zero();
+  let applied = 0;
+  let split = 0;
+
+  for (const app of apps) {
+    const shop = app.shopShortName || "(不明)";
+    let row = byShop.get(shop);
+    if (!row) {
+      row = { shopShortName: shop, byCourse: zero(), applied: 0, split: 0 };
+      byShop.set(shop, row);
+    }
+    const course = courseOfJobTitle(app.jobTitle || "");
+    row.byCourse[course]++;
+    row.applied++;
+    totalByCourse[course]++;
+    applied++;
+    if (course !== BEFORE_SPLIT) {
+      row.split++;
+      split++;
+    }
+  }
+
+  return {
+    courses,
+    rows: [...byShop.values()].sort(
+      (a, b) => b.split - a.split || b.applied - a.applied || a.shopShortName.localeCompare(b.shopShortName, "ja")
+    ),
+    totalByCourse,
+    applied,
+    split,
+  };
 }

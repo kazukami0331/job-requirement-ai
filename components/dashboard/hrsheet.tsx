@@ -15,7 +15,7 @@ import { ratioLabel } from "@/lib/recruiting/format";
  * 並び替え。押すたびに 降順 → 昇順 → 既定 と戻る。
  * 「どこが多いか」を見ることが多いので、最初の一押しは降順にする。
  */
-function useSort<K extends string>() {
+export function useSort<K extends string>() {
   const [key, setKey] = useState<K | "default">("default");
   const [asc, setAsc] = useState(false);
   const toggle = (k: K) => {
@@ -33,9 +33,9 @@ function useSort<K extends string>() {
   return { key, asc, toggle };
 }
 
-type SortState<K extends string> = ReturnType<typeof useSort<K>>;
+export type SortState<K extends string> = ReturnType<typeof useSort<K>>;
 
-function sorted<T, K extends string>(rows: T[], state: SortState<K>, value: (row: T, key: K) => number | string): T[] {
+export function sorted<T, K extends string>(rows: T[], state: SortState<K>, value: (row: T, key: K) => number | string): T[] {
   if (state.key === "default") return rows;
   const k = state.key as K;
   return [...rows].sort((a, b) => {
@@ -47,7 +47,7 @@ function sorted<T, K extends string>(rows: T[], state: SortState<K>, value: (row
 }
 
 /** 並び替えできる見出し。押せることが分かるよう、効いている列には矢印を出す。 */
-function SortTh<K extends string>({
+export function SortTh<K extends string>({
   children,
   sortKey,
   state,
