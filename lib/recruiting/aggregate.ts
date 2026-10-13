@@ -1,16 +1,28 @@
 import { Application, FunnelStage, MergedApplication } from "@/types/recruiting";
 import { ACTIVE_STAGES, FUNNEL_STEPS, STAGES, stageOf } from "./status";
 import { Week, weekOf, weekOfIso, weekRange } from "./week";
+import { courseOfJobTitle } from "./course";
 
-export type Dimension = "shopShortName" | "employmentType" | "media" | "route" | "jobTitle";
+export type Dimension = "shopShortName" | "course" | "employmentType" | "media" | "route" | "jobTitle";
 
 export const DIMENSION_LABEL: Record<Dimension, string> = {
   shopShortName: "校舎",
+  course: "コース",
   employmentType: "雇用形態",
   media: "媒体",
   route: "応募経路",
   jobTitle: "職種",
 };
+
+/**
+ * 集計の軸の値を取る。
+ *
+ * コースだけは応募データに項目が無く、求人の職種名から導くので、ここで分けている。
+ */
+function dimensionValue(app: Application, dimension: Dimension): string {
+  if (dimension === "course") return courseOfJobTitle(app.jobTitle || "");
+  return (app[dimension] || "(不明)") as string;
+}
 
 function emptyStageCount(): Record<FunnelStage, number> {
   return {
@@ -161,7 +173,7 @@ export function breakdown(
   const rows = new Map<string, BreakdownRow>();
 
   for (const app of apps) {
-    const key = (app[dimension] || "(不明)") as string;
+    const key = dimensionValue(app, dimension);
     let row = rows.get(key);
     if (!row) {
       row = {
@@ -209,7 +221,7 @@ export function weeklyMatrix(apps: Application[], dimension: Dimension, maxWeeks
   for (const app of apps) {
     const i = index.get(weekOfIso(app.receivedAt).key);
     if (i === undefined) continue;
-    const key = (app[dimension] || "(不明)") as string;
+    const key = dimensionValue(app, dimension);
     let counts = rows.get(key);
     if (!counts) {
       counts = new Array(weeks.length).fill(0);

@@ -99,7 +99,7 @@ const DEFINITIONS: [string, string][] = [
   ],
 ];
 
-const DIMENSIONS: Dimension[] = ["shopShortName", "employmentType", "media", "route", "jobTitle"];
+const DIMENSIONS: Dimension[] = ["shopShortName", "course", "employmentType", "media", "route", "jobTitle"];
 
 type SectionKey = "summary" | "goal" | "trend" | "breakdown" | "excel";
 
@@ -1018,7 +1018,11 @@ export default function DashboardPage() {
           <div className={`space-y-4 sm:space-y-5 ${section === "breakdown" ? "" : "hidden sm:block"}`}>
             <Card
               title={`${DIMENSION_LABEL[dimension]}ごとの選考状況`}
-              subtitle={`累計と直近週、そして選考のどこまで進んでいるか。${weekRangeNote}`}
+              subtitle={`累計と直近週、そして選考のどこまで進んでいるか。${weekRangeNote}${
+                dimension === "course"
+                  ? " ／ コースは求人の職種名から判定しています。3コースをまとめていた求人からの応募は「コース分け前」です"
+                  : ""
+              }`}
               // 週次推移と離れた位置に来るので、ここでも軸を切り替えられるようにする（状態は共通）
               actions={<DimensionSwitch value={dimension} onChange={setDimension} />}
             >
