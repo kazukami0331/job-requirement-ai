@@ -112,3 +112,17 @@ test("校舎 × コースの応募数が、どこを足しても合計に戻る"
   assert.equal(sakae.byCourse["IT"], 0, "応募が来ていないコースは0のまま");
   assert.equal(sakae.byCourse[BEFORE_SPLIT], 1);
 });
+
+test("コース別に数えられる期間は、最初に分割求人から応募が来た日から", () => {
+  const before = { ...app("1", "パソコンスクール講師"), receivedDate: "2026-07-23" };
+  const first = { ...app("2", "パソコンスクール講師（Webデザイン）"), receivedDate: "2026-09-30" };
+  const last = { ...app("3", "パソコンスクール講師（CAD）"), receivedDate: "2026-10-13" };
+
+  const m = shopCourseMatrix([before, last, first]);
+  assert.equal(m.splitFrom, "2026-09-30", "分ける前の応募日は起点にしない");
+  assert.equal(m.splitTo, "2026-10-13");
+
+  const none = shopCourseMatrix([before]);
+  assert.equal(none.splitFrom, null, "分割求人からの応募がまだ無ければ期間は出さない");
+  assert.equal(none.splitTo, null);
+});

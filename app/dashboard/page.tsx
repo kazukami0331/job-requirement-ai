@@ -105,6 +105,9 @@ const DIMENSIONS: Dimension[] = ["shopShortName", "course", "employmentType", "m
 
 type SectionKey = "summary" | "goal" | "breakdown";
 
+/** 2026-09-21 → 2026/09/21。年をまたぐ話なので年まで出す。 */
+const j = (d: string) => d.replace(/-/g, "/");
+
 /** 2026-09-21 → 9/21 */
 const md = (d?: string) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : "");
 
@@ -646,7 +649,6 @@ export default function DashboardPage() {
   const periodLabel = useMemo(() => {
     if (apps.length === 0) return "対象なし";
     const dates = apps.map((a) => a.receivedDate).sort();
-    const j = (d: string) => d.replace(/-/g, "/");
     return `${j(dates[0])}〜${j(dates[dates.length - 1])}`;
   }, [apps]);
 
@@ -1058,7 +1060,11 @@ export default function DashboardPage() {
             {/* 「足りないコースに応募が来ているか」。ここだけジョブオプのデータ。 */}
             <Card
               title="校舎 × コースの応募数（ジョブオプ）"
-              subtitle={`上の表で足りていないコースに、応募が来ているかを見ます。コースは求人の職種名から判定。コース分けして以降の求人からの応募は${shopCourse.split}件、分ける前の求人からの応募が${shopCourse.totalByCourse["コース分け前"]}件。見出しを押すと並び替わります。`}
+              subtitle={`上の表で足りていないコースに、応募が来ているかを見ます。コースは求人の職種名から判定。${
+                shopCourse.splitFrom
+                  ? `コース別に数えられるのは ${j(shopCourse.splitFrom)}〜${j(shopCourse.splitTo!)}（最初に分割求人から応募が来た日から）の${shopCourse.split}件。残りの${shopCourse.totalByCourse["コース分け前"]}件は分ける前の求人からの応募で、分けたあとも掲載が残っていたぶんを含みます。`
+                  : "分割後の求人からの応募はまだありません。"
+              }見出しを押すと並び替わります。`}
             >
               <div className="space-y-3">
                 <ShopCourseTable matrix={shopCourse} />

@@ -341,6 +341,13 @@ export interface ShopCourseMatrix {
   totalByCourse: Record<string, number>;
   applied: number;
   split: number;
+  /**
+   * コース別に数えられている期間。
+   * 分けた日は求人の掲載開始日では分からないので、**最初に分割求人から応募が来た日**を起点にする。
+   * 分割求人からの応募がまだ無ければ null。
+   */
+  splitFrom: string | null;
+  splitTo: string | null;
 }
 
 /**
@@ -358,6 +365,8 @@ export function shopCourseMatrix(apps: Application[]): ShopCourseMatrix {
   const totalByCourse = zero();
   let applied = 0;
   let split = 0;
+  let splitFrom: string | null = null;
+  let splitTo: string | null = null;
 
   for (const app of apps) {
     const shop = app.shopShortName || "(不明)";
@@ -374,6 +383,8 @@ export function shopCourseMatrix(apps: Application[]): ShopCourseMatrix {
     if (course !== BEFORE_SPLIT) {
       row.split++;
       split++;
+      if (!splitFrom || app.receivedDate < splitFrom) splitFrom = app.receivedDate;
+      if (!splitTo || app.receivedDate > splitTo) splitTo = app.receivedDate;
     }
   }
 
@@ -385,5 +396,7 @@ export function shopCourseMatrix(apps: Application[]): ShopCourseMatrix {
     totalByCourse,
     applied,
     split,
+    splitFrom,
+    splitTo,
   };
 }
