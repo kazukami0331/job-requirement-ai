@@ -103,7 +103,7 @@ const DEFINITIONS: [string, string][] = [
 
 const DIMENSIONS: Dimension[] = ["shopShortName", "course", "employmentType", "media", "route", "jobTitle"];
 
-type SectionKey = "summary" | "goal" | "trend" | "breakdown" | "excel";
+type SectionKey = "summary" | "goal" | "breakdown";
 
 /** 2026-09-21 → 9/21 */
 const md = (d?: string) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : "");
@@ -111,13 +111,11 @@ const md = (d?: string) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10
 /** 並びは画面の上から下と同じ。スマホのタブもこの順で出る。 */
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: "summary", label: "サマリー" },
-  { key: "goal", label: "月次目標" },
-  { key: "trend", label: "週次推移" },
-  { key: "breakdown", label: "選考状況" },
-  { key: "excel", label: "Excel集計" },
+  { key: "goal", label: "目標と充足" },
+  { key: "breakdown", label: "内訳" },
 ];
 
-/** 集計の軸を切り替える。週次推移と選考状況の2枚が離れた位置に出るので、両方に置く。 */
+/** 集計の軸を切り替える。「内訳」の2枚のカードで共通なので、セクションの先頭に1つだけ置く。 */
 function DimensionSwitch({ value, onChange }: { value: Dimension; onChange: (d: Dimension) => void }) {
   return (
     <div className="-mx-1 flex gap-1 overflow-x-auto px-1">
@@ -482,10 +480,10 @@ export default function DashboardPage() {
       }
       await saveHrSheet(sheet);
       setHrSheet(sheet);
-      setSection("excel");
+      setSection("goal");
       setMessage({
         kind: "info",
-        text: `採用管理表から${sheet.rows.length}行を取り込みました（採用${sheet.rows.filter((r) => r.hired).length}名）。「Excel集計」に出ます。`,
+        text: `採用管理表から${sheet.rows.length}行を取り込みました（採用${sheet.rows.filter((r) => r.hired).length}名）。「目標と充足」の 校舎 × コース の表に出ます。`,
       });
     } catch (e) {
       setMessage({ kind: "error", text: `取り込みに失敗しました: ${e instanceof Error ? e.message : String(e)}` });
@@ -954,7 +952,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* 月次目標 */}
+          {/* 目標と充足。目標 → 充足（コース別）→ 応募（コース別）の順で、同じ問いを1か所にまとめる。 */}
           <div className={`space-y-4 sm:space-y-5 ${section === "goal" ? "" : "hidden sm:block"}`}>
             {goals.rows.length > 0 ? (
               <Card
@@ -1005,65 +1003,8 @@ export default function DashboardPage() {
                 </p>
               </Card>
             )}
-          </div>
 
-          {/* 週次推移 */}
-          <div className={`space-y-4 sm:space-y-5 ${section === "trend" ? "" : "hidden sm:block"}`}>
-            <Card
-              title={`${DIMENSION_LABEL[dimension]}ごとの週次推移`}
-              subtitle="直近12週まで。色が濃いほど応募が多い週です。右端の計は、この表に出ている週ぶんの合計です（集計期間がこれより長いときは、下の選考状況の応募数と一致しません）。"
-              actions={<DimensionSwitch value={dimension} onChange={setDimension} />}
-            >
-              <WeeklyMatrixTable matrix={matrix} dimensionLabel={DIMENSION_LABEL[dimension]} />
-            </Card>
-          </div>
-
-          {/* 選考状況 */}
-          <div className={`space-y-4 sm:space-y-5 ${section === "breakdown" ? "" : "hidden sm:block"}`}>
-            <Card
-              title={`${DIMENSION_LABEL[dimension]}ごとの選考状況`}
-              subtitle={`累計と直近週、そして選考のどこまで進んでいるか。${weekRangeNote}${
-                dimension === "course"
-                  ? " ／ コースは求人の職種名から判定しています。3コースをまとめていた求人からの応募は「コース分け前」です"
-                  : ""
-              }`}
-              // 週次推移と離れた位置に来るので、ここでも軸を切り替えられるようにする（状態は共通）
-              actions={<DimensionSwitch value={dimension} onChange={setDimension} />}
-            >
-              <BreakdownTable rows={rows} dimensionLabel={DIMENSION_LABEL[dimension]} />
-            </Card>
-
-            <Card
-              title="校舎 × コースの応募数"
-              subtitle={`どの校舎のどのコースに応募が来ていないかを見る表です。コースは求人の職種名から判定しています。コース分けして以降の求人からの応募は${shopCourse.split}件、分ける前の求人からの応募が${shopCourse.totalByCourse["コース分け前"]}件。見出しを押すと並び替わります。`}
-            >
-              <div className="space-y-3">
-                <ShopCourseTable matrix={shopCourse} />
-                <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                  コース分け前の応募は、どのコース志望か分からないので推測で割らずにそのまま置いています。
-                  コース別の構成比を見るときは「小計」までの3列で見てください。
-                </p>
-              </div>
-            </Card>
-
-            {reasons.length > 0 && (
-              <Card title="不採用・辞退の理由" subtitle="どこで取りこぼしているかの手掛かり">
-                <ul className="space-y-1">
-                  {reasons.map((r) => (
-                    <li key={r.reason} className="flex justify-between gap-3 text-xs">
-                      <span style={{ color: "var(--text-primary)" }}>{r.reason}</span>
-                      <span className="tabular" style={{ color: "var(--text-secondary)" }}>
-                        {r.count}件
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            )}
-          </div>
-
-          {/* Excel集計（採用チームの採用管理表） */}
-          <div className={`space-y-4 sm:space-y-5 ${section === "excel" ? "" : "hidden sm:block"}`}>
+            {/* 「どのコースが足りないか」。採用は採用チームのExcelにしか分野が入っていない。 */}
             {hrCross ? (
               <>
                 <Card
@@ -1102,7 +1043,35 @@ export default function DashboardPage() {
                     <HrCategoryNote cross={hrCross} />
                   </div>
                 </Card>
+              </>
+            ) : (
+              <Card title="校舎 × コースの採用人数（採用チームのExcel）">
+                <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  どのコースが足りていないかは、採用チームの採用管理表からしか分かりません（ジョブオプのエクスポートに分野が無いため）。
+                  右上の「その他」→「採用管理表（Excel）を取り込む」から、管理表（.xlsx）を選んでください。
+                  「元データ」シートの スクール / 分野 / ステータス / 応募日時 だけを読み、校舎 × コースの採用人数を出します。
+                  氏名・年齢・性別は読み取りません。
+                </p>
+              </Card>
+            )}
 
+            {/* 「足りないコースに応募が来ているか」。ここだけジョブオプのデータ。 */}
+            <Card
+              title="校舎 × コースの応募数（ジョブオプ）"
+              subtitle={`上の表で足りていないコースに、応募が来ているかを見ます。コースは求人の職種名から判定。コース分けして以降の求人からの応募は${shopCourse.split}件、分ける前の求人からの応募が${shopCourse.totalByCourse["コース分け前"]}件。見出しを押すと並び替わります。`}
+            >
+              <div className="space-y-3">
+                <ShopCourseTable matrix={shopCourse} />
+                <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  コース分け前の応募は、どのコース志望か分からないので推測で割らずにそのまま置いています。
+                  コース別の構成比を見るときは「小計」までの3列で見てください。
+                </p>
+              </div>
+            </Card>
+
+            {/* 上の2つで使っている数字が合っているかの点検。判断には使わない。 */}
+            {hrCross && (
+              <>
                 <Card
                   title="ジョブオプとの差（校舎ごとの採用数）"
                   subtitle="置き換えずに並べています。どちらが正しいかはこの画面では決められないので、差が大きい校舎から確認してください。"
@@ -1121,13 +1090,49 @@ export default function DashboardPage() {
                   </div>
                 </Card>
               </>
-            ) : (
-              <Card title="Excel集計（採用チームの採用管理表）">
-                <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                  右上の「その他」→「採用管理表（Excel）を取り込む」から、採用チームの管理表（.xlsx）を選んでください。
-                  「元データ」シートの スクール / 分野 / ステータス / 応募日時 だけを読み、校舎 × コースの採用人数を出します。
-                  氏名・年齢・性別は読み取りません。
-                </p>
+            )}
+          </div>
+
+          {/* 内訳。軸をひとつ選んで、週の動きと選考の進み具合を続けて見る。 */}
+          <div className={`space-y-4 sm:space-y-5 ${section === "breakdown" ? "" : "hidden sm:block"}`}>
+            {/* 軸は2枚のカードで共通。同じ切り替えを2回出さない。 */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="shrink-0 text-xs" style={{ color: "var(--text-secondary)" }}>
+                集計の軸
+              </span>
+              <DimensionSwitch value={dimension} onChange={setDimension} />
+            </div>
+
+            <Card
+              title={`${DIMENSION_LABEL[dimension]}ごとの選考状況`}
+              subtitle={`累計と直近週、そして選考のどこまで進んでいるか。${weekRangeNote}${
+                dimension === "course"
+                  ? " ／ コースは求人の職種名から判定しています。3コースをまとめていた求人からの応募は「コース分け前」です"
+                  : ""
+              }`}
+            >
+              <BreakdownTable rows={rows} dimensionLabel={DIMENSION_LABEL[dimension]} />
+            </Card>
+
+            <Card
+              title={`${DIMENSION_LABEL[dimension]}ごとの週次推移`}
+              subtitle="直近12週まで。色が濃いほど応募が多い週です。右端の計は、この表に出ている週ぶんの合計なので、上の累計応募とは一致しないことがあります。"
+            >
+              <WeeklyMatrixTable matrix={matrix} dimensionLabel={DIMENSION_LABEL[dimension]} />
+            </Card>
+
+            {reasons.length > 0 && (
+              <Card title="不採用・辞退の理由" subtitle="どこで取りこぼしているかの手掛かり">
+                <ul className="space-y-1">
+                  {reasons.map((r) => (
+                    <li key={r.reason} className="flex justify-between gap-3 text-xs">
+                      <span style={{ color: "var(--text-primary)" }}>{r.reason}</span>
+                      <span className="tabular" style={{ color: "var(--text-secondary)" }}>
+                        {r.count}件
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </Card>
             )}
           </div>
