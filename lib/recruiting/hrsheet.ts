@@ -82,6 +82,7 @@ export const HR_CATEGORY_LABEL: Record<HrCategory, string> = {
  * 「何がどれだけ足りないのか」と並べて見られない。
  *
  * IT と CAD だけを拾い、残りは D/W。空欄だけは寄せずに未記入のまま残す。
+ * **WEBDTP と 映像 は Webデザイン でよい**（2026-10-14 確認）。
  */
 export function courseCategory(raw: string): HrCategory {
   const t = course(raw).toUpperCase();

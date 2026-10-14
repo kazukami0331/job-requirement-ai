@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as XLSX from "xlsx";
-import { HrSheet, compareWithJobop, crossTab, parseHrSheet, planTargets } from "@/lib/recruiting/hrsheet";
+import { HrSheet, compareWithJobop, courseCategory, crossTab, parseHrSheet, planTargets } from "@/lib/recruiting/hrsheet";
 import { DEFAULT_PLAN_LABELS, HiringPlan, PlanCategory, PlanRow } from "@/types/recruiting";
 
 /** テスト用の不足人数マスタの行。使うのは校舎・区分・不足（groupC）・校舎計だけ。 */
@@ -191,6 +191,19 @@ test("区分を入れる前に取り込んだデータでも壊れない", () =>
   assert.equal(cross.totalByCategory["IT"], 2, "分野から区分を作り直す");
   assert.equal(cross.totalByCategory["D/W"], 1);
   assert.equal(cross.totalByCategory["none"], 1);
+});
+
+test("WEBDTP と 映像 は Webデザインに入れる", () => {
+  // 分野欄の書き方は校舎ごとに違う。IT と CAD 以外はすべて Webデザイン に寄せてよい（2026-10-14 確認）
+  assert.equal(courseCategory("WEBDTP"), "D/W");
+  assert.equal(courseCategory("映像"), "D/W");
+  assert.equal(courseCategory("WEB"), "D/W");
+  assert.equal(courseCategory("DTP"), "D/W");
+  assert.equal(courseCategory("Office"), "D/W");
+
+  assert.equal(courseCategory("IT"), "IT", "ITとCADだけは別の区分");
+  assert.equal(courseCategory("CAD"), "C");
+  assert.equal(courseCategory(""), "none", "空欄だけは寄せない");
 });
 
 test("コースの目標は、不足のあるコースに1名ずつ置く", () => {
