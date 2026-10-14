@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import NavBar from "@/components/dashboard/NavBar";
 
 export const metadata: Metadata = {
-  title: "採用ダッシュボード",
-  description: "週次の応募状況モニタリングと求人要件ヒアリング",
+  title: "採用モニタリング",
+  description: "ジョブオプの応募エクスポートから、週次の応募状況と校舎ごとの充足状況を見る",
 };
 
 export default function RootLayout({
@@ -14,10 +13,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
-      <body>
-        <NavBar />
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
