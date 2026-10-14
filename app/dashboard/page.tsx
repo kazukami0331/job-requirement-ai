@@ -52,6 +52,7 @@ import { courseFill } from "@/lib/recruiting/coursefill";
 import { BEFORE_SPLIT } from "@/lib/recruiting/course";
 import { DataMenu } from "@/components/dashboard/DataPanel";
 import { HrSheet, compareWithJobop, crossTab, parseHrSheet, planTargets } from "@/lib/recruiting/hrsheet";
+import { hireDiffDetail } from "@/lib/recruiting/hrdiff";
 import { HrCategoryNote, HrCompareTable } from "@/components/dashboard/hrsheet";
 import { DEFAULT_RATES, GoalRates, GoalWindow, monthlyGoals } from "@/lib/recruiting/goal";
 import {
@@ -418,6 +419,23 @@ export default function DashboardPage() {
     () => (hrCross ? compareWithJobop(hrCross, jobopByShop) : []),
     [hrCross, jobopByShop]
   );
+
+  /**
+   * 差の中身。片方にしか無い採用を校舎ごとに持つ。
+   * 絞り込みは上のクロス集計と同じにする（違う条件で数えると差の意味が変わる）。
+   */
+  const hrDiff = useMemo(() => {
+    const shopKey = shopFilter === "すべて" ? null : normalizeShopKey(shopFilter);
+    return hireDiffDetail(
+      hrSheet,
+      {
+        from: periodFrom,
+        include: (key) =>
+          (shopKey ? key === shopKey : true) && (scope === "all" || !masterKeys || masterKeys.has(key)),
+      },
+      hires
+    );
+  }, [hrSheet, periodFrom, shopFilter, scope, masterKeys, hires]);
 
   /**
    * 不足人数管理表から作った、校舎 × コースの採用目標。
@@ -1064,11 +1082,22 @@ export default function DashboardPage() {
                   subtitle="置き換えずに並べています。どちらが正しいかはこの画面では決められないので、差が大きい校舎から確認してください。"
                 >
                   <div className="space-y-4">
-                    <HrCompareTable rows={hrCompare} />
+                    <HrCompareTable rows={hrCompare} detail={hrDiff} />
                     <ul className="space-y-1 text-xs" style={{ color: "var(--text-muted)" }}>
                       <li>Excel … ステータスが「合格」の人数。採用チームが手で付けています。</li>
                       <li>ジョブオプ … 選考ステータスが「採用」で、その更新日が期間内の人数。</li>
-                      <li>差が出る主な理由 … 判断を入れたタイミングのずれ、どちらかに入力が無い、校舎名の書き方の違い。</li>
+                      <li>
+                        <strong style={{ color: "var(--text-secondary)" }}>「内訳」ボタン</strong>
+                        … 片方にしか無い採用を出します。校舎と応募日が同じものは一致とみなしています。
+                        氏名は取り込んでいないので、ジョブオプ側は応募ID、Excel側は応募日と分野でたどってください。
+                      </li>
+                      <li>
+                        差が出る理由 … ①更新のタイムラグ（どちらかがまだ動いていない）②ジョブオプのステータスを
+                        最終まで進めていない（面接済・内定のまま）③数え方の違い（ジョブオプは
+                        <strong>ステータスの更新日</strong>が期間内の採用、Excelは<strong>応募日</strong>が期間内の行）
+                        ④ジョブオプを通していない応募（紹介・直接応募など）がExcelにだけある
+                        ⑤辞退・取り消しの戻し忘れ（Excelが「合格」のまま）⑥校舎名の書き方の違い・同じ人の二重行。
+                      </li>
                       <li>
                         コースは IT と CAD だけを拾い、<strong>それ以外（WEBDTP・WEB・DTP・映像など）は Webデザイン</strong>
                         に寄せています。分野が空欄の行は寄せずに <strong>未記入</strong> の列に分けています。

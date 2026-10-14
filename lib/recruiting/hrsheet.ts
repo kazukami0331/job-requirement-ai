@@ -239,6 +239,8 @@ export function crossTab(sheet: HrSheet, options: CrossOptions | string | null =
 }
 
 export interface HrCompareRow {
+  /** normalizeShopKey 済みのキー。片方にしか無い採用の明細と突き合わせるのに使う。 */
+  key: string;
   shopShortName: string;
   /** Excel（採用チームの管理表）の採用数 */
   excel: number;
@@ -256,10 +258,10 @@ export function compareWithJobop(cross: HrCross, jobopByShop: Map<string, number
   const out = new Map<string, HrCompareRow>();
 
   for (const s of cross.shops) {
-    out.set(s.key, { shopShortName: s.shopShortName, excel: s.total, jobop: jobopByShop.get(s.key) ?? 0, diff: 0 });
+    out.set(s.key, { key: s.key, shopShortName: s.shopShortName, excel: s.total, jobop: jobopByShop.get(s.key) ?? 0, diff: 0 });
   }
   for (const [key, n] of jobopByShop) {
-    if (!out.has(key)) out.set(key, { shopShortName: MASTER_BY_KEY.get(key) ?? key, excel: 0, jobop: n, diff: 0 });
+    if (!out.has(key)) out.set(key, { key, shopShortName: MASTER_BY_KEY.get(key) ?? key, excel: 0, jobop: n, diff: 0 });
   }
 
   return [...out.values()]
