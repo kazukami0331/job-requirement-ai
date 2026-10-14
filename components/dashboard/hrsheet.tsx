@@ -1,8 +1,7 @@
 "use client";
 
 import { ReactNode, useState } from "react";
-import { HR_CATEGORY_LABEL, HrCategory, HrCompareRow, HrCross, HrCrossShop, HrTargets } from "@/lib/recruiting/hrsheet";
-import { ratioLabel } from "@/lib/recruiting/format";
+import { HR_CATEGORY_LABEL, HrCategory, HrCompareRow, HrCross } from "@/lib/recruiting/hrsheet";
 
 /**
  * 採用チームのExcelから作った集計。
@@ -53,6 +52,9 @@ export function SortTh<K extends string>({
   state,
   align = "right",
   width,
+  rowSpan,
+  groupStart = false,
+  sticky = false,
 }: {
   children: ReactNode;
   sortKey: K;
@@ -60,15 +62,27 @@ export function SortTh<K extends string>({
   align?: "left" | "right" | "center";
   /** 数値の列は中身ぶんだけに詰める。空けると校舎名と数字が離れて読みにくい。 */
   width?: string;
+  /** 見出しが2段の表で、上の段と通して1つの見出しにするとき */
+  rowSpan?: number;
+  /** コースのまとまりの先頭の列。縦の区切り線を引いて、どこからどこまでが1コースか分かるようにする。 */
+  groupStart?: boolean;
+  /** 横に長い表で、スクロールしても校舎名が残るようにする */
+  sticky?: boolean;
 }) {
   const on = state.key === sortKey;
   return (
     <th
       scope="col"
+      rowSpan={rowSpan}
       className={`px-2 py-1.5 text-[11px] font-medium whitespace-nowrap ${
         align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"
-      }`}
-      style={{ color: on ? "var(--series-1)" : "var(--text-secondary)", width }}
+      } ${sticky ? "sticky left-0 z-10" : ""}`}
+      style={{
+        color: on ? "var(--series-1)" : "var(--text-secondary)",
+        width,
+        borderLeft: groupStart ? "1px solid var(--gridline)" : undefined,
+        background: sticky ? "var(--surface-1)" : undefined,
+      }}
     >
       <button type="button" onClick={() => state.toggle(sortKey)} className="inline-flex items-center gap-0.5">
         {children}
@@ -83,8 +97,6 @@ export function SortTh<K extends string>({
 const cell = "px-2 py-1 text-xs tabular whitespace-nowrap";
 /** 数値の列。中身に合わせて詰め、余った幅は校舎名の列に渡す。 */
 const NUM_W = "6.5rem";
-/** コースの列。見出しが列からはみ出さないよう、見出しの長さぶんを確保する。 */
-const COURSE_W = "7.5rem";
 
 /**
  * 「実績 / 目標」のセル。
@@ -92,7 +104,7 @@ const COURSE_W = "7.5rem";
  * 目標が無い（不足人数管理表に記入が無い）ところは分母を出さない。
  * 0 / 1 のように分母を付けると、埋めるべき枠かどうかが一目で分かる。
  */
-function Fill({ actual, target }: { actual: number; target: number | null }) {
+export function Fill({ actual, target }: { actual: number; target: number | null }) {
   if (target === null) {
     return <span style={{ color: actual ? "var(--text-primary)" : "var(--text-muted)" }}>{actual || "–"}</span>;
   }
@@ -106,101 +118,6 @@ function Fill({ actual, target }: { actual: number; target: number | null }) {
       </span>
       <span style={{ color: "var(--text-muted)" }}> / {target}</span>
     </span>
-  );
-}
-
-type CrossKey = "shop" | "total" | "applied" | "rate" | HrCategory;
-
-export function HrCrossTable({ cross, targets }: { cross: HrCross; targets?: HrTargets | null }) {
-  const sort = useSort<CrossKey>();
-  if (cross.shops.length === 0) return null;
-
-  /** 目標が無い区分（未記入）と、管理表に載っていない校舎は分母を出さない */
-  const targetOf = (key: string, c: HrCategory): number | null => {
-    if (!targets || c === "none") return null;
-    return targets.byShop.get(key)?.byCategory[c] ?? null;
-  };
-
-  const value = (s: HrCrossShop, key: CrossKey): number | string => {
-    if (key === "shop") return s.shopShortName;
-    if (key === "total") return s.total;
-    if (key === "applied") return s.applied;
-    if (key === "rate") return s.applied > 0 ? s.total / s.applied : -1;
-    return s.byCategory[key];
-  };
-
-  return (
-    <div className="-mx-1 overflow-x-auto">
-      <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
-        <thead>
-          <tr style={{ borderBottom: "1px solid var(--gridline)" }}>
-            <SortTh sortKey="shop" state={sort} align="left">
-              校舎
-            </SortTh>
-            <SortTh sortKey="total" state={sort} width={NUM_W}>
-              採用
-            </SortTh>
-            <SortTh sortKey="applied" state={sort} width={NUM_W}>
-              応募
-            </SortTh>
-            <SortTh sortKey="rate" state={sort} width={NUM_W}>
-              採用率
-            </SortTh>
-            {cross.categories.map((c) => (
-              <SortTh key={c} sortKey={c} state={sort} align="center" width={COURSE_W}>
-                {HR_CATEGORY_LABEL[c]}
-              </SortTh>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          <tr style={{ borderBottom: "1px solid var(--gridline)" }}>
-            <td className={`${cell} font-semibold`} style={{ color: "var(--text-primary)" }}>
-              合計
-            </td>
-            <td className={`${cell} text-right font-semibold`} style={{ color: "var(--status-good)" }}>
-              {cross.total}
-              {targets && <span style={{ color: "var(--text-muted)", fontWeight: 400 }}> / {targets.minHires}</span>}
-            </td>
-            <td className={`${cell} text-right`} style={{ color: "var(--text-secondary)" }}>
-              {cross.totalApplied}
-            </td>
-            <td className={`${cell} text-right`} style={{ color: "var(--text-secondary)" }}>
-              {ratioLabel(cross.total, cross.totalApplied)}
-            </td>
-            {cross.categories.map((c) => (
-              <td key={c} className={`${cell} text-center font-semibold`} style={{ color: "var(--text-primary)" }}>
-                {cross.totalByCategory[c]}
-                {targets && c !== "none" && (
-                  <span style={{ color: "var(--text-muted)", fontWeight: 400 }}> / {targets.totalByCategory[c]}</span>
-                )}
-              </td>
-            ))}
-          </tr>
-          {sorted(cross.shops, sort, value).map((s) => (
-            <tr key={s.key} style={{ borderBottom: "1px solid var(--hairline)" }}>
-              <td className={cell} style={{ color: "var(--text-primary)" }}>
-                {s.shopShortName}
-              </td>
-              <td className={`${cell} text-right`}>
-                <Fill actual={s.total} target={targets ? (targets.byShop.get(s.key)?.minHires ?? null) : null} />
-              </td>
-              <td className={`${cell} text-right`} style={{ color: "var(--text-secondary)" }}>
-                {s.applied}
-              </td>
-              <td className={`${cell} text-right`} style={{ color: "var(--text-secondary)" }}>
-                {ratioLabel(s.total, s.applied)}
-              </td>
-              {cross.categories.map((c) => (
-                <td key={c} className={`${cell} text-center`}>
-                  <Fill actual={s.byCategory[c]} target={targetOf(s.key, c)} />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
   );
 }
 

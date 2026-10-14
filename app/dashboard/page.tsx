@@ -47,10 +47,12 @@ import { ExternalSource, fetchExternalSource } from "@/lib/recruiting/source";
 import { Button, Card, EmptyState, Legend, Modal, StatTile } from "@/components/dashboard/ui";
 import { FunnelChart, StagePoolChart, WEEKLY_SERIES_COLORS, WeeklyTrendChart } from "@/components/dashboard/charts";
 import { BreakdownTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
-import { ShopCourseTable } from "@/components/dashboard/shopcourse";
+import { CourseFillTable } from "@/components/dashboard/coursefill";
+import { courseFill } from "@/lib/recruiting/coursefill";
+import { BEFORE_SPLIT } from "@/lib/recruiting/course";
 import { DataMenu } from "@/components/dashboard/DataPanel";
 import { HrSheet, compareWithJobop, crossTab, parseHrSheet, planTargets } from "@/lib/recruiting/hrsheet";
-import { HrCategoryNote, HrCompareTable, HrCrossTable } from "@/components/dashboard/hrsheet";
+import { HrCategoryNote, HrCompareTable } from "@/components/dashboard/hrsheet";
 import { DEFAULT_RATES, GoalRates, GoalWindow, monthlyGoals } from "@/lib/recruiting/goal";
 import {
   Coverage,
@@ -96,8 +98,8 @@ const DEFINITIONS: [string, string][] = [
   ],
   ["4週平均の応募", "確定した直近4週の平均。集計途中の週は入れません。"],
   [
-    "Excel集計のコース",
-    "採用チームの採用管理表から、校舎 × コースで数えた表です。IT と CAD だけを拾い、それ以外は Webデザイン、分野が空欄の行は 未記入 に分けています。",
+    "校舎 × コースの応募と採用",
+    "応募はジョブオプ（コースは求人の職種名から判定）、採用は採用チームの採用管理表（分野の列）、目標は不足人数管理表です。分野は IT と CAD だけを拾い、それ以外は Webデザイン。コース分け前の応募と、分野が空欄の採用は「コース不明」にまとめています。",
   ],
 ];
 
@@ -425,6 +427,12 @@ export default function DashboardPage() {
     const shopKey = shopFilter === "すべて" ? null : normalizeShopKey(shopFilter);
     return planTargets(plan, (key) => (shopKey ? key === shopKey : true));
   }, [plan, shopFilter]);
+
+  /**
+   * 校舎 × コースの応募と採用を1つにしたもの。
+   * 応募はジョブオプ、採用はExcel、目標は不足人数管理表。
+   */
+  const fill = useMemo(() => courseFill(shopCourse, hrCross, hrTargets), [shopCourse, hrCross, hrTargets]);
 
   const handleUploadApplications = useCallback(async (file: File) => {
     try {
@@ -1006,76 +1014,48 @@ export default function DashboardPage() {
               </Card>
             )}
 
-            {/* 「どのコースが足りないか」。採用は採用チームのExcelにしか分野が入っていない。 */}
-            {hrCross ? (
-              <>
-                <Card
-                  title="校舎 × コースの採用人数（採用チームのExcel）"
-                  subtitle="「採用 / 目標」の形です。目標は不足人数管理表の「不足」から、不足のあるコースに1名ずつ置いています。見出しを押すと並び替わります。"
-                >
-                  <div className="space-y-4">
-                    <ul className="space-y-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-                      <li>
-                        採用（ステータス「合格」）<strong style={{ color: "var(--text-primary)" }}>{hrCross.total}名</strong>
-                        ／ 応募 {hrCross.totalApplied}件（採用率 {hrCross.totalApplied > 0 ? ((hrCross.total / hrCross.totalApplied) * 100).toFixed(1) : "0.0"}%）
-                      </li>
-                      <li>
-                        同じ絞り込みのジョブオプ側は{" "}
-                        <strong style={{ color: "var(--text-primary)" }}>{hires.length}名</strong>
-                        （差 {hrCross.total - hires.length > 0 ? "+" : ""}
-                        {hrCross.total - hires.length}名）
-                      </li>
-                      <li>
-                        {periodFrom ? `${periodFrom.replace(/-/g, "/")}以降の応募` : "全期間の応募"}
-                        {hrCross.excluded > 0 ? ` ／ 期間・対象校舎の条件で${hrCross.excluded}行を除外` : ""}
-                      </li>
-                      <li>
-                        取り込み {hrSheet ? `${hrSheet.rows.length}行（${hrSheet.sourceFileName}）` : ""}
-                      </li>
-                      {hrTargets && (
-                        <li>
-                          目標は不足人数管理表から。コース別は<strong>不足のあるコースに1名</strong>（朝昼・夜・土日のどれかに不足があれば1名）で計
-                          {hrTargets.totalByCategory.IT + hrTargets.totalByCategory["D/W"] + hrTargets.totalByCategory.C}名、
-                          校舎の目標は<strong>最小採用人数（全分野充足）</strong>で計{hrTargets.minHires}名。
-                          1人に2コース持たせる前提の校舎があるため、コース別の合計のほうが少し多くなります。
-                        </li>
-                      )}
-                    </ul>
-                    <HrCrossTable cross={hrCross} targets={hrTargets} />
-                    <HrCategoryNote cross={hrCross} />
-                  </div>
-                </Card>
-              </>
-            ) : (
-              <Card title="校舎 × コースの採用人数（採用チームのExcel）">
-                <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                  どのコースが足りていないかは、採用チームの採用管理表からしか分かりません（ジョブオプのエクスポートに分野が無いため）。
-                  右上の「その他」→「採用管理表（Excel）を取り込む」から、管理表（.xlsx）を選んでください。
-                  「元データ」シートの スクール / 分野 / ステータス / 応募日時 だけを読み、校舎 × コースの採用人数を出します。
-                  氏名・年齢・性別は読み取りません。
-                </p>
-              </Card>
-            )}
-
-            {/* 「足りないコースに応募が来ているか」。ここだけジョブオプのデータ。 */}
+            {/* 「どのコースが足りなくて、そこに応募が来ているか」。1つの表で見る。 */}
             <Card
-              title="校舎 × コースの応募数（ジョブオプ）"
-              subtitle={`上の表で足りていないコースに、応募が来ているかを見ます。コースは求人の職種名から判定。${
-                shopCourse.splitFrom
-                  ? `コース別に数えられるのは ${j(shopCourse.splitFrom)}〜${j(shopCourse.splitTo!)}（最初に分割求人から応募が来た日から）の${shopCourse.split}件。残りの${shopCourse.totalByCourse["コース分け前"]}件は分ける前の求人からの応募で、分けたあとも掲載が残っていたぶんを含みます。`
-                  : "分割後の求人からの応募はまだありません。"
-              }見出しを押すと並び替わります。`}
+              title="校舎 × コースの応募と採用"
+              subtitle="コースごとに「応募」と「採用 / 目標」を並べています。埋まっていない枠が多く、応募も来ていない校舎から並びます。見出しを押すと並び替わります。"
             >
-              <div className="space-y-3">
-                <ShopCourseTable matrix={shopCourse} />
-                <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                  コース分け前の応募は、どのコース志望か分からないので推測で割らずにそのまま置いています。
-                  コース別の構成比を見るときは「小計」までの3列で見てください。
-                </p>
+              <div className="space-y-4">
+                <CourseFillTable fill={fill} />
+                <ul className="space-y-1 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                  <li>
+                    <strong style={{ color: "var(--text-primary)" }}>応募</strong> … ジョブオプ。コースは求人の職種名から判定します。
+                    {shopCourse.splitFrom
+                      ? `コース別に数えられるのは ${j(shopCourse.splitFrom)}〜${j(shopCourse.splitTo!)}（最初に分割求人から応募が来た日から）の${shopCourse.split}件。残りの${shopCourse.totalByCourse[BEFORE_SPLIT]}件は分ける前の求人からの応募なので、推測で割らずに「コース不明」に置いています（分けたあとも掲載が残っていたぶんを含みます）。`
+                      : "コース分け後の求人からの応募はまだ無いので、すべて「コース不明」に入っています。"}
+                  </li>
+                  <li>
+                    <strong style={{ color: "var(--text-primary)" }}>採用</strong> …{" "}
+                    {hrCross
+                      ? `採用チームのExcel（ステータス「合格」）で${hrCross.total}名。分野の列があるので全期間をコース別に数えられます。同じ絞り込みのジョブオプ側は${hires.length}名（差 ${hrCross.total - hires.length > 0 ? "+" : ""}${hrCross.total - hires.length}名）。「コース不明」は分野が未記入の採用です。`
+                      : "採用管理表（Excel）が未取り込みのため出せません（ジョブオプのエクスポートに分野が無いため）。右上の「その他」→「採用管理表（Excel）を取り込む」から選んでください。「元データ」シートの スクール / 分野 / ステータス / 応募日時 だけを読みます。氏名・年齢・性別は読み取りません。"}
+                  </li>
+                  {hrTargets && (
+                    <li>
+                      <strong style={{ color: "var(--text-primary)" }}>目標</strong> … 不足人数管理表から。コース別は
+                      <strong>不足のあるコースに1名</strong>（朝昼・夜・土日のどれかに不足があれば1名）で計
+                      {hrTargets.totalByCategory.IT + hrTargets.totalByCategory["D/W"] + hrTargets.totalByCategory.C}名、
+                      合計の列は<strong>最小採用人数（全分野充足）</strong>で計{hrTargets.minHires}名。
+                      1人に2コース持たせる前提の校舎があるため、コース別の合計のほうが少し多くなります。
+                    </li>
+                  )}
+                  <li>
+                    応募と採用で数えている期間が違うので、コース分け前に応募した人が採用されているコースは
+                    <strong>応募より採用のほうが多く</strong>見えることがあります。
+                    {periodFrom ? `対象は${j(periodFrom)}以降の応募` : "対象は全期間の応募"}
+                    {hrCross && hrCross.excluded > 0 ? `（期間・対象校舎の条件でExcelの${hrCross.excluded}行を除外）` : ""}
+                    {hrSheet ? ` ／ 取り込み ${hrSheet.rows.length}行（${hrSheet.sourceFileName}）` : ""}。
+                  </li>
+                </ul>
+                {hrCross && <HrCategoryNote cross={hrCross} />}
               </div>
             </Card>
 
-            {/* 上の2つで使っている数字が合っているかの点検。判断には使わない。 */}
+            {/* 上の表の採用数が、ジョブオプ側の採用数と合っているかの点検。判断には使わない。 */}
             {hrCross && (
               <>
                 <Card

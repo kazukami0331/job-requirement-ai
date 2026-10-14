@@ -283,7 +283,8 @@ export function compareWithJobop(cross: HrCross, jobopByShop: Map<string, number
  * コース別の合計と差が出ることは画面に書いておく。
  */
 export interface HrTargets {
-  byShop: Map<string, { minHires: number; slots: number; byCategory: Record<HrCategory, number> }>;
+  /** キーは normalizeShopKey 済み。shopShortName は管理表に書かれている校舎名。 */
+  byShop: Map<string, { shopShortName: string; minHires: number; slots: number; byCategory: Record<HrCategory, number> }>;
   /** 校舎の最小採用人数の合計（＝不足人数マスタの採用目標・58名） */
   minHires: number;
   /** 不足している枠（校舎 × コース × 時間帯）の合計。説明用。 */
@@ -294,7 +295,7 @@ export interface HrTargets {
 export function planTargets(plan: HiringPlan | null, include?: (key: string) => boolean): HrTargets | null {
   if (!plan) return null;
 
-  const byShop = new Map<string, { minHires: number; slots: number; byCategory: Record<HrCategory, number> }>();
+  const byShop = new Map<string, { shopShortName: string; minHires: number; slots: number; byCategory: Record<HrCategory, number> }>();
   const totalByCategory = zero();
   let minHires = 0;
   let slots = 0;
@@ -312,7 +313,7 @@ export function planTargets(plan: HiringPlan | null, include?: (key: string) => 
     }
     if (s.shortage === 0 && shopSlots === 0) continue;
 
-    byShop.set(key, { minHires: s.shortage, slots: shopSlots, byCategory });
+    byShop.set(key, { shopShortName: s.shopShortName, minHires: s.shortage, slots: shopSlots, byCategory });
     minHires += s.shortage;
     slots += shopSlots;
   }

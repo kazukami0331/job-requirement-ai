@@ -143,7 +143,7 @@ export function DataMenu({
             />
             <p className="px-0.5 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
               {hrSheetInfo
-                ? `${hrSheetInfo.rows}行を取り込み済み（${fmt(hrSheetInfo.importedAt)}）。コース別の集計は「Excel集計」に出ます。`
+                ? `${hrSheetInfo.rows}行を取り込み済み（${fmt(hrSheetInfo.importedAt)}）。コース別の集計は「目標と充足」に出ます。`
                 : "採用チームの採用管理表。コース（分野）別の採用人数を出すのに使います。氏名・年齢・性別は読み取りません。"}
             </p>
             <Button onClick={onExportWorkbook} disabled={snapshots.length === 0} block>
