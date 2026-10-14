@@ -167,3 +167,37 @@ export function courseFill(
     hasTargets: targets !== null,
   };
 }
+
+/**
+ * 充足のぐあい。**人数が足りていても、埋まっていないコースがあれば「充足」にしない。**
+ *
+ * 校舎の合計だけ見ていると、ITを2名採った校舎がCADゼロのまま「3 / 3 100%」に見えてしまう。
+ * 実際にはCADの枠は空いたままで、ITの2人目はCADの不足を埋めない。
+ *
+ * - done … コースも含めて全部埋まった
+ * - headcount … 人数は目標に届いたが、埋まっていないコースがある
+ * - progress … 1名以上採れたが、まだ足りない
+ * - none … まだ0名
+ */
+export type FillStatus = "none" | "progress" | "headcount" | "done";
+
+/** 目標があるのに届いていないコース */
+export function shortCourses(row: CourseFillRow): HrCategory[] {
+  return PLAN_CATEGORIES.filter((c) => (row.byCourse[c].target ?? 0) > row.byCourse[c].hired);
+}
+
+export function fillStatus(row: CourseFillRow): FillStatus {
+  const target = row.total.target ?? 0;
+  if (target === 0) return row.total.hired > 0 ? "done" : "none";
+  if (row.total.hired === 0) return "none";
+  if (shortCourses(row).length === 0) return "done";
+  return row.total.hired >= target ? "headcount" : "progress";
+}
+
+/** 充足のぐあいに対応する色。表と凡例で同じものを使う。 */
+export const FILL_COLOR: Record<FillStatus, string> = {
+  done: "var(--status-good)",
+  headcount: "var(--status-warning)",
+  progress: "var(--text-primary)",
+  none: "var(--status-critical)",
+};

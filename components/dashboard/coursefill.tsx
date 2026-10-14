@@ -1,6 +1,6 @@
 "use client";
 
-import { CourseFill, CourseFillCell, CourseFillRow } from "@/lib/recruiting/coursefill";
+import { CourseFill, CourseFillCell, CourseFillRow, FILL_COLOR, fillStatus, shortCourses } from "@/lib/recruiting/coursefill";
 import { HR_CATEGORY_LABEL, HrCategory } from "@/lib/recruiting/hrsheet";
 import { Fill, SortTh, sorted, useSort } from "./hrsheet";
 
@@ -78,6 +78,25 @@ export function CourseFillTable({ fill }: { fill: CourseFill }) {
 
   const groupBorder = { borderLeft: "1px solid var(--gridline)" };
 
+  /**
+   * 合計の「採用 / 目標」。人数が足りていても、埋まっていないコースがあれば緑にしない。
+   * ここを人数だけで緑にすると、CADが空のままの校舎が「3 / 3」で充足して見える。
+   */
+  const Total = ({ r }: { r: CourseFillRow }) => {
+    const c = r.total;
+    if (!fill.hasHires) {
+      return <span style={{ color: "var(--text-muted)" }}>–{c.target ? ` / ${c.target}` : ""}</span>;
+    }
+    const status = fillStatus(r);
+    const short = shortCourses(r);
+    return (
+      <span title={short.length > 0 ? `${short.map((x) => HR_CATEGORY_LABEL[x]).join("・")} が埋まっていません` : undefined}>
+        <span style={{ color: FILL_COLOR[status], fontWeight: 600 }}>{c.hired}</span>
+        {c.target !== null && <span style={{ color: "var(--text-muted)" }}> / {c.target}</span>}
+      </span>
+    );
+  };
+
   const bodyCells = (r: CourseFillRow, emphasize: boolean) =>
     groups.flatMap((g) => {
       const c = g.of(r);
@@ -90,7 +109,7 @@ export function CourseFillTable({ fill }: { fill: CourseFill }) {
           className={`${cell} text-center`}
           style={{ fontWeight: (emphasize || g.key === "total") && g.key !== "none" ? 600 : 400 }}
         >
-          <Hired c={c} muted={g.key === "none"} />
+          {g.key === "total" ? <Total r={r} /> : <Hired c={c} muted={g.key === "none"} />}
         </td>,
       ];
     });

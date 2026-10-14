@@ -48,10 +48,10 @@ import { Button, Card, EmptyState, Legend, Modal, StatTile } from "@/components/
 import { FunnelChart, StagePoolChart, WEEKLY_SERIES_COLORS, WeeklyTrendChart } from "@/components/dashboard/charts";
 import { BreakdownTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
 import { CourseFillTable } from "@/components/dashboard/coursefill";
-import { courseFill } from "@/lib/recruiting/coursefill";
+import { courseFill, shortCourses } from "@/lib/recruiting/coursefill";
 import { BEFORE_SPLIT } from "@/lib/recruiting/course";
 import { DataMenu } from "@/components/dashboard/DataPanel";
-import { HrSheet, compareWithJobop, crossTab, parseHrSheet, planTargets } from "@/lib/recruiting/hrsheet";
+import { HR_CATEGORY_LABEL, HrSheet, compareWithJobop, crossTab, parseHrSheet, planTargets } from "@/lib/recruiting/hrsheet";
 import { hireDiffDetail } from "@/lib/recruiting/hrdiff";
 import { HrCategoryNote, HrCompareTable } from "@/components/dashboard/hrsheet";
 import { DEFAULT_RATES, GoalRates, GoalWindow, monthlyGoals } from "@/lib/recruiting/goal";
@@ -451,6 +451,23 @@ export default function DashboardPage() {
    * 応募はジョブオプ、採用はExcel、目標は不足人数管理表。
    */
   const fill = useMemo(() => courseFill(shopCourse, hrCross, hrTargets), [shopCourse, hrCross, hrTargets]);
+
+  /**
+   * 校舎ごとの「まだ埋まっていないコース」。
+   *
+   * 月次の表は校舎の人数しか見ていないので、ITを2名採った校舎がCADゼロのまま
+   * 「3 / 3 100%」に見えてしまう。コース名を出して、人数だけの充足と区別する。
+   * コースが分かるのは採用管理表（Excel）だけなので、取り込んでいないときは空。
+   */
+  const shortCourseByShop = useMemo(() => {
+    const out = new Map<string, string[]>();
+    if (!fill.hasHires) return out;
+    for (const r of fill.rows) {
+      const short = shortCourses(r).map((c) => HR_CATEGORY_LABEL[c]);
+      if (short.length > 0) out.set(r.key, short);
+    }
+    return out;
+  }, [fill]);
 
   const handleUploadApplications = useCallback(async (file: File) => {
     try {
@@ -1008,10 +1025,13 @@ export default function DashboardPage() {
                       </h3>
                       <MetricSwitch value={goalView} onChange={setGoalView} />
                     </div>
-                    <MonthlyGoalTable goals={goals} view={goalView} />
+                    <MonthlyGoalTable goals={goals} view={goalView} shortCourses={shortCourseByShop} />
                     <Coverage goals={goals} />
                   </div>
                   <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                    校舎名の横の<strong>オレンジのコース名</strong>は、<strong>人数では目標に届いているのに、そのコースが
+                    まだ埋まっていない</strong>こと（採用管理表から）。採用の数字も、その場合は緑にせずオレンジで出します。
+                    ITを2名採ってもCADの不足は埋まらないので、校舎の人数だけで充足と見ないためです。
                     各マスは「実績 / 目標」。当月は月末までの残りがあるので、経過ぶんに対する進み具合で色を付けています。
                     面接設定と採用は<strong>その月に応募した人を追いかけた数</strong>です（歩留まりは同じ人を追ったときの割合なので、
                     別の月に応募した人の面接を混ぜると想定値と比べられません）。
@@ -1070,6 +1090,12 @@ export default function DashboardPage() {
                     {hrSheet ? ` ／ 取り込み ${hrSheet.rows.length}行（${hrSheet.sourceFileName}）` : ""}。
                   </li>
                 </ul>
+                <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                  色 … <strong style={{ color: "var(--status-good)" }}>緑</strong>はそのコースが埋まった、
+                  <strong style={{ color: "var(--status-critical)" }}>赤</strong>はまだ0名。
+                  合計の列は<strong style={{ color: "var(--status-good)" }}>緑</strong>＝コースも含めて全部埋まった、
+                  <strong style={{ color: "var(--status-warning)" }}>オレンジ</strong>＝人数は足りているが埋まっていないコースがある、です。
+                </p>
                 {hrCross && <HrCategoryNote cross={hrCross} />}
               </div>
             </Card>

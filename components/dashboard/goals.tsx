@@ -4,6 +4,7 @@ import { ReactNode, useState } from "react";
 import { GoalRates, GoalWindow, MonthGoal, MonthlyGoals, ShopGoalRow, appliesPerHire } from "@/lib/recruiting/goal";
 import { ratioLabel } from "@/lib/recruiting/format";
 import { UrgentName } from "./tables";
+import { normalizeShopKey } from "@/lib/recruiting/shops";
 
 /** 表に出す指標。目標も実績も同じ形で持っているので切り替えるだけで済む。 */
 export type GoalMetric = "applied" | "interview" | "hire";
@@ -259,11 +260,22 @@ export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
  * 目標3名のところに4名採れたら 4/3（133%）残り0名 と出す。
  * 超過したぶんは他の校舎の不足を埋めないので、残りは0で止める。
  */
-function HireCount({ row }: { row: ShopGoalRow }) {
+function HireCount({ row, short = [] }: { row: ShopGoalRow; short?: string[] }) {
   const rate = row.hireTarget > 0 ? ratioLabel(row.alreadyHired, row.hireTarget) : null;
   return (
     <span style={{ color: "var(--text-muted)" }}>
-      <span style={{ color: row.alreadyHired > 0 ? "var(--status-good)" : "var(--text-muted)", fontWeight: 600 }}>
+      {/* 人数が足りていても、埋まっていないコースがあれば緑にしない */}
+      <span
+        style={{
+          color:
+            row.alreadyHired === 0
+              ? "var(--text-muted)"
+              : short.length > 0
+                ? "var(--status-warning)"
+                : "var(--status-good)",
+          fontWeight: 600,
+        }}
+      >
         {row.alreadyHired}
       </span>
       {" / "}
@@ -335,11 +347,12 @@ export function GoalFacts({ goals, rates }: { goals: MonthlyGoals; rates: GoalRa
   );
 }
 
-function ShopName({ row }: { row: ShopGoalRow }) {
+function ShopName({ row, short = [] }: { row: ShopGoalRow; short?: string[] }) {
   return (
     <span className="inline-flex flex-wrap items-center gap-x-1 text-xs" title={row.deadlineNote}>
       <UrgentName name={row.shopShortName} urgent={row.urgent} />
-      <HireCount row={row} />
+      <ShortCourses names={short} />
+      <HireCount row={row} short={short} />
     </span>
   );
 }
@@ -626,7 +639,50 @@ function MonthCell({ m, metric }: { m: MonthGoal; metric: GoalMetric }) {
   );
 }
 
-export function MonthlyGoalTable({ goals, view }: { goals: MonthlyGoals; view: GoalView }) {
+/**
+ * 人数では目標に届いている校舎だけ、埋まっていないコース名を返す。
+ *
+ * まだ足りていない校舎（1 / 3 など）は数字を見れば分かるので出さない。
+ * 紛らわしいのは「3 / 3 100%」なのにCADが空、という校舎だけ。
+ */
+function misleading(row: ShopGoalRow, shortCourses?: Map<string, string[]>): string[] {
+  if (row.hireTarget <= 0 || row.alreadyHired < row.hireTarget) return [];
+  return shortCourses?.get(normalizeShopKey(row.shopShortName)) ?? [];
+}
+
+/**
+ * 「人数は足りているが、埋まっていないコースがある」校舎に出す印。
+ *
+ * この表の採用数はジョブオプ、コースの充足は採用管理表（Excel）から取っている。
+ * 校舎の人数だけ見ていると、ITを2名採った校舎がCADゼロのまま100%に見えるため、
+ * 足りていないコース名をそのまま出す。
+ */
+function ShortCourses({ names }: { names: string[] }) {
+  if (names.length === 0) return null;
+  return (
+    <span
+      className="ml-1 rounded px-1 py-0.5 text-[10px] whitespace-nowrap"
+      title={`採用管理表では ${names.join("・")} がまだ埋まっていません`}
+      style={{
+        color: "var(--status-warning)",
+        background: "color-mix(in srgb, var(--status-warning) 14%, transparent)",
+      }}
+    >
+      {names.join("・")}未
+    </span>
+  );
+}
+
+export function MonthlyGoalTable({
+  goals,
+  view,
+  shortCourses,
+}: {
+  goals: MonthlyGoals;
+  view: GoalView;
+  /** 校舎キー（normalizeShopKey 済み）→ 埋まっていないコース名。採用管理表を取り込んでいるときだけ渡す。 */
+  shortCourses?: Map<string, string[]>;
+}) {
   const { months, rows, total } = goals;
   const sort = useSort();
   // 「すべて」のときは、月の列に何を出すか決められないので採用を基準に並べる
@@ -650,8 +706,9 @@ export function MonthlyGoalTable({ goals, view }: { goals: MonthlyGoals; view: G
   );
 
   /** 1校舎ぶんの行。「すべて」のときは指標ごとに3行に分け、校舎名などは縦につなげる。 */
-  const shopRows = (r: ShopGoalRow, bold: boolean) =>
-    shown.map((key, i) => (
+  const shopRows = (r: ShopGoalRow, bold: boolean) => {
+    const short = bold ? [] : misleading(r, shortCourses);
+    return shown.map((key, i) => (
       <tr
         key={`${r.shopShortName}|${key}`}
         style={{ borderBottom: i === shown.length - 1 ? "1px solid var(--hairline)" : undefined }}
@@ -666,11 +723,23 @@ export function MonthlyGoalTable({ goals, view }: { goals: MonthlyGoals; view: G
               ) : (
                 <span className="text-xs" title={r.deadlineNote}>
                   <UrgentName name={r.shopShortName} urgent={r.urgent} />
+                  <ShortCourses names={short} />
                 </span>
               )}
             </td>
             <td className="px-2 py-1 text-right text-xs tabular" rowSpan={shown.length}>
-              <span style={{ color: r.alreadyHired > 0 ? "var(--status-good)" : "var(--text-muted)", fontWeight: 600 }}>
+              {/* 人数が足りていても、埋まっていないコースがあれば緑にしない */}
+              <span
+                style={{
+                  color:
+                    r.alreadyHired === 0
+                      ? "var(--text-muted)"
+                      : short.length > 0
+                        ? "var(--status-warning)"
+                        : "var(--status-good)",
+                  fontWeight: 600,
+                }}
+              >
                 {r.alreadyHired}
               </span>
               <span style={{ color: "var(--text-muted)" }}> / {r.hireTarget}</span>
@@ -678,7 +747,8 @@ export function MonthlyGoalTable({ goals, view }: { goals: MonthlyGoals; view: G
             <td
               className="px-2 py-1 text-right text-xs tabular"
               rowSpan={shown.length}
-              style={{ color: "var(--text-secondary)" }}
+              // 100% と出ていてもコースが埋まっていないことがあるので、色をそろえる
+              style={{ color: short.length > 0 ? "var(--status-warning)" : "var(--text-secondary)" }}
             >
               {r.fillRate === null ? "—" : ratioLabel(r.filledHired, r.hireTarget)}
             </td>
@@ -710,6 +780,7 @@ export function MonthlyGoalTable({ goals, view }: { goals: MonthlyGoals; view: G
         ))}
       </tr>
     ));
+  };
 
   return (
     <>
@@ -722,7 +793,7 @@ export function MonthlyGoalTable({ goals, view }: { goals: MonthlyGoals; view: G
             style={{ borderColor: "var(--gridline)", background: "var(--background)" }}
           >
             <div className="mb-1.5 flex flex-wrap items-baseline gap-x-2 font-semibold">
-              <ShopName row={r} />
+              <ShopName row={r} short={misleading(r, shortCourses)} />
               <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
                 必要応募 {r.requiredApplied}件
               </span>

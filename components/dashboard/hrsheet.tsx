@@ -114,7 +114,8 @@ export function Fill({ actual, target }: { actual: number; target: number | null
   const done = target > 0 && actual >= target;
   return (
     <span>
-      <span style={{ color: done ? "var(--status-good)" : actual ? "var(--text-primary)" : "var(--status-serious)", fontWeight: 600 }}>
+      {/* 0 は赤。まだ1人も採れていない枠がいちばん目に入る必要がある。 */}
+      <span style={{ color: done ? "var(--status-good)" : actual ? "var(--text-primary)" : "var(--status-critical)", fontWeight: 600 }}>
         {actual}
       </span>
       <span style={{ color: "var(--text-muted)" }}> / {target}</span>
