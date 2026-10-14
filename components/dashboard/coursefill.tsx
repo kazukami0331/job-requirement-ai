@@ -41,8 +41,8 @@ export function CourseFillTable({ fill }: { fill: CourseFill }) {
       label: HR_CATEGORY_LABEL[c],
       of: (r: CourseFillRow) => r.byCourse[c],
     })),
-    // コースが分からないぶんの置き場。目標は置かないので、コースの列と見分けが付くようにする。
-    { key: "none", label: "コース不明（目標なし）", of: (r) => r.byCourse.none },
+    // コースが分からないぶんの置き場。目標は置かないので、色を弱くしてコースの列と見分けが付くようにする。
+    { key: "none", label: "コース不明", of: (r) => r.byCourse.none },
     { key: "total", label: "合計", of: (r) => r.total },
   ];
 
