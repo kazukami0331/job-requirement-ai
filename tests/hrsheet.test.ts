@@ -213,8 +213,31 @@ test("コースの目標は、不足のあるコースに1名ずつ置く", () =
   assert.equal(t.byShop.get("豊田")?.byCategory["C"], 0, "不足が無いコースは0");
   assert.equal(t.byShop.get("梅田")?.byCategory["IT"], 1, "夜だけの不足でも1名");
   assert.deepEqual(t.totalByCategory, { IT: 2, "D/W": 2, C: 1, none: 0 });
-  assert.equal(t.minHires, 5, "校舎の目標は最小採用人数のまま（豊田2＋梅田3）");
+  assert.equal(t.minHires, 5, "校舎の目標は不足のあるコースの数（豊田2＋梅田3）");
   assert.equal(t.slots, 9, "不足の枠数も説明用に持つ");
+});
+
+test("1人に2コース持たせる前提でも、コースごとに1名として数える", () => {
+  // 銀座のように、最小採用人数が不足のあるコース数より少ない校舎がある
+  const plan: HiringPlan = {
+    labels: DEFAULT_PLAN_LABELS,
+    updatedAt: "2026-10-12T00:00:00.000Z",
+    rows: [
+      row("銀座", "IT", [1, 0, 0], 1),
+      row("銀座", "D/W", [0, 1, 0], null),
+      row("銀座", "C", [0, 0, 1], null),
+    ],
+  };
+
+  const t = planTargets(plan)!;
+  assert.equal(t.minHires, 3, "シートの1名ではなく、不足のあるコースの数で置く");
+  assert.equal(t.planMinHires, 1, "元の表の最小採用人数も残す");
+  assert.equal(t.byShop.get("銀座")?.minHires, 3);
+  assert.equal(
+    t.totalByCategory.IT + t.totalByCategory["D/W"] + t.totalByCategory.C,
+    t.minHires,
+    "コース別の合計と校舎の合計が食い違わない"
+  );
 });
 
 test("対象の校舎を絞ると、目標もその校舎だけになる", () => {

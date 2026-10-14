@@ -41,7 +41,8 @@ export function CourseFillTable({ fill }: { fill: CourseFill }) {
       label: HR_CATEGORY_LABEL[c],
       of: (r: CourseFillRow) => r.byCourse[c],
     })),
-    { key: "none", label: "コース不明", of: (r) => r.byCourse.none },
+    // コースが分からないぶんの置き場。目標は置かないので、コースの列と見分けが付くようにする。
+    { key: "none", label: "コース不明（目標なし）", of: (r) => r.byCourse.none },
     { key: "total", label: "合計", of: (r) => r.total },
   ];
 
@@ -63,12 +64,17 @@ export function CourseFillTable({ fill }: { fill: CourseFill }) {
    * 採用の側。Excelを取り込んでいないときは 0 ではなく「不明」なので、
    * 「0 / 1」と書いて採れていないことにしてしまわないようにする。
    */
-  const Hired = ({ c }: { c: CourseFillCell }) =>
-    fill.hasHires ? (
-      <Fill actual={c.hired} target={c.target} />
-    ) : (
-      <span style={{ color: "var(--text-muted)" }}>–{c.target ? ` / ${c.target}` : ""}</span>
-    );
+  const Hired = ({ c, muted = false }: { c: CourseFillCell; muted?: boolean }) => {
+    if (!fill.hasHires) {
+      return <span style={{ color: "var(--text-muted)" }}>–{c.target ? ` / ${c.target}` : ""}</span>;
+    }
+    if (muted) {
+      return (
+        <span style={{ color: c.hired > 0 ? "var(--text-secondary)" : "var(--text-muted)" }}>{c.hired || "–"}</span>
+      );
+    }
+    return <Fill actual={c.hired} target={c.target} />;
+  };
 
   const groupBorder = { borderLeft: "1px solid var(--gridline)" };
 
@@ -82,9 +88,9 @@ export function CourseFillTable({ fill }: { fill: CourseFill }) {
         <td
           key={`${g.key}:hired`}
           className={`${cell} text-center`}
-          style={{ fontWeight: emphasize || g.key === "total" ? 600 : 400 }}
+          style={{ fontWeight: (emphasize || g.key === "total") && g.key !== "none" ? 600 : 400 }}
         >
-          <Hired c={c} />
+          <Hired c={c} muted={g.key === "none"} />
         </td>,
       ];
     });
@@ -110,7 +116,11 @@ export function CourseFillTable({ fill }: { fill: CourseFill }) {
                 colSpan={2}
                 scope="colgroup"
                 className="px-2 pb-0.5 pt-1.5 text-center text-[11px] font-semibold whitespace-nowrap"
-                style={{ ...groupBorder, color: g.key === "total" ? "var(--text-secondary)" : "var(--text-primary)" }}
+                style={{
+                  ...groupBorder,
+                  color: g.key === "total" || g.key === "none" ? "var(--text-secondary)" : "var(--text-primary)",
+                  fontWeight: g.key === "none" ? 400 : 600,
+                }}
               >
                 {g.label}
               </th>

@@ -1036,11 +1036,12 @@ export default function DashboardPage() {
                   </li>
                   {hrTargets && (
                     <li>
-                      <strong style={{ color: "var(--text-primary)" }}>目標</strong> … 不足人数管理表から。コース別は
+                      <strong style={{ color: "var(--text-primary)" }}>目標</strong> … 不足人数管理表から、
                       <strong>不足のあるコースに1名</strong>（朝昼・夜・土日のどれかに不足があれば1名）で計
-                      {hrTargets.totalByCategory.IT + hrTargets.totalByCategory["D/W"] + hrTargets.totalByCategory.C}名、
-                      合計の列は<strong>最小採用人数（全分野充足）</strong>で計{hrTargets.minHires}名。
-                      1人に2コース持たせる前提の校舎があるため、コース別の合計のほうが少し多くなります。
+                      {hrTargets.minHires}名。1人に2コース持たせて採用する場合も、コースごとに1名として数えています。
+                      {hrTargets.planMinHires !== hrTargets.minHires &&
+                        `（元の表の「最小採用人数（全分野充足）」は計${hrTargets.planMinHires}名。2コース分を1名に寄せている校舎があるぶん少なくなっています）`}
+                      <strong>コース不明には目標を置いていません</strong>。コースが分かっていないものの置き場で、目標の対象ではありません。
                     </li>
                   )}
                   <li>

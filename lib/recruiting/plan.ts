@@ -247,8 +247,14 @@ export interface ShopShortage {
   phase: string;
   /** 緊急度が高い校舎（元シートで色が塗られている） */
   urgent: boolean;
-  /** 校舎計の不足人数（IT行の値、無ければグループCの合計） */
+  /**
+   * 校舎の採用目標。**不足のあるコース1つにつき1名**で数える（2026-10-14 指示）。
+   * 1人に2コース持たせて採用する場合も、コースごとに1名として数える。
+   * コース別の不足がどこにも無い校舎だけ、シートの最小採用人数で代用する。
+   */
   shortage: number;
+  /** シートに書かれている「最小採用人数（全分野充足）」。元の表と突き合わせるために残す。 */
+  planMinHires: number;
   /** 講座区分ごとのグループC合計 */
   byCategory: Record<PlanCategory, number>;
   deadline: string;
@@ -267,6 +273,7 @@ export function shortageByShop(plan: HiringPlan): ShopShortage[] {
         phase: r.phase,
         urgent: false,
         shortage: 0,
+        planMinHires: 0,
         byCategory: { IT: 0, "D/W": 0, C: 0 },
         deadline: "",
         note: "",
@@ -275,17 +282,21 @@ export function shortageByShop(plan: HiringPlan): ShopShortage[] {
     }
     if (r.urgent) entry.urgent = true;
     entry.byCategory[r.category] += r.groupC.reduce((a, b) => a + b, 0);
-    if (r.shortage !== null) entry.shortage += r.shortage;
+    if (r.shortage !== null) entry.planMinHires += r.shortage;
     if (r.deadline) entry.deadline = r.deadline;
     if (r.note) entry.note = entry.note ? `${entry.note} / ${r.note}` : r.note;
   }
 
-  // 校舎計が未入力なら区分ごとの不足人数の合計で代用する
+  /**
+   * 採用目標を「不足のあるコースに1名ずつ」で作り直す。
+   *
+   * シートの最小採用人数は、1人に2コース持たせる前提で減らしている校舎がある（銀座・天王寺）。
+   * 採用の現場ではその1人もコースごとに1名として数えるとのことなので、コース数で置く。
+   * コース別の不足がどこにも書かれていない校舎だけ、シートの値をそのまま使う。
+   */
   for (const entry of map.values()) {
-    if (entry.shortage === 0) {
-      const sum = Object.values(entry.byCategory).reduce((a, b) => a + b, 0);
-      if (sum > 0) entry.shortage = sum;
-    }
+    const courses = PLAN_CATEGORIES.filter((c) => entry.byCategory[c] > 0).length;
+    entry.shortage = courses > 0 ? courses : entry.planMinHires;
   }
 
   return [...map.values()].sort(

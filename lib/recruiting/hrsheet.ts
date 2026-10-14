@@ -273,20 +273,21 @@ export function compareWithJobop(cross: HrCross, jobopByShop: Map<string, number
  * 管理表は 校舎 × コース × 時間帯（朝昼・夜・土日）の枠ごとに「不足」を持っていて、
  * ピンクで 1 と書かれているところが足りていない枠。
  *
- * **コースの目標は「不足のあるコースに1名」**。枠の数をそのまま分母にすると
+ * **目標は「不足のあるコースに1名」**。枠の数をそのまま分母にすると
  * 「IT 15 / 50」のようになり、1人が朝昼も夜も持つ実態と合わない。
- * 校舎の「最小採用人数（全分野充足）」も、ほとんどの校舎で不足のあるコース数と一致していて、
- * 1コースにつき1名を採る前提で置かれている。
  *
- * ただし一致しない校舎もある（1人に2コース持たせる前提で最小採用人数を減らしている校舎）。
- * 勝手に片方へ寄せると元の表と食い違うので、校舎の目標は最小採用人数のまま出し、
- * コース別の合計と差が出ることは画面に書いておく。
+ * 校舎の目標もコース別の積み上げにそろえる（2026-10-14 指示）。
+ * シートの「最小採用人数（全分野充足）」は1人に2コース持たせる前提で減らしている校舎があるが、
+ * その1人もコースごとに1名として数えてよいとのことなので、コース数のほうを目標にする。
+ * 元の表と突き合わせられるよう、シートの合計は planMinHires として残す。
  */
 export interface HrTargets {
   /** キーは normalizeShopKey 済み。shopShortName は管理表に書かれている校舎名。 */
   byShop: Map<string, { shopShortName: string; minHires: number; slots: number; byCategory: Record<HrCategory, number> }>;
-  /** 校舎の最小採用人数の合計（＝不足人数マスタの採用目標・58名） */
+  /** 校舎の目標の合計（＝不足のあるコースの数） */
   minHires: number;
+  /** シートの「最小採用人数（全分野充足）」の合計。元の表と見比べるとき用。 */
+  planMinHires: number;
   /** 不足している枠（校舎 × コース × 時間帯）の合計。説明用。 */
   slots: number;
   totalByCategory: Record<HrCategory, number>;
@@ -298,6 +299,7 @@ export function planTargets(plan: HiringPlan | null, include?: (key: string) => 
   const byShop = new Map<string, { shopShortName: string; minHires: number; slots: number; byCategory: Record<HrCategory, number> }>();
   const totalByCategory = zero();
   let minHires = 0;
+  let planMinHires = 0;
   let slots = 0;
 
   for (const s of shortageByShop(plan)) {
@@ -315,8 +317,9 @@ export function planTargets(plan: HiringPlan | null, include?: (key: string) => 
 
     byShop.set(key, { shopShortName: s.shopShortName, minHires: s.shortage, slots: shopSlots, byCategory });
     minHires += s.shortage;
+    planMinHires += s.planMinHires;
     slots += shopSlots;
   }
 
-  return { byShop, minHires, slots, totalByCategory };
+  return { byShop, minHires, planMinHires, slots, totalByCategory };
 }

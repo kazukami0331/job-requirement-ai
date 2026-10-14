@@ -45,7 +45,7 @@ export interface CourseFillRow {
   shopShortName: string;
   /** IT / D/W / C と、どちらの側でもコースが分からない分（none） */
   byCourse: Record<HrCategory, CourseFillCell>;
-  /** 校舎の合計。目標は「最小採用人数（全分野充足）」。 */
+  /** 校舎の合計。目標はコース別の目標の積み上げ（不足のあるコースに1名）。 */
   total: CourseFillCell;
   /** コース別の目標に対して、まだ埋まっていない数。並び順に使う。 */
   remaining: number;
