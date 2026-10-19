@@ -15,7 +15,7 @@ import {
 import { DEFAULT_RATES, monthlyGoals } from "@/lib/recruiting/goal";
 import { FUNNEL_STEPS, stageOf } from "@/lib/recruiting/status";
 import { shortageByShop } from "@/lib/recruiting/plan";
-import { normalizeShopKey } from "@/lib/recruiting/shops";
+import { ALWAYS_COUNTED_SHOPS, normalizeShopKey } from "@/lib/recruiting/shops";
 import { Application, HiringPlan, Snapshot } from "@/types/recruiting";
 
 /**
@@ -227,4 +227,12 @@ test("表に載らなかった応募は、校舎名まで出せる", () => {
     g.coverage.missing.reduce((a, m) => a + m.count, 0),
     g.coverage.all - g.coverage.inTable
   );
+});
+
+test("六本木オフィスは採用目標が無くても既定の集計対象に入る", () => {
+  // 不足人数管理表は校舎の講師採用の表なので本部・オフィスは載らないが、
+  // 実際に募集していて応募も来ているため、既定で数える（2026-10-19 指示）。
+  const key = normalizeShopKey("六本木オフィス");
+  assert.ok(ALWAYS_COUNTED_SHOPS.map(normalizeShopKey).includes(key));
+  assert.equal(normalizeShopKey("六本木オフィス"), normalizeShopKey("六本木オフィス "));
 });

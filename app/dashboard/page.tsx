@@ -20,7 +20,7 @@ import {
 } from "@/lib/recruiting/aggregate";
 import { parsePlanFile, shortageByShop, totalShortage } from "@/lib/recruiting/plan";
 import { FUNNEL_STEPS, stageOf } from "@/lib/recruiting/status";
-import { normalizeShopKey } from "@/lib/recruiting/shops";
+import { ALWAYS_COUNTED_SHOPS, normalizeShopKey } from "@/lib/recruiting/shops";
 import { buildWorkbookSheets, downloadJson, downloadWorkbook } from "@/lib/recruiting/export";
 import {
   applyShared,
@@ -278,20 +278,25 @@ export default function DashboardPage() {
     [period, projectStart, termFrom]
   );
 
-  /** 不足人数マスタに採用目標がある校舎。これ以外は既定で画面から外す。 */
+  /**
+   * 既定の集計対象。不足人数マスタに採用目標がある校舎と、
+   * マスタには載らないが実際に募集している拠点（六本木オフィス）。
+   */
   const masterKeys = useMemo(() => {
     if (!plan) return null;
     const keys = shortageByShop(plan)
       .filter((s) => s.shortage > 0)
       .map((s) => normalizeShopKey(s.shopShortName));
-    return keys.length > 0 ? new Set(keys) : null;
+    if (keys.length === 0) return null;
+    return new Set([...keys, ...ALWAYS_COUNTED_SHOPS.map(normalizeShopKey)]);
   }, [plan]);
 
   /**
    * 雇用形態と対象校舎で絞った全期間の応募。充足（採用済み）の数え上げに使う。
    *
-   * 既定でマスタ外の校舎を外すのは、採用目標を持っていない校舎（六本木オフィスなど）の
-   * 応募や採用が混ざると、同じ画面のKPIと月次目標で母数が変わってしまうため。
+   * 既定でマスタ外の校舎を外すのは、採用目標を持っていない校舎の応募や採用が混ざると、
+   * 同じ画面のKPIと月次目標で母数が変わってしまうため。
+   * ただし六本木オフィスは実際に募集しているので、目標が無くても既定で数える。
    */
   const typedApps = useMemo(() => {
     let out =
@@ -871,7 +876,7 @@ export default function DashboardPage() {
                 </span>
                 <div className="flex gap-1" role="group" aria-label="対象の校舎">
                   {([
-                    { key: "master" as Scope, label: "不足人数マスタの校舎" },
+                    { key: "master" as Scope, label: "不足人数マスタの校舎 ＋ 六本木オフィス" },
                     { key: "all" as Scope, label: "全校舎" },
                   ]).map((o) => (
                     <button
@@ -891,8 +896,8 @@ export default function DashboardPage() {
                 </div>
                 <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                   {scope === "master"
-                    ? "採用目標を持っている校舎だけで集計しています。目標の無い校舎（六本木オフィスなど）の応募・採用は入りません"
-                    : "採用目標の無い校舎も含めて集計しています。月次目標の採用済みとは母数が合いません"}
+                    ? "採用目標がある校舎と、六本木オフィスで集計しています。六本木オフィスは採用目標が無いので、月次の目標と進捗には出ません"
+                    : "採用目標の無い拠点（京都本部・全国採用窓口など）も含めて集計しています。月次目標の採用済みとは母数が合いません"}
                 </span>
               </div>
             )}
@@ -1032,6 +1037,8 @@ export default function DashboardPage() {
                     校舎名の横の<strong>オレンジのコース名</strong>は、<strong>人数では目標に届いているのに、そのコースが
                     まだ埋まっていない</strong>こと（採用管理表から）。採用の数字も、その場合は緑にせずオレンジで出します。
                     ITを2名採ってもCADの不足は埋まらないので、校舎の人数だけで充足と見ないためです。
+                    この表は<strong>採用目標を持っている校舎だけ</strong>です。六本木オフィスのように目標の無い拠点の
+                    応募・採用は、上のKPIや応募数には入りますが、ここには出ません。
                     各マスは「実績 / 目標」。当月は月末までの残りがあるので、経過ぶんに対する進み具合で色を付けています。
                     面接設定と採用は<strong>その月に応募した人を追いかけた数</strong>です（歩留まりは同じ人を追ったときの割合なので、
                     別の月に応募した人の面接を混ぜると想定値と比べられません）。
