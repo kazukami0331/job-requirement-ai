@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "求人要件ヒアリングAI",
-  description: "AIが質問に答えるだけで求人要件を言語化できます",
+  title: "採用モニタリング",
+  description: "ジョブオプの応募エクスポートから、週次の応募状況と校舎ごとの充足状況を見る",
 };
 
 export default function RootLayout({
