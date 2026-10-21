@@ -121,10 +121,15 @@ const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: "breakdown", label: "内訳" },
 ];
 
-/** 集計の軸を切り替える。「内訳」の2枚のカードで共通なので、セクションの先頭に1つだけ置く。 */
+/**
+ * 集計の軸を切り替える。
+ *
+ * 2枚のカードで同じ軸を使うので状態はひとつだが、切り替えはそれぞれのカードの見出しに置く。
+ * セクションの先頭にまとめていたときは、表の横に無いので「校舎別しか出せない」と読まれた。
+ */
 function DimensionSwitch({ value, onChange }: { value: Dimension; onChange: (d: Dimension) => void }) {
   return (
-    <div className="-mx-1 flex gap-1 overflow-x-auto px-1">
+    <div className="-mx-1 flex gap-1 overflow-x-auto px-1" role="group" aria-label="集計の軸">
       {DIMENSIONS.map((d) => (
         <button
           key={d}
@@ -1144,14 +1149,7 @@ export default function DashboardPage() {
 
           {/* 内訳。軸をひとつ選んで、週の動きと選考の進み具合を続けて見る。 */}
           <div className={`space-y-4 sm:space-y-5 ${section === "breakdown" ? "" : "hidden sm:block"}`}>
-            {/* 軸は2枚のカードで共通。同じ切り替えを2回出さない。 */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="shrink-0 text-xs" style={{ color: "var(--text-secondary)" }}>
-                集計の軸
-              </span>
-              <DimensionSwitch value={dimension} onChange={setDimension} />
-            </div>
-
+            {/* 軸の切り替えは、表のすぐ上（カードの見出し）に置く。状態は2枚で共通。 */}
             <Card
               title={`${DIMENSION_LABEL[dimension]}ごとの選考状況`}
               subtitle={`累計と直近週、そして選考のどこまで進んでいるか。${weekRangeNote}${
@@ -1159,13 +1157,19 @@ export default function DashboardPage() {
                   ? " ／ コースは求人の職種名から判定しています。3コースをまとめていた求人からの応募は「コース分け前」です"
                   : ""
               }`}
+              actions={<DimensionSwitch value={dimension} onChange={setDimension} />}
             >
               <BreakdownTable rows={rows} dimensionLabel={DIMENSION_LABEL[dimension]} />
             </Card>
 
             <Card
               title={`${DIMENSION_LABEL[dimension]}ごとの週次推移`}
-              subtitle="直近12週まで。色が濃いほど応募が多い週です。右端の計は、この表に出ている週ぶんの合計なので、上の累計応募とは一致しないことがあります。"
+              subtitle={`見出しのボタンで、校舎・コース・雇用形態などに切り替えられます。直近12週まで。色が濃いほど応募が多い週です。右端の計は、この表に出ている週ぶんの合計なので、上の累計応募とは一致しないことがあります。${
+                dimension === "course"
+                  ? "コースは求人の職種名から判定しているので、3コースをまとめていた求人からの応募は「コース分け前」に入ります。"
+                  : ""
+              }`}
+              actions={<DimensionSwitch value={dimension} onChange={setDimension} />}
             >
               <WeeklyMatrixTable matrix={matrix} dimensionLabel={DIMENSION_LABEL[dimension]} />
             </Card>
