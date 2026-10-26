@@ -87,6 +87,9 @@ jobs:
           MJ_API_KEY: ${{ secrets.MJ_API_KEY }}
           MJ_VIDEO_ENABLED: ${{ vars.MJ_VIDEO_ENABLED }}
           MJ_INBOX: ${{ vars.MJ_INBOX }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_IMAGE_MODEL: ${{ vars.GEMINI_IMAGE_MODEL }}
+          IMAGE_FALLBACK_AFTER_HOURS: ${{ vars.IMAGE_FALLBACK_AFTER_HOURS }}
           DRIVE_INBOX_FOLDER_ID: ${{ vars.DRIVE_INBOX_FOLDER_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}

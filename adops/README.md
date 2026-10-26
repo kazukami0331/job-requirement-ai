@@ -49,7 +49,11 @@ Midjourney には**公式 API がありません**（2026年10月時点）。ま
 |---|---|---|---|
 | `handoff`（推奨・既定） | Slack に届くプロンプトを midjourney.com に貼って生成し、良い画像を `inbox/<ID>/` に保存（1本1〜2分） | なし | 本番 |
 | `midjourney` | なし | **あり**（中継 API 経由。アカウント停止の可能性） | 規約を確認した上で自己責任で。PiAPI 形式（`POST /api/v1/task` → `GET /api/v1/task/{id}`）の中継サービスに対応。**PiAPI 自体は Midjourney API の提供終了を告知している**ため、同じ形式の別サービスか自前の中継を `MJ_API_BASE_URL` に指定する |
+| `gemini` | なし | なし（Google の公式 API） | 完全自動にしたい場合。画像の雰囲気は Midjourney と異なる |
 | `mock` | なし | なし | 動作確認・テスト |
+
+**おすすめは `handoff` ＋ Gemini の代替**です。`GEMINI_API_KEY` を設定すると、手渡しで24時間（`IMAGE_FALLBACK_AFTER_HOURS`）
+画像が置かれなかった依頼は自動で Gemini が生成して先に進みます。人に余裕がある日は Midjourney の画像、忙しい日も止まらない、という運用になります。
 
 `handoff` の画像の置き場所は2通りです。
 
@@ -160,8 +164,8 @@ draft モードでは、入稿した広告ごとに Slack へ「プレビュー�
 
 | 種類 | 名前 |
 |---|---|
-| Secrets | `GOOGLE_SERVICE_ACCOUNT_JSON` `ADOPS_OUTCOMES_CSV_URL` `ANTHROPIC_API_KEY` `META_ACCESS_TOKEN` `META_APP_SECRET` `GOOGLE_ADS_DEVELOPER_TOKEN` `GOOGLE_ADS_CLIENT_ID` `GOOGLE_ADS_CLIENT_SECRET` `GOOGLE_ADS_REFRESH_TOKEN` `YOUTUBE_REFRESH_TOKEN` `MJ_API_KEY` `SLACK_WEBHOOK_URL` |
-| Variables | `ADOPS_DRY_RUN`（`false` で本番）`IMAGE_PROVIDER` `META_AD_ACCOUNT_ID` `META_PAGE_ID` `META_INSTAGRAM_USER_ID` `META_CONVERSION_ACTION_TYPES` `GOOGLE_ADS_CUSTOMER_ID` `GOOGLE_ADS_LOGIN_CUSTOMER_ID` `GOOGLE_ADS_CONVERSION_ACTION` `GOOGLE_ADS_LOGO_ASSET` `GOOGLE_ADS_BUSINESS_NAME` `ADOPS_MODEL` `MJ_API_BASE_URL` `MJ_VIDEO_ENABLED` `MJ_INBOX` `DRIVE_INBOX_FOLDER_ID` `ADOPS_MAX_LLM_USD` `ADOPS_SLACK_APPROVALS` `ADOPS_TTS` `ADOPS_TTS_VOICE` |
+| Secrets | `GEMINI_API_KEY` `GOOGLE_SERVICE_ACCOUNT_JSON` `ADOPS_OUTCOMES_CSV_URL` `ANTHROPIC_API_KEY` `META_ACCESS_TOKEN` `META_APP_SECRET` `GOOGLE_ADS_DEVELOPER_TOKEN` `GOOGLE_ADS_CLIENT_ID` `GOOGLE_ADS_CLIENT_SECRET` `GOOGLE_ADS_REFRESH_TOKEN` `YOUTUBE_REFRESH_TOKEN` `MJ_API_KEY` `SLACK_WEBHOOK_URL` |
+| Variables | `ADOPS_DRY_RUN`（`false` で本番）`IMAGE_PROVIDER` `META_AD_ACCOUNT_ID` `META_PAGE_ID` `META_INSTAGRAM_USER_ID` `META_CONVERSION_ACTION_TYPES` `GOOGLE_ADS_CUSTOMER_ID` `GOOGLE_ADS_LOGIN_CUSTOMER_ID` `GOOGLE_ADS_CONVERSION_ACTION` `GOOGLE_ADS_LOGO_ASSET` `GOOGLE_ADS_BUSINESS_NAME` `ADOPS_MODEL` `MJ_API_BASE_URL` `MJ_VIDEO_ENABLED` `MJ_INBOX` `DRIVE_INBOX_FOLDER_ID` `ADOPS_MAX_LLM_USD` `ADOPS_SLACK_APPROVALS` `ADOPS_TTS` `ADOPS_TTS_VOICE` `GEMINI_IMAGE_MODEL` `IMAGE_FALLBACK_AFTER_HOURS` |
 
 本番前に、手元で `.env` を作って `node src/cli.ts check --live` を実行すると、Claude・Meta（広告アカウント・各広告セット・Instagram）・
 Google 広告（アカウント・広告グループがデマンド ジェネレーションか）・ドライブの設定を読み取りだけで確認できます。

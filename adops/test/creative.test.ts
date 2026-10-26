@@ -148,3 +148,22 @@ test('buildVideo: ナレーションに合わせてカットを伸ばし、音�
   assert.deepEqual(streams.sort(), ['audio', 'video']);
   assert.ok(Math.abs((await probeDuration(out)) - durationSec) < 0.2);
 });
+
+test('FallbackProvider: 手渡しの画像が期限内に届かなければ代替で生成し、置き場所を片付ける', async () => {
+  const { FallbackProvider } = await import('../src/creative/imageProvider.ts');
+  const discarded: string[] = [];
+  const primary = {
+    name: 'handoff',
+    generate: async () => ({ status: 'pending' as const, jobId: 'x', note: '置き場所: inbox/x/' }),
+    poll: async () => ({ status: 'pending' as const, jobId: 'x', note: '画像待ち' }),
+    discard: async (id: string) => void discarded.push(id),
+  };
+  const fallback = { name: 'gemini', generate: async () => ({ status: 'done' as const, paths: ['a.png'] }), poll: async () => ({ status: 'done' as const, paths: ['a.png'] }) };
+  const p = new FallbackProvider(primary, fallback, 24);
+  assert.equal(p.name, 'handoff');
+  const base = { creativeId: 'x', prompt: 'p', ratio: '4:5' as const, outDir: '/tmp' };
+  assert.equal((await p.poll({ ...base, requestedAt: new Date().toISOString() }, 'x')).status, 'pending');
+  const late = await p.poll({ ...base, requestedAt: new Date(Date.now() - 25 * 3600_000).toISOString() }, 'x');
+  assert.equal(late.status, 'done');
+  assert.deepEqual(discarded, ['x']);
+});

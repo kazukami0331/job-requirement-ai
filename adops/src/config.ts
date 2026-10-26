@@ -33,7 +33,7 @@ export function loadDotEnv(path = join(ROOT, '.env')): void {
 /** 写実寄り（--style raw, 低い stylize）で、画像内の文字・ロゴを出さない（文字は後から合成する） */
 export const DEFAULT_MJ_PARAMS = '--v 7 --style raw --s 50 --no text, letters, logo, watermark';
 
-export type ImageProviderKind = 'mock' | 'midjourney' | 'handoff';
+export type ImageProviderKind = 'mock' | 'midjourney' | 'handoff' | 'gemini';
 
 export interface Settings {
   dryRun: boolean;
@@ -56,6 +56,10 @@ export interface Settings {
     /** 手渡しの置き場所: local（data/inbox）か drive（Google ドライブ） */
     inbox: 'local' | 'drive';
     drive: { serviceAccountJson: string; folderId: string };
+    /** Gemini（Google）の画像生成。単独でも、手渡しの代替としても使う */
+    gemini: { apiKey: string; model: string; count: number };
+    /** 手渡しで何時間画像が届かなければ Gemini で代わりに作るか（0 で代替しない） */
+    fallbackAfterHours: number;
   };
   meta: {
     accessToken: string;
@@ -104,6 +108,8 @@ export function loadSettings(): Settings {
       inboxDir: resolve(ROOT, env('MJ_INBOX_DIR', 'data/inbox')),
       inbox: env('MJ_INBOX', 'local') as 'local' | 'drive',
       drive: { serviceAccountJson: env('GOOGLE_SERVICE_ACCOUNT_JSON'), folderId: env('DRIVE_INBOX_FOLDER_ID') },
+      gemini: { apiKey: env('GEMINI_API_KEY'), model: env('GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-image-preview'), count: Number(env('GEMINI_IMAGE_COUNT', '2')) },
+      fallbackAfterHours: Number(env('IMAGE_FALLBACK_AFTER_HOURS', '24')),
     },
     meta: {
       accessToken: env('META_ACCESS_TOKEN'),

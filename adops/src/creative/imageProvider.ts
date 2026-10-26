@@ -25,6 +25,8 @@ export interface GenerateRequest {
   prompt: string;
   ratio: Ratio;
   outDir: string;
+  /** 最初に依頼した日時（手渡しの待ち時間の判定に使う） */
+  requestedAt?: string;
 }
 
 export type GenerateResult =
@@ -261,15 +263,112 @@ export class HandoffProvider implements ImageProvider {
   }
 }
 
+// ---------------------------------------------------------------------------
+// gemini（Google の画像生成モデル。公式 API なので完全自動にできる）
+// ---------------------------------------------------------------------------
+
+/** Gemini の画像モデルが受け付ける比率に寄せる（1.91:1 は 16:9 で作って合成時に切り出す）。 */
+const GEMINI_RATIO: Record<Ratio, string> = { '1:1': '1:1', '4:5': '4:5', '9:16': '9:16', '1.91:1': '16:9' };
+
+export class GeminiImageProvider implements ImageProvider {
+  readonly name = 'gemini';
+  private apiKey: string;
+  private model: string;
+  private count: number;
+
+  constructor(apiKey: string, model = 'gemini-3.1-flash-image-preview', count = 2) {
+    if (!apiKey) throw new Error('Gemini の画像生成には GEMINI_API_KEY が必要です');
+    this.apiKey = apiKey;
+    this.model = model;
+    this.count = count;
+  }
+
+  async generate(req: GenerateRequest): Promise<GenerateResult> {
+    mkdirSync(req.outDir, { recursive: true });
+    // Midjourney 用のパラメータ（--ar 等）は外し、文字を入れない指示を明示する
+    const prompt = `${req.prompt.replace(/--\w+(\s+[^-\s][^\s]*)?/g, '').trim()}. Photorealistic photograph. Absolutely no text, letters, signs, logos or watermarks in the image.`;
+    const one = async (i: number) => {
+      const r = await requestJson<any>(`https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent`, {
+        method: 'POST',
+        headers: { 'x-goog-api-key': this.apiKey },
+        json: {
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { aspectRatio: GEMINI_RATIO[req.ratio] } },
+        },
+        attempts: 2,
+      });
+      const part = (r.candidates?.[0]?.content?.parts ?? []).find((p: any) => p.inlineData?.data);
+      if (!part) throw new Error(`Gemini が画像を返しませんでした: ${JSON.stringify(r).slice(0, 200)}`);
+      const p = join(req.outDir, `${req.creativeId}_gm_${i}.png`);
+      await sharp(Buffer.from(part.inlineData.data, 'base64')).png().toFile(p);
+      return p;
+    };
+    const settled = await Promise.allSettled(Array.from({ length: this.count }, (_, i) => one(i)));
+    const paths = settled.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
+    if (paths.length === 0) throw new Error((settled[0] as PromiseRejectedResult).reason?.message ?? 'Gemini の画像生成に失敗');
+    return { status: 'done', paths };
+  }
+
+  async poll(req: GenerateRequest): Promise<GenerateResult> {
+    return this.generate(req);
+  }
+}
+
+/**
+ * 手渡し（Midjourney）を優先し、一定時間内に画像が置かれなければ別の生成元で自動生成する。
+ * 人が忙しい日も止まらずに回り続けるための構成。
+ */
+export class FallbackProvider implements ImageProvider {
+  readonly name: string;
+  private primary: ImageProvider;
+  private fallback: ImageProvider;
+  private afterMs: number;
+
+  constructor(primary: ImageProvider, fallback: ImageProvider, afterHours: number) {
+    this.primary = primary;
+    this.fallback = fallback;
+    this.afterMs = afterHours * 3600_000;
+    // 状態ファイル上は手渡しの依頼として扱う（素材の再取得の判定で生成元が変わったとみなさないように）
+    this.name = primary.name;
+  }
+
+  async generate(req: GenerateRequest): Promise<GenerateResult> {
+    return this.primary.generate(req);
+  }
+
+  async poll(req: GenerateRequest, jobId: string): Promise<GenerateResult> {
+    const r = await this.primary.poll(req, jobId);
+    if (r.status === 'done' || !req.requestedAt) return r;
+    if (Date.now() - Date.parse(req.requestedAt) < this.afterMs) return r;
+    log.info(`${req.creativeId}: 手渡しの画像が ${this.afterMs / 3600_000} 時間届かないため ${this.fallback.name} で生成します`);
+    const fb = await this.fallback.generate(req);
+    // 人が後から同じ依頼に取り組まないよう、置き場所を片付ける
+    if (fb.status === 'done') await this.primary.discard?.(req.creativeId);
+    return fb;
+  }
+
+  async discard(creativeId: string): Promise<void> {
+    await this.primary.discard?.(creativeId);
+  }
+}
+
 export function createImageProvider(s: Settings): ImageProvider {
   switch (s.image.provider) {
     case 'midjourney':
       return new MidjourneyProxyProvider(s.image.midjourney);
-    case 'handoff':
-      return new HandoffProvider(
+    case 'handoff': {
+      const handoff = new HandoffProvider(
         s.image.inbox === 'drive' ? new DriveInbox(s.image.drive.serviceAccountJson, s.image.drive.folderId) : new LocalInbox(s.image.inboxDir),
         s.image.midjourney.params,
       );
+      // 一定時間待っても画像が置かれなければ Gemini で代わりに作る（GEMINI_API_KEY があるときだけ）
+      if (s.image.gemini.apiKey && s.image.fallbackAfterHours > 0) {
+        return new FallbackProvider(handoff, new GeminiImageProvider(s.image.gemini.apiKey, s.image.gemini.model, s.image.gemini.count), s.image.fallbackAfterHours);
+      }
+      return handoff;
+    }
+    case 'gemini':
+      return new GeminiImageProvider(s.image.gemini.apiKey, s.image.gemini.model, s.image.gemini.count);
     case 'mock':
       return new MockProvider();
     default:
