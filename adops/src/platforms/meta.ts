@@ -327,6 +327,33 @@ export class MetaClient {
     return r.effective_object_story_id ?? null;
   }
 
+  /** 広告の Instagram 側の投稿 ID（Instagram に配信していなければ null）。 */
+  async instagramMediaIdOf(creativeId: string): Promise<string | null> {
+    const r = await this.call<{ effective_instagram_media_id?: string }>('GET', creativeId, { fields: 'effective_instagram_media_id' }).catch(() => ({
+      effective_instagram_media_id: undefined,
+    }));
+    return r.effective_instagram_media_id ?? null;
+  }
+
+  /** Instagram の投稿のコメント（since: UNIX 秒より後）。自社アカウントの返信は除く。 */
+  async instagramComments(mediaId: string, since: number): Promise<{ id: string; message: string; createdTime: number }[]> {
+    const out: { id: string; message: string; createdTime: number }[] = [];
+    let url: string | null = this.url(`${mediaId}/comments`, { fields: 'id,text,timestamp,from', limit: '50' });
+    while (url) {
+      const page: any = await requestJson(url);
+      for (const c of page.data ?? []) {
+        if (c.from?.id && c.from.id === this.s.instagramUserId) continue;
+        out.push({ id: c.id, message: c.text ?? '', createdTime: Math.floor(Date.parse(c.timestamp) / 1000) });
+      }
+      url = page.paging?.next ?? null;
+    }
+    return out.filter((c) => c.createdTime > since);
+  }
+
+  async hideInstagramComment(commentId: string): Promise<void> {
+    await this.call('POST', commentId, { hide: 'true' });
+  }
+
   /** 投稿のコメント（since: UNIX 秒より後）。 */
   async comments(postId: string, since: number): Promise<{ id: string; message: string; createdTime: number }[]> {
     const out: { id: string; message: string; createdTime: number }[] = [];

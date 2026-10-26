@@ -372,3 +372,31 @@ test('watchComments: 質問とネガティブを通知、スパムは非表示�
     delete process.env.ADOPS_WATCH_COMMENTS;
   }
 });
+
+test('watchComments: Instagram 側のコメントも仕分ける', async () => {
+  const { watchComments } = await import('../src/pipeline/comments.ts');
+  const { creative } = await import('./fixtures.ts');
+  const now = Math.floor(Date.now() / 1000);
+  const hiddenIg: string[] = [];
+  const fakeMeta = {
+    storyIdOf: async () => null,
+    instagramMediaIdOf: async () => 'igm1',
+    instagramComments: async () => [
+      { id: 'i1', message: '週払いできますか？', createdTime: now - 5 },
+      { id: 'i2', message: 'LINE追加で稼げる', createdTime: now - 4 },
+    ],
+    hideInstagramComment: async (id: string) => void hiddenIg.push(id),
+  } as any;
+  process.env.ADOPS_WATCH_COMMENTS = 'true';
+  try {
+    const ctx = ctxWith(offlineLlm(catalog()), { meta: fakeMeta, dryRun: false });
+    ctx.settings = { ...ctx.settings, meta: { ...ctx.settings.meta, instagramUserId: 'ig_user' } };
+    ctx.store.state.creatives.a = creative({ id: 'a' });
+    ctx.store.state.creatives.a.platformRefs.meta!.creativeIds = ['cre1'];
+    assert.match(await watchComments(ctx), /要対応 1 件 \/ スパム非表示 1 件/);
+    assert.deepEqual(hiddenIg, ['i2']);
+    assert.equal(ctx.store.state.commentCursor!['ig:igm1'], now - 4);
+  } finally {
+    delete process.env.ADOPS_WATCH_COMMENTS;
+  }
+});

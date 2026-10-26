@@ -256,7 +256,7 @@ export interface Creative {
   /** 媒体側で実際に配信中か（collect で同期。下書き入稿で人がまだ ON にしていなければ false） */
   live?: boolean;
   platformRefs: {
-    meta?: { adIds: string[]; creativeIds: string[]; status?: string; previewUrl?: string; storyId?: string };
+    meta?: { adIds: string[]; creativeIds: string[]; status?: string; previewUrl?: string; storyId?: string; igMediaId?: string };
     google?: { assetResourceNames: string[]; linkedTo: string[]; youtubeVideoId?: string; status?: string };
   };
   metrics: DailyMetric[];
