@@ -110,6 +110,16 @@ export async function liveChecks(s: Settings, catalog: Catalog): Promise<CheckRe
       }),
     );
   }
+  if (s.image.gemini.apiKey) {
+    out.push(
+      await attempt('Gemini 画像生成', async () => {
+        const r = await requestJson<{ name: string }>(`https://generativelanguage.googleapis.com/v1beta/models/${s.image.gemini.model}`, {
+          headers: { 'x-goog-api-key': s.image.gemini.apiKey },
+        });
+        return `${r.name} を利用可能${s.image.provider === 'handoff' ? `（手渡しで ${s.image.fallbackAfterHours} 時間届かなければ代替）` : ''}`;
+      }),
+    );
+  }
   if (s.image.provider === 'midjourney') {
     out.push({ name: 'Midjourney 中継 API', ok: s.image.midjourney.apiKey ? true : false, detail: s.image.midjourney.apiKey ? `${s.image.midjourney.baseUrl}（規約上のリスクに注意）` : 'MJ_API_KEY 未設定' });
   }
