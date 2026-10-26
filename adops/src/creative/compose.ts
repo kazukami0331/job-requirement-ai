@@ -2,7 +2,7 @@
  * 生成画像に日本語コピーを合成する。
  * Midjourney は日本語を正しく描けないため、画像は「文字なしの情景」で作り、文字はここで載せる。
  */
-import sharp, { type OverlayOptions } from 'sharp';
+import sharp, { type OverlayOptions, type Sharp } from 'sharp';
 import type { Brand, CreativeBrief, Job, Ratio } from '../types.ts';
 import { formatYen } from '../compliance/rules.ts';
 
@@ -166,12 +166,25 @@ export async function composeImage(basePath: string, outPath: string, ratio: Rat
     const logo = await sharp(brand.logoPath).resize({ width: Math.round(W * 0.18) }).png().toBuffer();
     layers.push({ input: logo, gravity: 'northeast' });
   }
-  await sharp(basePath)
-    .resize(W, H, { fit: 'cover', position: 'attention' })
+  await (await fittedBackground(basePath, W, H))
     .composite(layers)
     .jpeg({ quality: 90, mozjpeg: true })
     .toFile(outPath);
   return { width: W, height: H };
+}
+
+/**
+ * 元画像を W×H に合わせる。比率が近ければ注目領域を残してトリミング、
+ * 縦長の元画像から横長を作るときは、ぼかした背景の右側に元画像を収める（人物が切れないように）。
+ */
+export async function fittedBackground(basePath: string, W: number, H: number): Promise<Sharp> {
+  const meta = await sharp(basePath).metadata();
+  const srcAspect = (meta.width ?? 1) / (meta.height ?? 1);
+  const dstAspect = W / H;
+  if (dstAspect / srcAspect < 1.6) return sharp(basePath).resize(W, H, { fit: 'cover', position: 'attention' });
+  const bg = await sharp(basePath).resize(W, H, { fit: 'cover' }).blur(40).modulate({ brightness: 0.7 }).toBuffer();
+  const fg = await sharp(basePath).resize({ height: H, width: Math.round(W * 0.45), fit: 'cover', position: 'attention' }).toBuffer();
+  return sharp(await sharp(bg).composite([{ input: fg, top: 0, left: W - Math.round(W * 0.45) }]).png().toBuffer());
 }
 
 /** 動画の字幕（透明 PNG）。画面中央やや下に大きく出す。 */

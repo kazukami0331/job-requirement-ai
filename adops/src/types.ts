@@ -189,6 +189,20 @@ export interface Asset {
   durationSec?: number;
 }
 
+export interface ImageJob {
+  ratio: Ratio;
+  provider: string;
+  jobId?: string;
+  prompt: string;
+  requestedAt: string;
+  /** 生成済みの候補画像 */
+  paths?: string[];
+  /** 画像審査で選ばれた候補 */
+  selected?: number;
+  /** Midjourney Video などで作った動画クリップ */
+  clip?: string | null;
+}
+
 export interface DailyMetric {
   date: string;
   platform: Platform;
@@ -210,13 +224,13 @@ export interface Creative {
   explore: boolean;
   status: CreativeStatus;
   statusReason?: string;
-  sourceImages: string[];
-  imageJob?: { provider: string; jobId?: string; prompt: string; requestedAt: string };
+  /** 比率ごとの画像生成依頼（画像広告は 4:5 と 9:16、動画は 9:16 の背景を作る） */
+  imageJobs: ImageJob[];
   assets: Asset[];
   qa?: { score: number; notes: string; selectedIndex: number };
   platformRefs: {
     meta?: { adIds: string[]; creativeIds: string[]; status?: string };
-    google?: { assetResourceNames: string[]; linkedTo: string[]; status?: string };
+    google?: { assetResourceNames: string[]; linkedTo: string[]; youtubeVideoId?: string; status?: string };
   };
   metrics: DailyMetric[];
   createdAt: string;
