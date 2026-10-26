@@ -140,11 +140,11 @@ ${(() => {
   if (ads.length === 0) return '';
   const label = { draft: '下書き', live: '入稿済み', paused: '停止', failed: '失敗' } as const;
   return `<h2>Google 検索広告</h2>
-<table><thead><tr><th>作成日</th><th>求人</th><th>状態</th><th style="text-align:left">見出し（先頭3本）</th><th>表示</th><th>CTR</th><th>応募</th></tr></thead><tbody>
+<table><thead><tr><th>作成日</th><th style="text-align:left">求人</th><th style="text-align:left">状態</th><th style="text-align:left">見出し（先頭3本）</th><th>表示</th><th>CTR</th><th>応募</th></tr></thead><tbody>
 ${ads
   .map((a) => {
     const t = totals(windowed(a.metrics, from, today));
-    return `<tr><td>${a.createdOn}</td><td>${escapeXml(a.jobId)}</td><td>${label[a.status]}</td><td style="text-align:left">${escapeXml(a.headlines.slice(0, 3).join(' / '))}</td><td>${t.impressions.toLocaleString()}</td><td>${t.ctr.toFixed(2)}%</td><td>${t.conversions}</td></tr>`;
+    return `<tr><td>${a.createdOn}</td><td style="text-align:left">${escapeXml(a.jobId)}</td><td style="text-align:left">${label[a.status]}</td><td style="text-align:left">${escapeXml(a.headlines.slice(0, 3).join(' / '))}</td><td>${t.impressions.toLocaleString()}</td><td>${t.ctr.toFixed(2)}%</td><td>${t.conversions}</td></tr>`;
   })
   .join('')}
 </tbody></table>`;
