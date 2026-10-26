@@ -159,6 +159,7 @@ export interface CreativeBrief {
   imagePrompt: string;
   revision: number;
   createdAt: string;
+  iterateOf?: string;
 }
 
 export interface ReviewIssue {
@@ -235,6 +236,8 @@ export interface Creative {
   angle: Angle;
   format: Format;
   explore: boolean;
+  /** 勝ち広告の改良版の場合、元の企画 ID */
+  iterateOf?: string;
   /** 画像の文字レイアウト（band / card / bold）。自動で配分・学習する */
   layout?: string;
   status: CreativeStatus;

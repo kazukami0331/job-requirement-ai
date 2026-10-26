@@ -10,8 +10,8 @@ import type { Catalog } from '../config.ts';
 import { ANGLES, type Angle, type Creative, type Format, type Job } from '../types.ts';
 import type { Slot } from '../agents/strategist.ts';
 import type { Totals } from './stats.ts';
-import { angleTotals } from './stats.ts';
-import { addDays } from '../util/id.ts';
+import { angleTotals, totals } from './stats.ts';
+import { addDays, daysBetween } from '../util/id.ts';
 
 export type Rng = () => number;
 
@@ -154,9 +154,23 @@ export function allocateSlots(input: AllocationInput): Slot[] {
     const jobCreatives = creatives.filter((c) => c.jobId === job.id);
     const personaUse = new Map(job.personas.map((p) => [p, jobCreatives.filter((c) => c.personaId === p).length]));
     const usedThisCycle = new Set<Angle>();
+    // 改良版を作る価値のある勝ち広告（応募3件以上・目標単価以内で、疲弊で入れ替えたか配信10日以上。まだ改良版が無いもの）
+    const iterated = new Set(creatives.map((c) => c.iterateOf).filter(Boolean));
+    const winners = jobCreatives
+      .filter((c) => (c.status === 'retired' || (c.status === 'published' && c.publishedAt && daysBetween(c.publishedAt.slice(0, 10), today) >= 10)) && !iterated.has(c.briefId))
+      .map((c) => ({ c, t: totals(c.metrics) }))
+      .filter((x) => x.t.conversions >= 3 && x.t.cpa !== null && x.t.cpa <= policy.guardrails.targetCpa)
+      .sort((a, b) => a.t.cpa! - b.t.cpa!);
 
     for (let i = 0; i < n; i++) {
       const explore = explorePositions.has(slotNo - 1);
+      // 活用枠の最初の1本は、勝ち広告があれば改良版にする
+      if (!explore && winners.length && !slots.some((s) => s.jobId === job.id && s.iterateOf)) {
+        const w = winners.shift()!.c;
+        usedThisCycle.add(w.angle);
+        slots.push({ slot: slotNo++, jobId: job.id, personaId: w.personaId, angle: w.angle, format: w.format, explore: false, iterateOf: w.briefId });
+        continue;
+      }
       let angle: Angle;
       if (explore) {
         // 試行回数（インプレッション）が少ない軸を優先。同数ならランダム
@@ -185,7 +199,10 @@ export function allocateSlots(input: AllocationInput): Slot[] {
   // 動画の本数を全体比率に合わせる（求人が偏らないよう等間隔に割り当て）
   if (videoTarget > 0 && slots.length > 0) {
     const step = slots.length / videoTarget;
-    for (let k = 0; k < videoTarget; k++) slots[Math.min(slots.length - 1, Math.floor(k * step))].format = 'video' as Format;
+    for (let k = 0; k < videoTarget; k++) {
+      const s = slots[Math.min(slots.length - 1, Math.floor(k * step))];
+      if (!s.iterateOf) s.format = 'video' as Format; // 改良版は元の形式のまま
+    }
   }
   return slots;
 }

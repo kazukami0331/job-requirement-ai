@@ -17,6 +17,8 @@ export interface Slot {
   angle: Angle;
   format: Format;
   explore: boolean;
+  /** 勝ち広告の改良版を作る場合、元の企画 ID */
+  iterateOf?: string;
 }
 
 export interface PlanningContext {
@@ -34,6 +36,8 @@ export interface PlanningContext {
   frequentIssues?: string[];
   /** 季節・時期の文脈 */
   season?: string;
+  /** 改良版の元になる勝ち広告（企画 ID → 内容と成績） */
+  iterateSources?: Record<string, { hook: string; overlayMain: string; headline: string; visualConcept: string; ctr: number; cpa: number | null }>;
 }
 
 /** 求職者の動きの季節要因（ブルーカラー求人の一般的な傾向）。 */
@@ -173,7 +177,12 @@ ${slots
     (s) =>
       `- slot ${s.slot}: 求人=${s.jobId} / ペルソナ=${s.personaId} / 訴求軸=${ANGLE_LABELS[s.angle]}(${s.angle}) / 形式=${s.format === 'video' ? '動画(9:16)' : '画像'} / ${s.explore ? '探索枠' : '活用枠'}${
         s.angle === 'housing' ? `\n  （寮訴求なので画像は住まいを見せる案も検討: ${HOUSING_HINT}）` : ''
-      }`,
+      }${(() => {
+        const src = s.iterateOf ? ctx.iterateSources?.[s.iterateOf] : undefined;
+        return src
+          ? `\n  （勝ち広告の改良版。元: フック「${src.hook}」/ 画像の文字「${src.overlayMain}」/ 絵「${src.visualConcept}」/ CTR ${src.ctr.toFixed(2)}%${src.cpa ? `・応募単価 ${Math.round(src.cpa)}円` : ''}。見る人が飽きてきたので、訴求の核は残してフックの言い回しと絵を変える）`
+          : '';
+      })()}`,
   )
   .join('\n')}`;
 }

@@ -2,7 +2,7 @@
 import type { Ctx } from './context.ts';
 import type { Creative, CreativeBrief, Review } from '../types.ts';
 import { allocateSlots } from '../optimize/allocate.ts';
-import { planBriefs, reviseBrief, seasonalContext, type PlanningContext } from '../agents/strategist.ts';
+import { planBriefs, reviseBrief, seasonalContext, type PlanningContext, type Slot } from '../agents/strategist.ts';
 import { reviewBrief } from '../agents/reviewer.ts';
 import { lastNDays, totals } from '../optimize/stats.ts';
 import { newId } from '../util/id.ts';
@@ -10,7 +10,7 @@ import { logger } from '../util/log.ts';
 
 const log = logger('plan');
 
-export function planningContext(ctx: Ctx): PlanningContext {
+export function planningContext(ctx: Ctx, slots: Slot[] = []): PlanningContext {
   const { store, today } = ctx;
   const latest = store.state.insights.at(-1);
   const rows = store
@@ -36,6 +36,15 @@ export function planningContext(ctx: Ctx): PlanningContext {
       .map((c) => ({ overlayMain: store.state.briefs[c.briefId]?.overlay.main ?? '', reason: c.statusReason!.replace('媒体審査で不承認: ', '') })),
     frequentIssues: frequentIssues(store.state.reviews.slice(-60)),
     season: seasonalContext(today),
+    iterateSources: Object.fromEntries(
+      slots.flatMap((sl) => {
+        const b = sl.iterateOf ? store.state.briefs[sl.iterateOf] : undefined;
+        const c = b ? store.creatives().find((x) => x.briefId === b.id) : undefined;
+        if (!b || !c) return [];
+        const t = totals(c.metrics);
+        return [[b.id, { hook: b.hook, overlayMain: b.overlay.main, headline: b.headline, visualConcept: b.visualConcept, ctr: t.ctr, cpa: t.cpa }]];
+      }),
+    ),
   };
 }
 
@@ -73,7 +82,7 @@ export async function plan(ctx: Ctx): Promise<PlanResult> {
     return { created: [], rejected: [] };
   }
   log.info(`企画 ${slots.length} 枠: ${slots.map((s) => `${s.jobId}/${s.angle}/${s.format}${s.explore ? '*' : ''}`).join(', ')}`);
-  const drafts = await planBriefs(llm, slots, catalog, planningContext(ctx));
+  const drafts = await planBriefs(llm, slots, catalog, planningContext(ctx, slots));
 
   const result: PlanResult = { created: [], rejected: [] };
   // ブリーフごとのレビュー→修正は互いに独立なので並列に回す
@@ -91,6 +100,7 @@ export async function plan(ctx: Ctx): Promise<PlanResult> {
         angle: slot.angle,
         format: slot.format,
         explore: slot.explore,
+        ...(slot.iterateOf ? { iterateOf: slot.iterateOf } : {}),
         revision: 0,
         createdAt: new Date().toISOString(),
         storyboard: slot.format === 'video' ? rest.storyboard : [],
@@ -117,6 +127,7 @@ export async function plan(ctx: Ctx): Promise<PlanResult> {
         angle: brief.angle,
         format: brief.format,
         explore: brief.explore,
+        ...(brief.iterateOf ? { iterateOf: brief.iterateOf } : {}),
         status: 'planned',
         imageJobs: [],
         assets: [],

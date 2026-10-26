@@ -178,3 +178,23 @@ test('chooseLayout: クリック率の高いレイアウトを多く選ぶ', asy
   const fresh = new Set(Array.from({ length: 60 }, (_, i) => chooseLayout(['band', 'card', 'bold'] as const, [], '2026-10-07', seededRng(i))));
   assert.equal(fresh.size, 3);
 });
+
+test('allocateSlots: 疲弊で入れ替えた勝ち広告があれば、活用枠の1本目を改良版にする（1回だけ）', () => {
+  const cat = catalog({ policy: policy({ briefsPerCycle: 2, exploreShare: 0, videoShare: 0 }), jobs: [job({ dailyCreativeQuota: 2 })] });
+  const winner = creative({
+    id: 'w',
+    briefId: 'br_w',
+    angle: 'housing',
+    format: 'video',
+    status: 'retired',
+    metrics: daily('2026-10-01', 10, { impressions: 3000, clicks: 50, spend: 2000, conversions: 1 }),
+  });
+  const slots = allocateSlots({ catalog: cat, creatives: [winner], today: '2026-10-20', rng: seededRng(1) });
+  assert.equal(slots[0].iterateOf, 'br_w');
+  assert.equal(slots[0].angle, 'housing');
+  assert.equal(slots[0].format, 'video');
+  assert.equal(slots[1].iterateOf, undefined);
+  // 既に改良版があれば作らない
+  const again = allocateSlots({ catalog: cat, creatives: [winner, creative({ id: 'v', iterateOf: 'br_w' })], today: '2026-10-20', rng: seededRng(1) });
+  assert.ok(again.every((s) => !s.iterateOf));
+});
