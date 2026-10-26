@@ -32,7 +32,14 @@ export async function optimize(ctx: Ctx): Promise<Decision[]> {
       .filter((d) => d.action === 'scale_budget' && d.applied && d.adsetId && daysBetween(d.date, today) < cooldownDays)
       .map((d) => d.adsetId!),
   );
-  const decisions = decide({ creatives: store.creatives(), policy: catalog.policy, today, adsetsByJob, recentlyScaled });
+  const decisions = decide({
+    creatives: store.creatives(),
+    policy: catalog.policy,
+    today,
+    adsetsByJob,
+    recentlyScaled,
+    activeJobIds: new Set(catalog.jobs.filter((j) => j.active).map((j) => j.id)),
+  });
   const auto = catalog.policy.autonomy === 'auto';
 
   for (const d of decisions) {

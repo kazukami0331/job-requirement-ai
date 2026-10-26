@@ -60,7 +60,7 @@ export async function rotateSearchAds(ctx: Ctx): Promise<string> {
   store.state.searchAds ??= {};
   const ads = store.state.searchAds;
   const jobs = catalog.jobs.filter((j) => j.active && j.placements.google?.searchAdGroupIds?.length);
-  if (jobs.length === 0) return '検索広告の入稿先なし（jobs.json の placements.google.searchAdGroupIds）';
+  if (jobs.length === 0 && !Object.values(ads).some((a) => a.status === 'live')) return '検索広告の入稿先なし（jobs.json の placements.google.searchAdGroupIds）';
   const notes: string[] = [];
 
   // 1) 実績の取り込み
@@ -70,8 +70,12 @@ export async function rotateSearchAds(ctx: Ctx): Promise<string> {
     for (const a of live) a.metrics = mergeMetrics(a.metrics, byRn.get(a.resourceName!) ?? []);
   }
 
-  // 2) 負けている広告を止める
-  for (const d of pickSearchLosers(Object.values(ads), today)) {
+  // 2) 負けている広告と、募集が終わった求人の広告を止める
+  const activeJobs = new Set(catalog.jobs.filter((j) => j.active).map((j) => j.id));
+  const ended = Object.values(ads)
+    .filter((a) => a.status === 'live' && !activeJobs.has(a.jobId))
+    .map((a) => ({ adId: a.id, reason: '求人の募集が終了したため停止' }));
+  for (const d of [...ended, ...pickSearchLosers(Object.values(ads).filter((a) => activeJobs.has(a.jobId)), today)]) {
     const a = ads[d.adId];
     if (ctx.dryRun || !ctx.google) {
       notes.push(`停止候補 ${a.id}: ${d.reason}（${ctx.dryRun ? 'DRY RUN' : 'Google 未設定'}）`);

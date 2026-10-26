@@ -22,6 +22,8 @@ export interface DecideInput {
   lookbackDays?: number;
   /** 最近予算を上げた広告セット（今回は上げない） */
   recentlyScaled?: Set<string>;
+  /** 募集中の求人 ID。指定されていれば、それ以外（募集終了・削除）の求人の広告はすべて止める */
+  activeJobIds?: Set<string>;
 }
 
 /** 応募効率のスコア（大きいほど良い）。停止候補の並べ替えに使う。 */
@@ -51,7 +53,15 @@ export function decide(input: DecideInput): Decision[] {
     decisions.push({ date: today, creativeId: c.id, action: 'pause', reason, applied: false, detail });
   };
 
+  // 0. 募集終了・削除された求人の広告は、成績に関係なく止める（下書き入稿で未配信のものも、後から ON にされないよう止める）
+  if (input.activeJobIds) {
+    for (const c of input.creatives.filter((x) => x.status === 'published' && !input.activeJobIds!.has(x.jobId))) {
+      pause(c, '求人の募集が終了したため停止（jobs.json で active: false または削除）');
+    }
+  }
+
   for (const { c, t } of withData) {
+    if (paused.has(c.id)) continue;
     // 1. 応募ゼロのまま使いすぎ
     if (t.conversions === 0 && t.spend >= g.targetCpa * g.zeroConversionSpendMultiple) {
       pause(c, `応募0件のまま ${Math.round(t.spend).toLocaleString()}円 消化（目標応募単価の${g.zeroConversionSpendMultiple}倍）`, { spend: t.spend });

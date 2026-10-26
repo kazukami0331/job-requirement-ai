@@ -41,7 +41,7 @@ Slack の日次通知で次を見ます。
 | 停止を厳しく/ゆるく | `policy.json` の `guardrails`（`targetCpa`、`ctrFloorPct`、`minImpressions` など） |
 | 予算の自動増額の上限 | `guardrails.maxDailyBudget`、間隔は `ADOPS_BUDGET_COOLDOWN_DAYS` |
 | 使ってほしくない言葉 | `brand.json` の `bannedPhrases`、`examples.json` の bad |
-| 求人を止める | `jobs.json` の `active: false`（新しい広告を作らなくなる。配信中の広告は管理画面で止める） |
+| 求人を止める（募集終了） | `jobs.json` の `active: false`（次の実行で、その求人の新しい広告を作らなくなり、配信中の広告・検索広告も自動で止まる。急ぐなら Actions で `steps` に `collect,optimize` を指定して手動実行） |
 | Instagram 投稿を止める | `policy.json` の `organic.enabled: false` |
 | AI 費用を抑える | `briefsPerCycle` を下げる、`ADOPS_MAX_LLM_USD`（1回の上限）、`ADOPS_EFFORT=medium` |
 

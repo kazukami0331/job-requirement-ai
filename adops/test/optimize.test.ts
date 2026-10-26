@@ -222,3 +222,12 @@ test('rewardMetric=interviews: 面接数が多い訴求軸を選ぶ', () => {
   assert.ok((byApps.get('quick_cash') ?? 0) > (byApps.get('skill') ?? 0), JSON.stringify([...byApps]));
   assert.ok((byInterviews.get('skill') ?? 0) > (byInterviews.get('quick_cash') ?? 0), JSON.stringify([...byInterviews]));
 });
+
+test('decide: 募集が終わった求人の広告は成績に関係なく止める', () => {
+  const good = creative({ id: 'g', jobId: 'ended', metrics: daily('2026-10-01', 7, { impressions: 3000, clicks: 90, spend: 1000, conversions: 2 }) });
+  const draft = creative({ id: 'd', jobId: 'ended', live: false });
+  const other = creative({ id: 'o', jobId: 'factory', metrics: daily('2026-10-01', 7, { impressions: 3000, clicks: 90, spend: 1000, conversions: 2 }) });
+  const d = decide({ creatives: [good, draft, other], policy: policy(), today: '2026-10-07', adsetsByJob: new Map(), activeJobIds: new Set(['factory']) });
+  assert.deepEqual(d.filter((x) => x.action === 'pause').map((x) => x.creativeId).sort(), ['d', 'g']);
+  assert.match(d[0].reason, /募集が終了/);
+});
