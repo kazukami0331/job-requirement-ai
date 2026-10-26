@@ -354,7 +354,7 @@ export interface State {
   /** 日予算の上限による停止を人が解除した日（日本時間）。その日は上限で止めない */
   spendCapWaivedOn?: string;
   /** 応募ページの死活監視（求人 ID → 直近の確認結果） */
-  landing?: Record<string, { ok: boolean | null; status: number; note: string; checkedAt: string; since?: string }>;
+  landing?: Record<string, { ok: boolean | null; status: number; note: string; checkedAt: string; since?: string; failCount?: number }>;
   /** 週次の戦略メモ */
   memos?: { date: string; headline: string; findings: string[]; decisions: { topic: string; recommendation: string; why: string }[]; experiments: string[] }[];
   briefs: Record<string, CreativeBrief>;

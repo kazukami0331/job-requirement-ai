@@ -278,8 +278,21 @@ export class MetaClient {
 
   /** 広告セット内の、adops が作った（名前が adops_ で始まる）配信中の広告。緊急停止の取りこぼし対策に使う。 */
   async liveAdopsAds(adsetId: string): Promise<{ id: string; name: string }[]> {
-    const res = await this.call<{ data: { id: string; name?: string; status?: string }[] }>('GET', `${adsetId}/ads`, { fields: 'id,name,status', limit: '500' });
-    return (res.data ?? []).filter((a) => a.status === 'ACTIVE' && a.name?.startsWith('adops_')).map((a) => ({ id: a.id, name: a.name! }));
+    const out: { id: string; name: string }[] = [];
+    let after: string | undefined;
+    // 配信中のものだけを取り、ページを最後までたどる（停止済みの広告が溜まっても取りこぼさない）
+    for (let page = 0; page < 20; page++) {
+      const res = await this.call<{ data: { id: string; name?: string }[]; paging?: { cursors?: { after?: string }; next?: string } }>('GET', `${adsetId}/ads`, {
+        fields: 'id,name',
+        effective_status: ['ACTIVE'],
+        limit: '200',
+        ...(after ? { after } : {}),
+      });
+      out.push(...(res.data ?? []).filter((a) => a.name?.startsWith('adops_')).map((a) => ({ id: a.id, name: a.name! })));
+      after = res.paging?.next ? res.paging.cursors?.after : undefined;
+      if (!after) break;
+    }
+    return out;
   }
 
   /**

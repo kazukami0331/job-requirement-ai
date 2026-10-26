@@ -40,12 +40,17 @@ test('classifyPage: 404・接続不可・募集終了は異常、403 やタイ�
   assert.equal(classifyPage({ status: 404, body: '' }).ok, false);
   assert.equal(classifyPage({ status: 503, body: '' }).ok, false);
   assert.equal(classifyPage({ status: 0, body: '', error: 'ENOTFOUND' }).ok, false);
+  assert.equal(classifyPage({ status: 0, body: '', error: 'ENOTFOUND' }).transient, true);
   assert.equal(classifyPage({ status: 0, body: '', error: 'TimeoutError', transient: true }).ok, null);
   assert.equal(classifyPage({ status: 403, body: '' }).ok, null);
   assert.equal(classifyPage({ status: 200, body: '<p>この求人の募集は終了しました</p>' }).ok, false);
   assert.equal(classifyPage({ status: 200, body: '<p>こちらの求人は<b>募集を終了しました</b></p>' }).ok, false);
   // メニューにある「募集終了の求人」のような言葉や、スクリプト内の文字列では止めない
   assert.equal(classifyPage({ status: 200, body: '<a>募集終了の求人を見る</a><script>var s="募集は終了しました"</script>' }).ok, true);
+  for (const open of ['この求人は締め切り間近です', '本募集は締め切り：11月30日', 'この求人は終了予定日があります', '本求人は終了次第、再募集します', '説明会の受付は終了しました', 'WEB面接の受付を終了しました']) {
+    assert.equal(classifyPage({ status: 200, body: `<p>${open}</p>` }).ok, true, open);
+  }
+  assert.equal(classifyPage({ status: 200, body: '<p>この求人の掲載は終了しました</p>' }).ok, false);
 });
 
 test('checkLandingPages: 壊れたページの求人は入稿を止め、直れば再開。判定不能なら前回の判定を引き継ぐ', async () => {
@@ -65,6 +70,22 @@ test('checkLandingPages: 壊れたページの求人は入稿を止め、直れ�
 
   // 直ったら再開
   pages['https://recruit.test-company.jp/jobs/driver'] = { status: 200, body: 'ok' };
+  await checkLandingPages(ctx);
+  assert.equal(landingBroken(ctx, 'driver'), undefined);
+});
+
+test('checkLandingPages: 接続不可・5xx は2回続いたときだけ異常とみなす', async () => {
+  const url = 'https://recruit.test-company.jp/jobs/driver';
+  const pages: Record<string, PageResult> = { [url]: { status: 0, body: '', error: 'ENOTFOUND' } };
+  const ctx = ctxWith(pages);
+  await checkLandingPages(ctx);
+  assert.equal(landingBroken(ctx, 'driver'), undefined);
+  await checkLandingPages(ctx);
+  assert.ok(landingBroken(ctx, 'driver'));
+  // 一度直れば数え直し
+  pages[url] = { status: 200, body: 'ok' };
+  await checkLandingPages(ctx);
+  pages[url] = { status: 503, body: '' };
   await checkLandingPages(ctx);
   assert.equal(landingBroken(ctx, 'driver'), undefined);
 });

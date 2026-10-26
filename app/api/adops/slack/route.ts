@@ -59,7 +59,10 @@ async function stateBlocksApproval(creativeId: string): Promise<string | null> {
     headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github.raw", "x-github-api-version": "2022-11-28" },
     cache: "no-store",
   }).catch(() => null);
-  if (!res?.ok) return "adops の状態を読めなかったため、承認を保留しました。少し待ってからもう一度押すか、管理画面で操作してください";
+  if (!res?.ok) {
+    console.error(`adops state.json の取得に失敗: ${res ? `HTTP ${res.status}` : "接続失敗"}（ADOPS_GITHUB_TOKEN に Contents: Read-only 権限が必要）`);
+    return `adops の状態を読めなかったため、承認を保留しました（${res ? `HTTP ${res.status}` : "接続失敗"}）。トークンの Contents 権限を確認するか、管理画面で操作してください`;
+  }
   const state = (await res.json().catch(() => null)) as { halted?: { reason: string }; creatives?: Record<string, { status?: string }> } | null;
   if (!state) return "adops の状態を読めなかったため、承認を保留しました";
   if (state.halted) return `adops は緊急停止中のため承認できません（${state.halted.reason}）。解除してから管理画面で操作してください`;
@@ -213,7 +216,7 @@ export async function POST(req: Request) {
 
 /**
  * /adops stop | resume — GitHub Actions の adops ワークフローを緊急操作として起動する。
- * 必要な環境変数: ADOPS_GITHUB_REPO、ADOPS_GITHUB_TOKEN（Actions: Read and write 権限）、ADOPS_SLACK_APPROVERS。
+ * 必要な環境変数: ADOPS_GITHUB_REPO、ADOPS_GITHUB_TOKEN（Contents: Read-only と Actions: Read and write の両方。承認の安全確認と共用）、ADOPS_SLACK_APPROVERS。
  */
 async function slashCommand(form: URLSearchParams): Promise<Response> {
   const reply = (text: string) => NextResponse.json({ response_type: "ephemeral", text });

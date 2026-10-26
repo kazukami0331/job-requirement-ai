@@ -32,14 +32,19 @@ export interface LandingHealth {
   checkedAt: string;
   /** 壊れた状態が始まった日時 */
   since?: string;
+  /** 一時的かもしれない異常（接続不可・5xx）が続いた回数 */
+  failCount?: number;
 }
 
 /** 募集が終わったことを示す文言（ページ全体に出るような、はっきりした言い回しだけ） */
-const CLOSED = /(この求人|本求人|こちらの求人|当求人|この募集|本募集)(の募集)?は(既に|すでに)?(終了|締め切|掲載終了|受付を終了)|(募集|掲載|受付)(は|を)(終了しました|締め切りました)/;
+const CLOSED =
+  /(この求人|本求人|こちらの求人|当求人|この募集|本募集|このお仕事)(は|の)(既に|すでに)?((募集|掲載|受付|応募)(は|が|を)?)?(終了しました|終了いたしました|締め切りました|締切りました|締め切らせていただきました)/;
 
-export function classifyPage(r: PageResult): { ok: boolean | null; note: string } {
-  if (r.status === 0) return r.transient ? { ok: null, note: `判定不能（${r.error ?? '接続失敗'}）` } : { ok: false, note: `つながらない（${r.error ?? '接続失敗'}）` };
+/** transient: 一時的な障害かもしれない異常（接続できない・5xx）。2回続いたときだけ異常とみなす */
+export function classifyPage(r: PageResult): { ok: boolean | null; note: string; transient?: boolean } {
+  if (r.status === 0) return r.transient ? { ok: null, note: `判定不能（${r.error ?? '接続失敗'}）` } : { ok: false, note: `つながらない（${r.error ?? '接続失敗'}）`, transient: true };
   if ([401, 403, 429].includes(r.status)) return { ok: null, note: `判定不能（HTTP ${r.status}。自動アクセスが弾かれている可能性）` };
+  if (r.status >= 500) return { ok: false, note: `HTTP ${r.status}`, transient: true };
   if (r.status >= 400) return { ok: false, note: `HTTP ${r.status}` };
   const text = r.body.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, '');
   const m = text.match(CLOSED);
@@ -99,9 +104,13 @@ export async function checkLandingPages(ctx: Ctx): Promise<string> {
       ok++;
       if (prev?.ok === false) recovered.push(`• ${j.title}（${j.id}）`);
       health[j.id] = { ok: true, status: (await p).status, note: c.note, checkedAt: now };
+    } else if (c.transient && (prev?.failCount ?? 0) < 1 && prev?.ok !== false) {
+      // 一時的な障害かもしれないので、1回目は判定を保留して次の確認を待つ
+      unknown++;
+      health[j.id] = { ...(prev ?? { ok: null, status: 0 }), note: `${c.note}（1回目。次の確認でも同じなら異常とみなす）`, checkedAt: now, failCount: 1 };
     } else {
       if (prev?.ok !== false) broke.push(`• ${j.title}（${j.id}）: ${c.note}\n   ${j.landingUrl}`);
-      health[j.id] = { ok: false, status: (await p).status, note: c.note, checkedAt: now, since: prev?.ok === false ? prev.since : now };
+      health[j.id] = { ok: false, status: (await p).status, note: c.note, checkedAt: now, since: prev?.ok === false ? prev.since : now, failCount: (prev?.failCount ?? 0) + 1 };
     }
   }
   // 求人一覧から消えた・停止した求人の記録は消す

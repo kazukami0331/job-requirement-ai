@@ -174,7 +174,7 @@ draft モードでは、入稿した広告ごとに Slack へ「プレビュー�
 5. GitHub の Variables に `ADOPS_SLACK_APPROVALS=true`。
 
 **Slack から緊急停止**: Slack アプリに Slash Command `/adops`（Request URL は同じ `https://<Vercel のドメイン>/api/adops/slack`）を追加し、
-Vercel に `ADOPS_GITHUB_REPO` と `ADOPS_GITHUB_TOKEN`（このリポジトリの Actions: Read and write 権限）を設定すると、
+Vercel に `ADOPS_GITHUB_REPO` と `ADOPS_GITHUB_TOKEN`（このリポジトリの fine-grained トークン。権限は Contents: Read-only と Actions: Read and write の両方。レポート・承認の安全確認・緊急操作で共用）を設定すると、
 承認者が `/adops stop` で緊急停止、`/adops resume` で解除できます。
 
 ボタンの有効期限は48時間です。adops が停止判断や緊急停止で止めた広告（広告名の末尾に `[adops停止]`）は、古いボタンを押しても再開しません。
@@ -193,7 +193,7 @@ Vercel に `ADOPS_GITHUB_REPO` と `ADOPS_GITHUB_TOKEN`（このリポジトリ�
 Next.js アプリを Vercel にデプロイしていれば、`https://<Vercel のドメイン>/adops` でパスワード付きのレポートが見られます
 （`adops-state` ブランチの最新のレポートと画像を GitHub から取って表示します。状態ファイル自体は公開しません）。
 Vercel の環境変数に `ADOPS_REPORT_PASSWORD`（ユーザー名は `adops`）、`ADOPS_GITHUB_REPO`（例: `kazukami0331/job-requirement-ai`）、
-`ADOPS_GITHUB_TOKEN`（このリポジトリの Contents: Read-only の fine-grained トークン）を設定してください。
+`ADOPS_GITHUB_TOKEN`（Contents: Read-only と Actions: Read and write の fine-grained トークン。スラッシュコマンドと共用）を設定してください。
 GitHub の Variables に `ADOPS_REPORT_URL=https://<Vercel のドメイン>/adops` を入れると、毎日の Slack 通知にリンクが付きます。
 
 ### 4. GitHub Actions で毎日動かす
