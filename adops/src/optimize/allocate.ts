@@ -230,7 +230,9 @@ export function allocateSlots(input: AllocationInput): Slot[] {
       if (!s.iterateOf) s.format = 'video' as Format; // 改良版は元の形式のまま
     }
   }
-  const imageSlots = slots.filter((s) => s.format === 'image' && !s.iterateOf);
+  // カルーセルは Meta・Instagram 専用なので、Meta の入稿先がある求人だけ
+  const hasMeta = new Set(catalog.jobs.filter((j) => j.placements.meta?.adsetIds?.length).map((j) => j.id));
+  const imageSlots = slots.filter((s) => s.format === 'image' && !s.iterateOf && (hasMeta.size === 0 || hasMeta.has(s.jobId)));
   if (carouselTarget > 0 && imageSlots.length > 0) {
     const step = imageSlots.length / carouselTarget;
     for (let k = 0; k < Math.min(carouselTarget, imageSlots.length); k++) imageSlots[Math.min(imageSlots.length - 1, Math.floor(k * step + step / 2))].format = 'carousel';
@@ -246,7 +248,8 @@ export function chooseLayout<L extends string>(layouts: readonly L[], creatives:
   const from = addDays(today, -(lookbackDays - 1));
   let best: { l: L; v: number } | null = null;
   for (const l of layouts) {
-    const ms = creatives.filter((c) => c.layout === l).flatMap((c) => c.metrics.filter((m) => m.date >= from && m.date <= today));
+    // 動画は字幕の出し方が別物なので、レイアウトの学習には画像とカルーセルだけを使う
+    const ms = creatives.filter((c) => c.layout === l && c.format !== 'video').flatMap((c) => c.metrics.filter((m) => m.date >= from && m.date <= today));
     const imp = ms.reduce((a, m) => a + m.impressions, 0);
     const clk = ms.reduce((a, m) => a + m.clicks, 0);
     const scale = Math.min(1, 20000 / Math.max(1, imp));

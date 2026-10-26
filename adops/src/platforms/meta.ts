@@ -134,7 +134,8 @@ export class MetaClient {
     // カルーセル: カード画像を順に child_attachments に並べる
     const cards = assets.filter((a) => a.card !== undefined).sort((a, b) => a.card! - b.card!);
     if (brief.format === 'carousel' && cards.length >= 2) {
-      const titles = [...brief.storyboard.map((s) => s.text), brief.headline];
+      // 制作したカードは最大5枚 + 条件まとめ。最後のカードの見出しは広告の見出し
+      const titles = [...brief.storyboard.slice(0, cards.length - 1).map((s) => s.text), brief.headline];
       const child_attachments = [];
       for (const [i, a] of cards.entries()) {
         child_attachments.push({
@@ -329,10 +330,14 @@ export class MetaClient {
   /** 投稿のコメント（since: UNIX 秒より後）。 */
   async comments(postId: string, since: number): Promise<{ id: string; message: string; createdTime: number }[]> {
     const out: { id: string; message: string; createdTime: number }[] = [];
-    let url: string | null = this.url(`${postId}/comments`, { fields: 'id,message,created_time', filter: 'stream', order: 'chronological', limit: '100', since: String(since) });
+    let url: string | null = this.url(`${postId}/comments`, { fields: 'id,message,created_time,from', filter: 'stream', order: 'chronological', limit: '100', since: String(since) });
     while (url) {
       const page: any = await requestJson(url);
-      for (const c of page.data ?? []) out.push({ id: c.id, message: c.message ?? '', createdTime: Math.floor(Date.parse(c.created_time) / 1000) });
+      for (const c of page.data ?? []) {
+        // 自社ページの返信は対象外（返信案を使って答えたコメントが再び通知されないように）
+        if (c.from?.id && c.from.id === this.s.pageId) continue;
+        out.push({ id: c.id, message: c.message ?? '', createdTime: Math.floor(Date.parse(c.created_time) / 1000) });
+      }
       url = page.paging?.next ?? null;
     }
     return out.filter((c) => c.createdTime > since);

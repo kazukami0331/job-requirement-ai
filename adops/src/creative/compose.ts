@@ -97,6 +97,33 @@ export interface OverlayInput {
   footer?: string;
 }
 
+/** 幅に収まる文字サイズ（全角換算の文字幅で割る）。 */
+function fitSize(text: string, maxW: number, size: number): number {
+  return Math.max(10, Math.min(size, Math.floor(maxW / Math.max(1, textUnits(text)))));
+}
+
+/**
+ * 下端の小さな文字（勤務地・給与のフッターと、許可番号などの必須表記）。
+ * 長くても幅に収まるよう縮め、必須表記はフッターの1行上に置いて重ならないようにする。
+ */
+function bottomLines(footer: string | undefined, mandatory: string | undefined, x: number, baseline: number, maxW: number, size: number, color: string): { svg: string; height: number } {
+  const parts: string[] = [];
+  let y = baseline;
+  let height = 0;
+  if (footer) {
+    const fs = fitSize(footer, maxW, size);
+    parts.push(textBlock([footer], x, y, fs, color, { weight: 500 }));
+    y -= fs * 1.4;
+    height += fs * 1.4;
+  }
+  if (mandatory) {
+    const ms = fitSize(mandatory, maxW, Math.round(size * 0.8));
+    parts.push(textBlock([mandatory], x, y, ms, color, { weight: 400 }));
+    height += ms * 1.4;
+  }
+  return { svg: parts.join('\n'), height };
+}
+
 /** 静止画広告のオーバーレイ（透明 PNG を返す）。 */
 export function overlaySvg(o: OverlayInput): string {
   const { width: W, height: H, brand } = o;
@@ -110,7 +137,8 @@ export function overlaySvg(o: OverlayInput): string {
   const mainH = main.lines.length * main.size * 1.22;
   const subH = o.sub ? sub.lines.length * sub.size * 1.3 : 0;
   const footerSize = Math.round(W * (wide ? 0.022 : 0.03));
-  const footerH = o.footer ? footerSize * 1.8 : 0;
+  const bottom = bottomLines(o.footer, brand.mandatoryText, pad, H - pad * 0.6, (wide ? boxW : W - pad * 2), footerSize, c.text);
+  const footerH = bottom.height ? bottom.height + footerSize * 0.4 : 0;
   const bandH = mainH + subH + footerH + pad * 1.6;
   const bandY = H - bandH;
 
@@ -121,7 +149,6 @@ export function overlaySvg(o: OverlayInput): string {
   const textX = pad;
   const mainY = bandY + pad * 0.8 + main.size * 0.95;
   const subY = mainY + mainH - main.size * 0.95 + sub.size * 1.2;
-  const footerY = H - pad * 0.6;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
 <defs>
@@ -136,8 +163,7 @@ export function overlaySvg(o: OverlayInput): string {
 ${badges}
 ${textBlock(main.lines, textX, mainY, main.size, c.text, { stroke: c.background, strokeW: main.size * 0.06 })}
 ${o.sub ? textBlock(sub.lines, textX, subY, sub.size, c.accent, { weight: 700, lineHeight: 1.3 }) : ''}
-${o.footer ? textBlock([o.footer], textX, footerY, footerSize, c.text, { weight: 500 }) : ''}
-${brand.mandatoryText ? textBlock([brand.mandatoryText], W - pad, footerY, Math.round(footerSize * 0.8), c.text, { weight: 400, anchor: 'end' }) : ''}
+${bottom.svg}
 </svg>`;
 }
 
@@ -171,7 +197,7 @@ export function cardSvg(o: OverlayInput): string {
   const wide = W / H > 1.5;
   const cardW = wide ? W * 0.56 : W - pad * 2;
   const inner = cardW - pad * 1.2;
-  const main = fitFont(o.main, inner, 2, Math.round(W * (wide ? 0.055 : 0.085)), Math.round(W * 0.042));
+  const main = fitFont(o.main, inner, 2, Math.round(W * (wide ? 0.055 : 0.085)), Math.round(W * (wide ? 0.03 : 0.042)));
   const sub = fitFont(o.sub, inner, 2, Math.round(main.size * 0.5), Math.round(W * 0.028));
   const footerSize = Math.round(W * (wide ? 0.02 : 0.028));
   const contentH = main.lines.length * main.size * 1.22 + (o.sub ? sub.lines.length * sub.size * 1.35 : 0) + (o.footer ? footerSize * 2 : 0);
@@ -185,14 +211,14 @@ export function cardSvg(o: OverlayInput): string {
   y += main.lines.length * main.size * 1.22 - main.size * 0.95 + sub.size * 1.15;
   if (o.sub) parts.push(textBlock(sub.lines, tx, y, sub.size, c.primary, { weight: 700, lineHeight: 1.35 }));
   // フッターはカードの幅に収まるよう文字を小さくする
-  const footSize = o.footer ? Math.min(footerSize, Math.floor(inner / Math.max(1, textUnits(o.footer)))) : footerSize;
+  const footSize = o.footer ? fitSize(o.footer, inner, footerSize) : footerSize;
   if (o.footer) parts.push(textBlock([o.footer], tx, cardY + cardH - pad * 0.55, footSize, '#444444', { weight: 500 }));
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
 <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" rx="${Math.round(W * 0.03)}" fill="#ffffff" opacity="0.94"/>
 <rect x="${cardX}" y="${cardY}" width="${Math.max(8, Math.round(W * 0.012))}" height="${cardH}" rx="4" fill="${c.accent}"/>
 ${badgesSvg(o.badges, cardX, cardY - badgeSize * 2.4, badgeSize, brand, W - pad)}
 ${parts.join('\n')}
-${brand.mandatoryText ? textBlock([brand.mandatoryText], W - pad, H - pad * 0.35, Math.round(footerSize * 0.8), c.text, { weight: 400, anchor: 'end' }) : ''}
+${brand.mandatoryText ? textBlock([brand.mandatoryText], W - pad, H - pad * 0.35, fitSize(brand.mandatoryText, W - pad * 2, Math.round(footerSize * 0.8)), c.text, { weight: 400, anchor: 'end' }) : ''}
 </svg>`;
 }
 
@@ -208,8 +234,9 @@ export function boldSvg(o: OverlayInput & { pay: string }): string {
   const payF = { size: paySize, lines: [o.pay] };
   const main = fitFont(o.main, wide ? W * 0.55 : W - pad * 2, 2, Math.round(W * (wide ? 0.045 : 0.07)), Math.round(W * 0.04));
   const topH = payF.size * 1.9 + pad;
-  const mainH = main.lines.length * main.size * 1.25 + pad * 1.3;
   const footerSize = Math.round(W * (wide ? 0.02 : 0.028));
+  const bottom = bottomLines(o.footer, brand.mandatoryText, pad, H - pad * 0.5, wide ? W * 0.55 : W - pad * 2, footerSize, c.text);
+  const mainH = main.lines.length * main.size * 1.25 + pad * 1.3 + Math.max(0, bottom.height - footerSize * 1.4);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
 <defs>
   <linearGradient id="top" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c.background}" stop-opacity="0.92"/><stop offset="1" stop-color="${c.background}" stop-opacity="0"/></linearGradient>
@@ -220,8 +247,7 @@ ${textBlock(payF.lines, pad, pad + payF.size * 0.95, payF.size, c.accent, { stro
 ${badgesSvg(o.badges, pad, pad + payF.size * 1.25, Math.round(W * (wide ? 0.024 : 0.032)), brand, W - pad)}
 <rect x="0" y="${H - mainH - pad}" width="${W}" height="${mainH + pad}" fill="url(#bot)"/>
 ${textBlock(main.lines, pad, H - mainH + main.size * 0.6, main.size, c.text, { stroke: c.background, strokeW: main.size * 0.06, lineHeight: 1.25 })}
-${o.footer ? textBlock([o.footer], pad, H - pad * 0.5, footerSize, c.text, { weight: 500 }) : ''}
-${brand.mandatoryText ? textBlock([brand.mandatoryText], W - pad, H - pad * 0.5, Math.round(footerSize * 0.8), c.text, { weight: 400, anchor: 'end' }) : ''}
+${bottom.svg}
 </svg>`;
 }
 

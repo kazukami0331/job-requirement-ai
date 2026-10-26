@@ -100,9 +100,13 @@ export async function produceOne(ctx: Ctx, c: Creative): Promise<void> {
 
   const outDir = store.assetDir(c.id);
   const assets: Asset[] = [];
-  // 文字レイアウトは反応の良いものを多めに選ぶ（一度決めたら作り直しでも変えない）
-  c.layout ??= chooseLayout(LAYOUTS, store.creatives(), ctx.today);
-  const layout = c.layout as Layout;
+  // 文字レイアウトは反応の良いものを多めに選ぶ（画像広告とカルーセルだけ。一度決めたら作り直しでも変えない）。
+  // 動画は Google 用の静止画にだけ使うので学習の対象にしない（帯で固定）
+  if (c.format !== 'video') {
+    // カルーセルのカードは「給与ドン」にしない（最後のまとめカードで給与を大きく出すため）
+    c.layout ??= c.format === 'carousel' ? chooseLayout(['band', 'card'] as const, store.creatives(), ctx.today) : chooseLayout(LAYOUTS, store.creatives(), ctx.today);
+  }
+  const layout = (c.layout ?? 'band') as Layout;
   const pathOf = (ratio: Ratio) => {
     const j = c.imageJobs.find((x) => x.ratio === ratio)!;
     return j.paths![j.selected ?? 0];
@@ -117,7 +121,7 @@ export async function produceOne(ctx: Ctx, c: Creative): Promise<void> {
     for (const [i, card] of cards.entries()) {
       const out = join(outDir, `${c.id}_card${i}.jpg`);
       const cardBrief = { ...brief, overlay: { main: card.text, sub: i === 0 ? `スワイプして見る →  ${i + 1}/${total}` : `${i + 1}/${total}`, badges: i === 0 ? brief.overlay.badges : [] } };
-      const { width, height } = await composeImage(ordered[i % ordered.length], out, '1:1', cardBrief, job, catalog.brand, layout === 'bold' ? 'band' : layout);
+      const { width, height } = await composeImage(ordered[i % ordered.length], out, '1:1', cardBrief, job, catalog.brand, layout);
       assets.push({ ratio: '1:1', kind: 'image', path: out, width, height, card: i });
     }
     const last = join(outDir, `${c.id}_card${cards.length}.jpg`);

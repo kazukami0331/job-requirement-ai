@@ -65,5 +65,32 @@ export async function GET(req: Request, { params }: { params: Promise<{ path?: s
     const html = (await res.text()).replace("<head>", '<head><base href="/adops/">');
     return new Response(html, { headers: { "content-type": TYPES.html, "cache-control": "no-store" } });
   }
-  return new Response(res.body, { headers: { "content-type": TYPES[ext] ?? "application/octet-stream", "cache-control": "private, max-age=300" } });
+  const type = TYPES[ext] ?? "application/octet-stream";
+  const buf = Buffer.from(await res.arrayBuffer());
+  // 動画は Range（部分取得）に応える。iPhone の Safari は 206 応答が無いと再生できない。
+  // 1回の応答は最大 1MB にして、サーバーレス関数の応答サイズ上限にもかからないようにする
+  const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.get("range") ?? "");
+  if (range) {
+    const CHUNK = 1024 * 1024;
+    let start = range[1] ? Number(range[1]) : Math.max(0, buf.length - Number(range[2]));
+    let end = range[1] && range[2] ? Number(range[2]) : buf.length - 1;
+    if (!range[1] && !range[2]) start = 0;
+    end = Math.min(end, start + CHUNK - 1, buf.length - 1);
+    if (start >= buf.length || start > end) {
+      return new Response(null, { status: 416, headers: { "content-range": `bytes */${buf.length}` } });
+    }
+    return new Response(buf.subarray(start, end + 1), {
+      status: 206,
+      headers: {
+        "content-type": type,
+        "accept-ranges": "bytes",
+        "content-range": `bytes ${start}-${end}/${buf.length}`,
+        "content-length": String(end - start + 1),
+        "cache-control": "private, max-age=300",
+      },
+    });
+  }
+  return new Response(buf, {
+    headers: { "content-type": type, "accept-ranges": "bytes", "content-length": String(buf.length), "cache-control": "private, max-age=300" },
+  });
 }
