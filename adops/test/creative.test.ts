@@ -12,7 +12,7 @@ import { brand, brief, job } from './fixtures.ts';
 import { googleTexts, fitGoogle } from '../src/platforms/google.ts';
 import { withUtm } from '../src/platforms/meta.ts';
 import { googleWidth } from '../src/compliance/rules.ts';
-import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
 
 test('wrapJa: 幅で折り返し、句読点を行頭に置かない', () => {
   const lines = wrapJa('寮費0円で今月から月給30万円〜', 8);
@@ -73,6 +73,7 @@ test('HandoffProvider: 画像が置かれるまで pending、置かれたら取�
   assert.equal((await p.poll(req, 'cr_x_4x5')).status, 'done');
   // 画像審査で全滅したら破棄して、新しい画像を待つ（同じ画像を再び取り込まない）
   await p.discard(req.creativeId);
+  assert.ok(readdirSync(inbox).some((f) => f.startsWith('cr_x_4x5.rejected-')));
   assert.equal((await p.generate(req)).status, 'pending');
   writeFileSync(join(inbox, 'cr_x_4x5', 'b.png'), await sharp({ create: { width: 64, height: 80, channels: 3, background: '#444' } }).png().toBuffer());
   assert.equal((await p.poll(req, 'cr_x_4x5')).status, 'done');

@@ -19,8 +19,13 @@ const log = logger('organic');
 export function organicCandidates(ctx: Ctx): { c: Creative; kind: 'feed' | 'reels'; path: string; score: number }[] {
   const o = ctx.catalog.policy.organic!;
   const out: { c: Creative; kind: 'feed' | 'reels'; path: string; score: number }[] = [];
+  const draft = ctx.catalog.policy.autonomy === 'draft';
   for (const c of ctx.store.creatives({ status: ['produced', 'published', 'paused', 'retired'] })) {
     if (c.organic) continue;
+    // 2回失敗した素材は使わない（同じ素材が毎日枠を占めて他が投稿されなくなるのを防ぐ）
+    if ((c.organicFailures ?? 0) >= 2) continue;
+    // draft モードでは、人が管理画面で ON にした（＝人が確認した）広告の素材だけを公開投稿に使う
+    if (draft && c.live !== true) continue;
     const reel = c.assets.find((a) => a.kind === 'video' && a.ratio === '9:16' && existsSync(a.path));
     const feed = c.assets.find((a) => a.kind === 'image' && a.ratio === '4:5' && existsSync(a.path));
     if (!reel && !feed) continue;
@@ -39,12 +44,14 @@ export async function postOrganic(ctx: Ctx): Promise<string> {
   const postedToday = ctx.store.creatives().filter((c) => c.organic && jstDate(new Date(c.organic.postedAt)) === ctx.today).length;
   const quota = Math.max(0, o.postsPerDay - postedToday);
   if (quota === 0) return '本日の投稿数の上限に達しています';
-  const candidates = organicCandidates(ctx).slice(0, quota);
+  const candidates = organicCandidates(ctx);
   if (candidates.length === 0) return '投稿できる素材がありません';
   const ig = !ctx.dryRun && ctx.settings.meta.instagramUserId && ctx.settings.meta.accessToken ? new InstagramClient(ctx.settings.meta) : null;
 
   const done: string[] = [];
+  let posted = 0;
   for (const { c, kind, path } of candidates) {
+    if (posted >= quota) break;
     const brief = ctx.store.state.briefs[c.briefId];
     const job = ctx.catalog.jobs.find((j) => j.id === c.jobId);
     if (!brief || !job) continue;
@@ -52,10 +59,12 @@ export async function postOrganic(ctx: Ctx): Promise<string> {
       const caption = await writeCaption(ctx.llm, brief, ctx.catalog, kind, o.baseHashtags);
       const issues = checkTexts([['caption', caption]], job, ctx.catalog.brand);
       if (hasBlocker(issues)) {
+        c.organicFailures = (c.organicFailures ?? 0) + 1;
         log.warn(`${c.id}: キャプションが機械チェックで不合格のため投稿しません: ${issues.filter((i) => i.severity === 'blocker').map((i) => i.problem).join(' / ')}`);
         continue;
       }
       if (!ig) {
+        posted++;
         done.push(`${c.id}(${kind}, 未投稿: ${ctx.dryRun ? 'DRY RUN' : 'Instagram 未設定'})`);
         log.info(`[投稿予定] ${c.id} ${kind}\n${caption}`);
         continue;
@@ -64,10 +73,12 @@ export async function postOrganic(ctx: Ctx): Promise<string> {
       // 公開できたらすぐ記録して保存（次回同じ素材を二重投稿しない）
       c.organic = { kind, mediaId: r.id, permalink: r.permalink, postedAt: new Date().toISOString(), caption, insights: [] };
       ctx.store.save();
+      posted++;
       done.push(`${c.id}(${kind}) ${r.permalink}`);
       log.info(`Instagram に投稿 ${c.id} ${r.permalink}`);
       ctx.store.save();
     } catch (e) {
+      c.organicFailures = (c.organicFailures ?? 0) + 1;
       log.error(`${c.id}: Instagram 投稿に失敗 ${(e as Error).message}`);
     }
   }

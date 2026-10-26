@@ -53,7 +53,11 @@ export class LocalInbox implements Inbox {
     renameSync(dir, `${dir}.imported`);
   }
   async discard(id: string): Promise<void> {
-    for (const d of [join(this.root, id), join(this.root, `${id}.imported`)]) rmSync(d, { recursive: true, force: true });
+    // 消さずに名前を変える。GitHub Actions の保存時に、リモートに残る古いフォルダを取り込み直さないための印にもなる
+    const stamp = Date.now();
+    for (const d of [join(this.root, id), join(this.root, `${id}.imported`)]) {
+      if (existsSync(d)) renameSync(d, join(this.root, `${id}.rejected-${stamp}${d.endsWith('.imported') ? '-i' : ''}`));
+    }
   }
 }
 
@@ -121,7 +125,12 @@ export class DriveInbox implements Inbox {
         method: 'POST',
         headers: await this.auth(),
         json: { name: id, mimeType: FOLDER_MIME, parents: [this.rootId] },
+        attempts: 1, // 再送で同名フォルダが2つできるのを防ぐ
       });
+    }
+    // PROMPT.txt が無ければ置く（前回アップロードに失敗していても次回やり直す）
+    const hasPrompt = (await this.list(`'${folder.id}' in parents and name='PROMPT.txt' and trashed=false`)).length > 0;
+    if (!hasPrompt) {
       // PROMPT.txt（multipart アップロード）
       const boundary = `adops${Date.now()}`;
       const body = [
@@ -136,11 +145,17 @@ export class DriveInbox implements Inbox {
         `--${boundary}--`,
         '',
       ].join('\r\n');
-      await request('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true', {
-        method: 'POST',
-        headers: { ...(await this.auth()), 'content-type': `multipart/related; boundary=${boundary}` },
-        body,
-      });
+      try {
+        await request('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true', {
+          method: 'POST',
+          headers: { ...(await this.auth()), 'content-type': `multipart/related; boundary=${boundary}` },
+          body,
+          attempts: 1,
+        });
+      } catch (e) {
+        // サービスアカウントはマイドライブに容量を持たないため、共有ドライブでないと失敗する。プロンプトは Slack にも出るので続行
+        console.warn(`PROMPT.txt をドライブに置けませんでした（共有ドライブのフォルダを使ってください）: ${(e as Error).message.slice(0, 200)}`);
+      }
     }
     return `https://drive.google.com/drive/folders/${folder.id}`;
   }
@@ -148,7 +163,10 @@ export class DriveInbox implements Inbox {
   async fetch(id: string): Promise<Buffer[] | null> {
     const folder = await this.findFolder(id);
     if (!folder) return null;
-    const files = (await this.list(`'${folder.id}' in parents and trashed=false and mimeType contains 'image/'`)).slice(0, 4);
+    // sharp で読める形式だけ（iPhone の HEIC は読めないので JPEG で保存してもらう）
+    const files = (
+      await this.list(`'${folder.id}' in parents and trashed=false and (mimeType='image/png' or mimeType='image/jpeg' or mimeType='image/webp')`)
+    ).slice(0, 4);
     if (files.length === 0) return null;
     const out: Buffer[] = [];
     for (const f of files) {

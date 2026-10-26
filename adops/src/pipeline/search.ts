@@ -91,10 +91,14 @@ export async function rotateSearchAds(ctx: Ctx): Promise<string> {
   const active = catalog.policy.autonomy === 'auto';
   for (const job of jobs) {
     for (const adGroupId of job.placements.google!.searchAdGroupIds!) {
-      const inGroup = Object.values(ads).filter((a) => a.adGroupId === adGroupId && (a.status === 'live' || a.status === 'draft'));
+      const inGroup = Object.values(ads).filter((a) => a.adGroupId === adGroupId && a.status === 'live');
+      const drafts = Object.values(ads).filter((a) => a.adGroupId === adGroupId && a.status === 'draft');
       if (inGroup.length >= PER_AD_GROUP) continue;
-      // 同じ日に作り直さない（DRY RUN の下書きが毎回増えるのを防ぐ）
-      if (Object.values(ads).some((a) => a.adGroupId === adGroupId && a.createdOn === today)) continue;
+      // DRY RUN の下書きは広告グループに1本だけ（確認用）。本番では下書きを捨てて実物を作る
+      if ((ctx.dryRun || !ctx.google) && drafts.length) continue;
+      if (!ctx.dryRun && ctx.google) for (const d of drafts) delete ads[d.id];
+      // 同じ日に何度も作らない
+      if (Object.values(ads).some((a) => a.adGroupId === adGroupId && a.status === 'live' && a.createdOn === today)) continue;
       try {
         const rsa = await writeRsa(ctx.llm, job, catalog, inGroup.flatMap((a) => a.headlines));
         if (rsa.headlines.length < 8 || rsa.descriptions.length < 2) {

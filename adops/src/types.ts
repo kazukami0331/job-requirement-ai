@@ -251,6 +251,8 @@ export interface Creative {
   publishedAt?: string;
   updatedAt: string;
   organic?: OrganicPost;
+  /** Instagram 投稿に失敗した回数（一定回数で候補から外す） */
+  organicFailures?: number;
   /** 一部の媒体だけ入稿に失敗したとき、再試行する媒体と回数 */
   pendingPlatforms?: Platform[];
   publishRetries?: number;

@@ -145,6 +145,8 @@ jobs:
                 case "$name" in *.imported) continue ;; esac
                 # 今回の実行で取り込み済み（.imported）なら不要。それ以外はファイル単位で足す（PROMPT.txt だけのフォルダにも追加される）
                 [ -e "inbox/$name.imported" ] && continue
+                # 画像審査で全て却下して捨てたフォルダ（.rejected-*）は取り込み直さない
+                compgen -G "inbox/$name.rejected-*" >/dev/null && continue
                 mkdir -p "inbox/$name"
                 cp -rn "$d". "inbox/$name/"
               done

@@ -311,7 +311,8 @@ export async function publishToGoogle(
     }
   }
 
-  for (const assetGroupId of assetGroups) {
+  // P-MAX のアセットは紐付けた時点で配信される（停止状態で入れられない）ので、draft モードでは入れない
+  for (const assetGroupId of active ? assetGroups : []) {
     const links = [
       ...imageAssets.map((i) => ({ asset: i.rn, fieldType: FIELD_BY_RATIO[i.ratio] })),
       ...(videoAsset ? [{ asset: videoAsset, fieldType: 'YOUTUBE_VIDEO' }] : []),

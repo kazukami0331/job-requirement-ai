@@ -56,8 +56,10 @@ Midjourney には**公式 API がありません**（2026年10月時点）。ま
 - **Google ドライブ（おすすめ）** `MJ_INBOX=drive`: 共有フォルダの中に、AI が企画ごとのフォルダ（`cr_xxx_4x5` など）と
   `PROMPT.txt` を自動で作ります。Slack にフォルダへのリンクとプロンプトが届くので、midjourney.com（スマホ可）で生成して
   そのフォルダに画像を保存するだけ。次の実行で取り込まれ、選定・合成・入稿まで進みます。
-  設定: Google Cloud でサービスアカウントを作り（Drive API を有効化）、鍵 JSON を `GOOGLE_SERVICE_ACCOUNT_JSON`、
-  ドライブのフォルダをサービスアカウントのメールアドレスに「編集者」で共有し、そのフォルダ ID を `DRIVE_INBOX_FOLDER_ID` に。
+  設定: Google Cloud でサービスアカウントを作り（Drive API を有効化）、鍵 JSON を `GOOGLE_SERVICE_ACCOUNT_JSON` に。
+  **共有ドライブ**にフォルダを作ってサービスアカウントのメールアドレスを「コンテンツ管理者」で追加し、そのフォルダ ID を `DRIVE_INBOX_FOLDER_ID` に
+  （サービスアカウントはマイドライブに容量を持たないため、マイドライブのフォルダだと PROMPT.txt を置けません）。
+  画像は PNG / JPEG / WebP で保存してください（iPhone の HEIC は読めません）。
 - **GitHub** `MJ_INBOX=local`（既定）: `adops-state` ブランチの `inbox/cr_xxx_4x5/` に「Add file → Upload files」で置く。
 
 取り込んだフォルダは `.imported` に、画像審査で全て使えなかったフォルダは（ドライブでは）`.rejected-…` に名前が変わり、
@@ -179,6 +181,7 @@ node src/cli.ts add-job --file 求人票.txt [--write]   # 求人票から jobs.
 
 - 既定は DRY RUN（媒体への入稿・停止・予算変更・Instagram 投稿をしない。企画・画像生成・制作は行うので Claude と Midjourney の費用はかかる）。
   `draft` モードでは停止状態で入稿し、予算は増やさない（提案のみ）。
+- draft モードでは、停止状態で入れられない P-MAX アセットは入稿せず、Instagram 投稿も人が ON にした広告の素材だけを使う。
 - 予算増は同じ広告セットにつき3日に1回まで（`ADOPS_BUDGET_COOLDOWN_DAYS`）。Meta の予算は Meta での実績だけで判断。
 - 広告・クリエイティブの作成リクエストはタイムアウトしても再送しない（二重入稿の防止）。一部の広告セット/媒体だけ失敗した場合も作成済みの広告は必ず記録し、失敗した媒体は最大3回まで再試行。
 - 停止（お金を守る方向）は `draft` モードでも自動。予算増は `auto` モードのときだけ、1回 +20%・上限 `maxDailyBudget`。

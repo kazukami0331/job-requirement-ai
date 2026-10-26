@@ -73,4 +73,17 @@ test('rotateSearchAds: DRY RUN では下書きを1日1本だけ作る', async ()
   assert.equal(ads.length, 1);
   assert.equal(ads[0].status, 'draft');
   assert.ok(ads[0].headlines.length >= 8);
+  // 翌日も DRY RUN なら下書きは増えない
+  ctx.today = '2026-10-11';
+  await rotateSearchAds(ctx);
+  assert.equal(Object.values(ctx.store.state.searchAds!).length, 1);
+  // 本番になったら下書きを捨てて実物を作る
+  const created: string[] = [];
+  ctx.dryRun = false;
+  ctx.google = { createDemandGenAd: async () => (created.push('x'), 'customers/1/adGroupAds/1~9'), adMetrics: async () => new Map() } as any;
+  await rotateSearchAds(ctx);
+  const after = Object.values(ctx.store.state.searchAds!);
+  assert.equal(after.length, 1);
+  assert.equal(after[0].status, 'live');
+  assert.equal(created.length, 1);
 });

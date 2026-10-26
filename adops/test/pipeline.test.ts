@@ -136,6 +136,7 @@ test('organic: 広告で反応の良い素材を優先し、DRY RUN では投稿
   const { writeFileSync } = await import('node:fs');
   const ctx = ctxWith(offlineLlm(catalog()));
   ctx.catalog.policy.organic = { enabled: true, postsPerDay: 1, baseHashtags: ['#求人'], minAdCtrForRepost: 1 };
+  ctx.catalog.policy.autonomy = 'auto';
   const img = join(ctx.store.dir, 'x_4x5.jpg');
   writeFileSync(img, 'x');
   const asset = { ratio: '4:5' as const, kind: 'image' as const, path: img, width: 1080, height: 1350 };
@@ -148,6 +149,14 @@ test('organic: 広告で反応の良い素材を優先し、DRY RUN では投稿
   const note = await postOrganic(ctx);
   assert.match(note, /proven\(feed, 未投稿: DRY RUN\)/);
   assert.equal(ctx.store.state.creatives.proven.organic, undefined);
+  // draft モードでは、人が ON にした（live）広告の素材だけを使う
+  ctx.catalog.policy.autonomy = 'draft';
+  assert.deepEqual(organicCandidates(ctx).map((x) => x.c.id), []);
+  ctx.store.state.creatives.weak.live = true;
+  assert.deepEqual(organicCandidates(ctx).map((x) => x.c.id), ['weak']);
+  // 2回失敗した素材は候補から外す
+  ctx.store.state.creatives.weak.organicFailures = 2;
+  assert.deepEqual(organicCandidates(ctx).map((x) => x.c.id), []);
 });
 
 test('frequentIssues: 繰り返し出る重大な指摘だけを回数順に返す', async () => {
