@@ -189,3 +189,21 @@ export function allocateSlots(input: AllocationInput): Slot[] {
   }
   return slots;
 }
+
+/**
+ * 画像のレイアウト（帯 / カード / 給与ドン）を選ぶ。クリック率の Thompson Sampling で、
+ * 反応の良いレイアウトを多めに、まだ試していないものも一定の確率で使う。
+ */
+export function chooseLayout<L extends string>(layouts: readonly L[], creatives: Creative[], today: string, rng: Rng = Math.random, lookbackDays = 28): L {
+  const from = addDays(today, -(lookbackDays - 1));
+  let best: { l: L; v: number } | null = null;
+  for (const l of layouts) {
+    const ms = creatives.filter((c) => c.layout === l).flatMap((c) => c.metrics.filter((m) => m.date >= from && m.date <= today));
+    const imp = ms.reduce((a, m) => a + m.impressions, 0);
+    const clk = ms.reduce((a, m) => a + m.clicks, 0);
+    const scale = Math.min(1, 20000 / Math.max(1, imp));
+    const v = betaSample(1 + clk * scale, 100 + (imp - clk) * scale, rng);
+    if (!best || v > best.v) best = { l, v };
+  }
+  return best!.l;
+}

@@ -152,15 +152,113 @@ ${brand.mandatoryText ? textBlock([brand.mandatoryText], W - pad, footerY, Math.
 </svg>`;
 }
 
+export type Layout = 'band' | 'card' | 'bold';
+export const LAYOUTS: Layout[] = ['band', 'card', 'bold'];
+
+function badgesSvg(badges: string[], x: number, y: number, size: number, brand: Brand): string {
+  let bx = x;
+  return badges
+    .slice(0, 3)
+    .map((b) => {
+      const w = Math.round(textUnits(b) * size + size * 1.2);
+      const svg = `<rect x="${bx}" y="${y}" rx="${size * 0.9}" width="${w}" height="${size * 1.8}" fill="${brand.colors.accent}"/>
+<text x="${bx + w / 2}" y="${y + size * 1.27}" font-family="${FONT_FAMILY}" font-size="${size}" font-weight="900" fill="${brand.colors.background}" text-anchor="middle">${escapeXml(b)}</text>`;
+      bx += w + size * 0.5;
+      return svg;
+    })
+    .join('\n');
+}
+
+/** カード型: 下部に白い角丸カードを置き、濃い色の文字で載せる（写真が明るくても読める）。 */
+export function cardSvg(o: OverlayInput): string {
+  const { width: W, height: H, brand } = o;
+  const c = brand.colors;
+  const pad = Math.round(W * 0.06);
+  const wide = W / H > 1.5;
+  const cardW = wide ? W * 0.56 : W - pad * 2;
+  const inner = cardW - pad * 1.2;
+  const main = fitFont(o.main, inner, 2, Math.round(W * (wide ? 0.055 : 0.085)), Math.round(W * 0.042));
+  const sub = fitFont(o.sub, inner, 2, Math.round(main.size * 0.5), Math.round(W * 0.028));
+  const footerSize = Math.round(W * (wide ? 0.02 : 0.028));
+  const contentH = main.lines.length * main.size * 1.22 + (o.sub ? sub.lines.length * sub.size * 1.35 : 0) + (o.footer ? footerSize * 2 : 0);
+  const cardH = contentH + pad * 1.4;
+  const cardX = wide ? pad : pad;
+  const cardY = H - cardH - pad;
+  const badgeSize = Math.round(W * (wide ? 0.024 : 0.034));
+  const tx = cardX + pad * 0.6;
+  let y = cardY + pad * 0.7 + main.size * 0.95;
+  const parts = [textBlock(main.lines, tx, y, main.size, c.background)];
+  y += main.lines.length * main.size * 1.22 - main.size * 0.95 + sub.size * 1.15;
+  if (o.sub) parts.push(textBlock(sub.lines, tx, y, sub.size, c.primary, { weight: 700, lineHeight: 1.35 }));
+  // フッターはカードの幅に収まるよう文字を小さくする
+  const footSize = o.footer ? Math.min(footerSize, Math.floor(inner / Math.max(1, textUnits(o.footer)))) : footerSize;
+  if (o.footer) parts.push(textBlock([o.footer], tx, cardY + cardH - pad * 0.55, footSize, '#444444', { weight: 500 }));
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+<rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" rx="${Math.round(W * 0.03)}" fill="#ffffff" opacity="0.94"/>
+<rect x="${cardX}" y="${cardY}" width="${Math.max(8, Math.round(W * 0.012))}" height="${cardH}" rx="4" fill="${c.accent}"/>
+${badgesSvg(o.badges, cardX, cardY - badgeSize * 2.4, badgeSize, brand)}
+${parts.join('\n')}
+${brand.mandatoryText ? textBlock([brand.mandatoryText], W - pad, H - pad * 0.35, Math.round(footerSize * 0.8), c.text, { weight: 400, anchor: 'end' }) : ''}
+</svg>`;
+}
+
+/** 給与ドン型: 給与額を画面上部に大きく出し、コピーは下部に。給与訴求・活用枠で強い。 */
+export function boldSvg(o: OverlayInput & { pay: string }): string {
+  const { width: W, height: H, brand } = o;
+  const c = brand.colors;
+  const pad = Math.round(W * 0.06);
+  const wide = W / H > 1.5;
+  // 給与は切らずに必ず全部見せる（収まるまで小さくする）
+  const payBox = wide ? W * 0.55 : W - pad * 2;
+  const paySize = Math.min(Math.round(W * (wide ? 0.08 : 0.13)), Math.floor(payBox / Math.max(1, textUnits(o.pay))));
+  const payF = { size: paySize, lines: [o.pay] };
+  const main = fitFont(o.main, wide ? W * 0.55 : W - pad * 2, 2, Math.round(W * (wide ? 0.045 : 0.07)), Math.round(W * 0.04));
+  const topH = payF.size * 1.9 + pad;
+  const mainH = main.lines.length * main.size * 1.25 + pad * 1.3;
+  const footerSize = Math.round(W * (wide ? 0.02 : 0.028));
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+<defs>
+  <linearGradient id="top" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c.background}" stop-opacity="0.92"/><stop offset="1" stop-color="${c.background}" stop-opacity="0"/></linearGradient>
+  <linearGradient id="bot" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c.background}" stop-opacity="0"/><stop offset="0.35" stop-color="${c.background}" stop-opacity="0.88"/></linearGradient>
+</defs>
+<rect x="0" y="0" width="${W}" height="${topH * 1.35}" fill="url(#top)"/>
+${textBlock(payF.lines, pad, pad + payF.size * 0.95, payF.size, c.accent, { stroke: c.background, strokeW: payF.size * 0.06 })}
+${badgesSvg(o.badges, pad, pad + payF.size * 1.25, Math.round(W * (wide ? 0.024 : 0.032)), brand)}
+<rect x="0" y="${H - mainH - pad}" width="${W}" height="${mainH + pad}" fill="url(#bot)"/>
+${textBlock(main.lines, pad, H - mainH + main.size * 0.6, main.size, c.text, { stroke: c.background, strokeW: main.size * 0.06, lineHeight: 1.25 })}
+${o.footer ? textBlock([o.footer], pad, H - pad * 0.5, footerSize, c.text, { weight: 500 }) : ''}
+${brand.mandatoryText ? textBlock([brand.mandatoryText], W - pad, H - pad * 0.5, Math.round(footerSize * 0.8), c.text, { weight: 400, anchor: 'end' }) : ''}
+</svg>`;
+}
+
+export function payLine(job: Job): string {
+  const s = job.salary;
+  return `${s.type}${formatYen(s.min)}${s.max ? `〜${formatYen(s.max)}` : '〜'}`;
+}
+
 export function footerLine(job: Job): string {
   const s = job.salary;
   return `${job.location}｜${s.type}${formatYen(s.min)}${s.max ? `〜${formatYen(s.max)}` : '〜'}｜${job.employmentType}`;
 }
 
 /** 元画像を指定比率でトリミングし、コピーを合成して保存する。 */
-export async function composeImage(basePath: string, outPath: string, ratio: Ratio, brief: CreativeBrief, job: Job, brand: Brand): Promise<{ width: number; height: number }> {
+export async function composeImage(
+  basePath: string,
+  outPath: string,
+  ratio: Ratio,
+  brief: CreativeBrief,
+  job: Job,
+  brand: Brand,
+  layout: Layout = 'band',
+): Promise<{ width: number; height: number }> {
   const [W, H] = RATIO_PX[ratio];
-  const overlay = overlaySvg({ width: W, height: H, main: brief.overlay.main, sub: brief.overlay.sub, badges: brief.overlay.badges, brand, footer: footerLine(job) });
+  const input: OverlayInput = { width: W, height: H, main: brief.overlay.main, sub: brief.overlay.sub, badges: brief.overlay.badges, brand, footer: footerLine(job) };
+  const overlay =
+    layout === 'card'
+      ? cardSvg(input)
+      : layout === 'bold'
+        ? boldSvg({ ...input, pay: payLine(job), footer: `${job.location}｜${job.employmentType}` })
+        : overlaySvg(input);
   const layers: OverlayOptions[] = [{ input: Buffer.from(overlay), top: 0, left: 0 }];
   if (brand.logoPath) {
     const logo = await sharp(brand.logoPath).resize({ width: Math.round(W * 0.18) }).png().toBuffer();

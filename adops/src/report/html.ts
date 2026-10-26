@@ -53,6 +53,7 @@ export function renderReport(state: State, catalog: Catalog, dataDir: string, to
     <span class="tag">${ANGLE_LABELS[c.angle]}</span>
     <span class="tag">${c.format === 'video' ? '動画' : '画像'}</span>
     ${c.explore ? '<span class="tag x">探索</span>' : ''}
+    ${c.layout ? `<span class="tag">${({ band: '帯', card: 'カード', bold: '給与ドン' } as Record<string, string>)[c.layout] ?? c.layout}</span>` : ''}
   </div>
   <h3>${escapeXml(b?.overlay.main ?? '')}</h3>
   <p class="sub">${escapeXml(b?.headline ?? '')}</p>

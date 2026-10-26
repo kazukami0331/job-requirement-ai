@@ -55,6 +55,10 @@ ${groupBy(withData, (c) => c.angle, from, today).map((r) => fmtRow(r, (k) => ANG
 ${HEADER}
 ${groupBy(withData, (c) => c.format, from, today).map((r) => fmtRow(r, (k) => (k === 'video' ? '動画' : '画像'))).join('\n')}
 
+## 画像レイアウト別（band=下部の帯 / card=白いカード / bold=給与を大きく）
+${HEADER}
+${groupBy(withData.filter((c) => c.layout), (c) => c.layout!, from, today).map((r) => fmtRow(r, (k) => k)).join('\n')}
+
 ## ペルソナ別
 ${HEADER}
 ${groupBy(withData, (c) => c.personaId, from, today).map((r) => fmtRow(r, personaName)).join('\n')}

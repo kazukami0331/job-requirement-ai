@@ -160,3 +160,21 @@ test('qualityFactors: 面接に進む率が低い訴求軸は係数が下がる�
   assert.ok(q.get('skill')! > 0.7 && q.get('skill')! < 1);
   assert.equal(qualityFactors([creative({ funnel: f(5, 1) })]).size, 0);
 });
+
+test('chooseLayout: クリック率の高いレイアウトを多く選ぶ', async () => {
+  const { chooseLayout } = await import('../src/optimize/allocate.ts');
+  const cs = [
+    creative({ id: 'a', layout: 'band', metrics: daily('2026-10-01', 7, { impressions: 3000, clicks: 15, spend: 0, conversions: 0 }) }),
+    creative({ id: 'b', layout: 'card', metrics: daily('2026-10-01', 7, { impressions: 3000, clicks: 60, spend: 0, conversions: 0 }) }),
+    creative({ id: 'c', layout: 'bold', metrics: daily('2026-10-01', 7, { impressions: 3000, clicks: 20, spend: 0, conversions: 0 }) }),
+  ];
+  const counts = new Map<string, number>();
+  for (let i = 0; i < 100; i++) {
+    const l = chooseLayout(['band', 'card', 'bold'] as const, cs, '2026-10-07', seededRng(i));
+    counts.set(l, (counts.get(l) ?? 0) + 1);
+  }
+  assert.ok((counts.get('card') ?? 0) > 90, JSON.stringify([...counts]));
+  // データが無ければどれも選ばれうる
+  const fresh = new Set(Array.from({ length: 60 }, (_, i) => chooseLayout(['band', 'card', 'bold'] as const, [], '2026-10-07', seededRng(i))));
+  assert.equal(fresh.size, 3);
+});

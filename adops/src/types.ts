@@ -235,6 +235,8 @@ export interface Creative {
   angle: Angle;
   format: Format;
   explore: boolean;
+  /** 画像の文字レイアウト（band / card / bold）。自動で配分・学習する */
+  layout?: string;
   status: CreativeStatus;
   statusReason?: string;
   /** 比率ごとの画像生成依頼（画像広告は 4:5 と 9:16、動画は 9:16 の背景を作る） */

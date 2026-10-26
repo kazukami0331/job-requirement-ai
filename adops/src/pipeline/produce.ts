@@ -7,7 +7,8 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import type { Ctx } from './context.ts';
 import type { Asset, Creative, CreativeBrief, ImageJob, Ratio } from '../types.ts';
-import { composeImage, RATIO_PX } from '../creative/compose.ts';
+import { composeImage, LAYOUTS, RATIO_PX, type Layout } from '../creative/compose.ts';
+import { chooseLayout } from '../optimize/allocate.ts';
 import { buildVideo, reframeVideo, thumbnail } from '../creative/video.ts';
 import { finalQa, pickBestImage } from '../agents/artJudge.ts';
 import { createTts } from '../creative/tts.ts';
@@ -98,6 +99,9 @@ export async function produceOne(ctx: Ctx, c: Creative): Promise<void> {
 
   const outDir = store.assetDir(c.id);
   const assets: Asset[] = [];
+  // 文字レイアウトは反応の良いものを多めに選ぶ（一度決めたら作り直しでも変えない）
+  c.layout ??= chooseLayout(LAYOUTS, store.creatives(), ctx.today);
+  const layout = c.layout as Layout;
   const pathOf = (ratio: Ratio) => {
     const j = c.imageJobs.find((x) => x.ratio === ratio)!;
     return j.paths![j.selected ?? 0];
@@ -112,7 +116,7 @@ export async function produceOne(ctx: Ctx, c: Creative): Promise<void> {
     ];
     for (const [ratio, source] of plan) {
       const out = join(outDir, `${c.id}_${ratio.replace(':', 'x')}.jpg`);
-      const { width, height } = await composeImage(pathOf(source), out, ratio, brief, job, catalog.brand);
+      const { width, height } = await composeImage(pathOf(source), out, ratio, brief, job, catalog.brand, layout);
       assets.push({ ratio, kind: 'image', path: out, width, height });
     }
   } else {
@@ -149,7 +153,7 @@ export async function produceOne(ctx: Ctx, c: Creative): Promise<void> {
     // Google の P-MAX / デマンドジェネレーションの画像枠にも使えるよう、静止画版も作る
     for (const ratio of ['1:1', '1.91:1'] as Ratio[]) {
       const out = join(outDir, `${c.id}_${ratio.replace(':', 'x')}.jpg`);
-      const { width, height } = await composeImage(ordered[0], out, ratio, brief, job, catalog.brand);
+      const { width, height } = await composeImage(ordered[0], out, ratio, brief, job, catalog.brand, layout);
       assets.push({ ratio, kind: 'image', path: out, width, height });
     }
   }
