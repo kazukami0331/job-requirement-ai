@@ -28,7 +28,7 @@ AI が **企画 → レビュー → 修正 → 制作 → 入稿 → 分析 →
 | 画像生成 | Midjourney | 文字を含まない情景写真。画像広告は 4:5 と 9:16、動画は 9:16 を4候補 |
 | 画像選定 | Claude（画像認識） | 手指の崩れ・文字化け・安全装備なし・暗すぎる構図を落とし、一番使える1枚を選ぶ |
 | 文字合成 | コード（sharp） | 日本語コピー・バッジ・給与と勤務地のフッターを 4:5 / 1:1 / 9:16 / 1.91:1 に合成（Midjourney は日本語を描けないため） |
-| 動画化 | コード（ffmpeg） | 4候補をカットごとの背景にしてパン/ズーム＋字幕 → 求人情報のエンドカード。9:16 と 4:5 を書き出し |
+| 動画化 | コード（ffmpeg） | 4候補をカットごとの背景にしてパン/ズーム＋字幕 → 求人情報のエンドカード。9:16 と 4:5 を書き出し。任意で Google Cloud の音声合成によるナレーション（カットの長さを声に合わせ、BGM を下げてミックス） |
 | 最終チェック | Claude（画像認識） | 完成品の文字が読めるか、誤解を招かないか、審査で落ちそうな要素がないか |
 | 入稿 | コード | Meta: 配置ごとに 4:5（フィード）と 9:16（ストーリーズ・リール）を出し分ける1広告。Google: デマンド ジェネレーション広告（動画は YouTube 限定公開経由）/ P-MAX アセット |
 | 停止・入替・予算 | コード（ルール） | 応募ゼロのまま目標単価の2倍消化 / 応募単価が目標の1.5倍超 / CTR が基準未満 / 広告疲れ / 同時配信数の上限 → 停止。勝ち広告のある広告セットは日予算を段階的に増額（上限あり） |
@@ -161,7 +161,7 @@ draft モードでは、入稿した広告ごとに Slack へ「プレビュー�
 | 種類 | 名前 |
 |---|---|
 | Secrets | `GOOGLE_SERVICE_ACCOUNT_JSON` `ADOPS_OUTCOMES_CSV_URL` `ANTHROPIC_API_KEY` `META_ACCESS_TOKEN` `META_APP_SECRET` `GOOGLE_ADS_DEVELOPER_TOKEN` `GOOGLE_ADS_CLIENT_ID` `GOOGLE_ADS_CLIENT_SECRET` `GOOGLE_ADS_REFRESH_TOKEN` `YOUTUBE_REFRESH_TOKEN` `MJ_API_KEY` `SLACK_WEBHOOK_URL` |
-| Variables | `ADOPS_DRY_RUN`（`false` で本番）`IMAGE_PROVIDER` `META_AD_ACCOUNT_ID` `META_PAGE_ID` `META_INSTAGRAM_USER_ID` `META_CONVERSION_ACTION_TYPES` `GOOGLE_ADS_CUSTOMER_ID` `GOOGLE_ADS_LOGIN_CUSTOMER_ID` `GOOGLE_ADS_CONVERSION_ACTION` `GOOGLE_ADS_LOGO_ASSET` `GOOGLE_ADS_BUSINESS_NAME` `ADOPS_MODEL` `MJ_API_BASE_URL` `MJ_VIDEO_ENABLED` `MJ_INBOX` `DRIVE_INBOX_FOLDER_ID` `ADOPS_MAX_LLM_USD` `ADOPS_SLACK_APPROVALS` |
+| Variables | `ADOPS_DRY_RUN`（`false` で本番）`IMAGE_PROVIDER` `META_AD_ACCOUNT_ID` `META_PAGE_ID` `META_INSTAGRAM_USER_ID` `META_CONVERSION_ACTION_TYPES` `GOOGLE_ADS_CUSTOMER_ID` `GOOGLE_ADS_LOGIN_CUSTOMER_ID` `GOOGLE_ADS_CONVERSION_ACTION` `GOOGLE_ADS_LOGO_ASSET` `GOOGLE_ADS_BUSINESS_NAME` `ADOPS_MODEL` `MJ_API_BASE_URL` `MJ_VIDEO_ENABLED` `MJ_INBOX` `DRIVE_INBOX_FOLDER_ID` `ADOPS_MAX_LLM_USD` `ADOPS_SLACK_APPROVALS` `ADOPS_TTS` `ADOPS_TTS_VOICE` |
 
 本番前に、手元で `.env` を作って `node src/cli.ts check --live` を実行すると、Claude・Meta（広告アカウント・各広告セット・Instagram）・
 Google 広告（アカウント・広告グループがデマンド ジェネレーションか）・ドライブの設定を読み取りだけで確認できます。

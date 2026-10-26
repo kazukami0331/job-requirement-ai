@@ -119,3 +119,32 @@ test('approvalBlocks: プレビュー画像と承認ボタン（広告 ID 入り
   assert.deepEqual(actions.elements.map((e: any) => e.action_id), ['adops_approve', 'adops_reject']);
   assert.deepEqual(JSON.parse(actions.elements[0].value), { c: 'cr_1', m: ['a1'], g: ['customers/1/adGroupAds/2~3'] });
 });
+
+test('buildVideo: ナレーションに合わせてカットを伸ばし、音声を混ぜる', async () => {
+  const { buildVideo, probeDuration } = await import('../src/creative/video.ts');
+  const { execFileSync } = await import('node:child_process');
+  const dir = mkdtempSync(join(tmpdir(), 'adops-tts-'));
+  const r = await new MockProvider().generate({ creativeId: 'v', prompt: 'x', ratio: '9:16', outDir: dir });
+  const images = r.status === 'done' ? r.paths : [];
+  // 文字数 × 0.25 秒のトーンを「読み上げ」とみなす偽 TTS
+  const tts = {
+    synthesize: async (text: string, path: string) => {
+      const sec = Math.max(0.5, [...text].length * 0.25);
+      execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-f', 'lavfi', '-i', `sine=frequency=440:duration=${sec}`, '-ar', '44100', path]);
+    },
+  };
+  const b = brief({
+    format: 'video',
+    storyboard: [
+      { seconds: 2, text: '寮費0円って本当？', visual: '' },
+      { seconds: 2, text: 'とても長いナレーションのカットはちゃんと伸びます', visual: '' },
+    ],
+  });
+  const out = join(dir, 'out.mp4');
+  const { durationSec } = await buildVideo({ brief: b, job: job(), brand: brand(), images, workDir: join(dir, 'w'), outPath: out, tts });
+  // 2カット目は 24字 × 0.25 = 6秒 + 余白 → 2秒より長くなる
+  assert.ok(durationSec > 2 + 2 + 3 + 3, `duration ${durationSec}`);
+  const streams = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', out]).toString().trim().split('\n');
+  assert.deepEqual(streams.sort(), ['audio', 'video']);
+  assert.ok(Math.abs((await probeDuration(out)) - durationSec) < 0.2);
+});

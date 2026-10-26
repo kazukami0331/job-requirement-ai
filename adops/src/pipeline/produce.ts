@@ -10,6 +10,7 @@ import type { Asset, Creative, CreativeBrief, ImageJob, Ratio } from '../types.t
 import { composeImage, RATIO_PX } from '../creative/compose.ts';
 import { buildVideo, reframeVideo, thumbnail } from '../creative/video.ts';
 import { finalQa, pickBestImage } from '../agents/artJudge.ts';
+import { createTts } from '../creative/tts.ts';
 import { logger } from '../util/log.ts';
 
 const log = logger('produce');
@@ -137,6 +138,7 @@ export async function produceOne(ctx: Ctx, c: Creative): Promise<void> {
       workDir: join(outDir, 'video_work'),
       outPath: vertical,
       bgmPath: bgm && existsSync(bgm) ? bgm : undefined,
+      tts: createTts(),
     });
     await thumbnail(vertical, vertical.replace(/\.mp4$/, '.jpg'), Math.min(1, durationSec / 4));
     assets.push({ ratio: '9:16', kind: 'video', path: vertical, width: 1080, height: 1920, durationSec });

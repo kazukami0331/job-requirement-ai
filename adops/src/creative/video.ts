@@ -11,6 +11,8 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { Brand, CreativeBrief, Job } from '../types.ts';
 import { captionPng, endCardPng } from './compose.ts';
+import { formatYen } from '../compliance/rules.ts';
+import type { Tts } from './tts.ts';
 
 const run = promisify(execFile);
 const W = 1080;
@@ -69,6 +71,20 @@ export interface VideoInput {
   outPath: string;
   bgmPath?: string;
   endCardSeconds?: number;
+  /** ナレーション（音声合成）。無ければ字幕と BGM だけ */
+  tts?: Tts | null;
+}
+
+/** ナレーションを作って長さを測る。失敗したカットは無音（字幕だけ）にする。 */
+async function narrate(tts: Tts | null | undefined, text: string, path: string): Promise<number> {
+  if (!tts || !text.trim()) return 0;
+  try {
+    await tts.synthesize(text, path);
+    return await probeDuration(path);
+  } catch (e) {
+    console.warn(`ナレーションの生成に失敗（字幕のみで続行）: ${(e as Error).message.slice(0, 200)}`);
+    return 0;
+  }
 }
 
 export async function buildVideo(input: VideoInput): Promise<{ path: string; durationSec: number }> {
@@ -85,8 +101,13 @@ export async function buildVideo(input: VideoInput): Promise<{ path: string; dur
       ];
 
   const parts: string[] = [];
+  const voices: { path: string; part: number }[] = [];
   for (const [i, scene] of scenes.entries()) {
-    const sec = Math.max(1.5, Math.min(6, scene.seconds));
+    // ナレーションがあれば、読み終わるまでカットを伸ばす（最大8秒）
+    const voicePath = join(workDir, `narr_${i}.mp3`);
+    const voiceSec = await narrate(input.tts, scene.text, voicePath);
+    if (voiceSec > 0) voices.push({ path: voicePath, part: i });
+    const sec = Math.max(1.5, Math.min(voiceSec > 0 ? 8 : 6, Math.max(scene.seconds, voiceSec + 0.4)));
     const cap = join(workDir, `cap_${i}.png`);
     writeFileSync(cap, await captionPng(scene.text, W, H, brand, { position: i === 0 ? 'center' : 'lower' }));
     const out = join(workDir, `scene_${i}.mp4`);
@@ -108,8 +129,16 @@ export async function buildVideo(input: VideoInput): Promise<{ path: string; dur
     parts.push(out);
   }
 
-  // エンドカード
-  const endSec = input.endCardSeconds ?? 3;
+  // エンドカード（ナレーションは職種・給与・行動喚起）
+  const sal = job.salary;
+  const endVoicePath = join(workDir, 'narr_end.mp3');
+  const endVoiceSec = await narrate(
+    input.tts,
+    `${job.title}。${sal.type}${formatYen(sal.min)}${sal.max ? `から${formatYen(sal.max)}` : 'から'}。詳しい条件は、画面の下から見られます。`,
+    endVoicePath,
+  );
+  if (endVoiceSec > 0) voices.push({ path: endVoicePath, part: scenes.length });
+  const endSec = Math.min(8, Math.max(input.endCardSeconds ?? 3, endVoiceSec + 0.5));
   const endPng = join(workDir, 'endcard.png');
   writeFileSync(endPng, await endCardPng(brief, job, brand, W, H));
   const endMp4 = join(workDir, 'scene_end.mp4');
@@ -129,10 +158,29 @@ export async function buildVideo(input: VideoInput): Promise<{ path: string; dur
   const audio = input.bgmPath && existsSync(input.bgmPath)
     ? ['-stream_loop', '-1', '-i', input.bgmPath]
     : ['-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100'];
+  // 各カットの開始時刻（実際に書き出した長さから計算）にナレーションを置き、BGM は声の邪魔をしない音量に下げる
+  const starts: number[] = [];
+  let acc = 0;
+  for (const p of parts) {
+    starts.push(acc);
+    acc += await probeDuration(p);
+  }
+  const fadeOut = `afade=t=out:st=${Math.max(0, duration - 1).toFixed(2)}:d=1`;
+  const filter = voices.length
+    ? [
+        `[1:a]atrim=0:${duration.toFixed(2)},volume=0.18[bg]`,
+        ...voices.map((v, k) => {
+          const ms = Math.round((starts[v.part] + (v.part === 0 ? 0.1 : 0.3)) * 1000);
+          return `[${k + 2}:a]aresample=44100,adelay=${ms}|${ms},volume=1.6[v${k}]`;
+        }),
+        `[bg]${voices.map((_, k) => `[v${k}]`).join('')}amix=inputs=${voices.length + 1}:normalize=0:duration=first,${fadeOut}[a]`,
+      ].join(';')
+    : `[1:a]atrim=0:${duration.toFixed(2)},${fadeOut},volume=0.6[a]`;
   await ffmpeg([
     '-i', joined, ...audio,
-    '-map', '0:v', '-map', '1:a', '-t', duration.toFixed(2),
-    '-af', `afade=t=out:st=${Math.max(0, duration - 1).toFixed(2)}:d=1,volume=0.6`,
+    ...voices.flatMap((v) => ['-i', v.path]),
+    '-filter_complex', filter,
+    '-map', '0:v', '-map', '[a]', '-t', duration.toFixed(2),
     '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', input.outPath,
   ]);
   return { path: input.outPath, durationSec: Math.round(duration * 10) / 10 };
