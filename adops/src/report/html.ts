@@ -25,6 +25,25 @@ const STATUS_LABEL: Record<string, string> = {
 
 const yen = (n: number | null) => (n === null ? '-' : `${Math.round(n).toLocaleString()}円`);
 
+/** 日別の棒グラフ（28日）。外部ライブラリなしの SVG。 */
+export function barsSvg(label: string, values: { date: string; v: number }[], fmt: (n: number) => string): string {
+  const W = 560;
+  const H = 120;
+  const max = Math.max(1, ...values.map((x) => x.v));
+  const bw = W / Math.max(1, values.length);
+  const bars = values
+    .map((x, i) => {
+      const h = Math.round((x.v / max) * (H - 24));
+      return `<rect x="${(i * bw + 1).toFixed(1)}" y="${H - 16 - h}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${h}" rx="2" fill="var(--accent)"><title>${x.date} ${escapeXml(fmt(x.v))}</title></rect>`;
+    })
+    .join('');
+  const first = values[0]?.date.slice(5) ?? '';
+  const last = values.at(-1)?.date.slice(5) ?? '';
+  return `<figure class="trend"><figcaption>${escapeXml(label)} <span class="muted">最大 ${escapeXml(fmt(max))}</span></figcaption>
+<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeXml(label)}" preserveAspectRatio="none">${bars}
+<text x="0" y="${H - 2}" font-size="11" fill="var(--muted)">${first}</text><text x="${W}" y="${H - 2}" font-size="11" fill="var(--muted)" text-anchor="end">${last}</text></svg></figure>`;
+}
+
 export function renderReport(state: State, catalog: Catalog, dataDir: string, today: string): string {
   const from = addDays(today, -6);
   const creatives = Object.values(state.creatives).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
@@ -75,6 +94,8 @@ body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,-appl
 main{max-width:1200px;margin:0 auto;padding:24px 16px 64px}
 h1{font-size:22px;margin:0 0 4px}h2{font-size:17px;margin:32px 0 12px}
 .muted{color:var(--muted)}
+.trends{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:16px 0}
+.trend{margin:0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}.trend figcaption{font-size:13px;margin-bottom:6px}.trend svg{width:100%;height:110px;display:block}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:16px}
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
 .kpi b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
@@ -102,6 +123,13 @@ ul{padding-left:20px}
   <div class="kpi"><span class="muted">入社（累計・取込分）</span><b>${creatives.reduce((a, c) => a + (c.funnel?.hired ?? 0), 0)}</b></div>
   <div class="kpi"><span class="muted">AI費用（7日）</span><b>$${spendUsd.toFixed(2)}</b></div>
 </section>
+${(() => {
+  // 直近28日の推移（広告費と応募）
+  const days = Array.from({ length: 28 }, (_, i) => addDays(today, i - 27));
+  const byDay = days.map((d) => ({ d, t: totals(creatives.flatMap((c) => c.metrics.filter((m) => m.date === d))) }));
+  if (!byDay.some((x) => x.t.impressions > 0)) return '';
+  return `<section class="trends">${barsSvg('広告費（日別・28日）', byDay.map((x) => ({ date: x.d, v: x.t.spend })), (n) => `${Math.round(n).toLocaleString()}円`)}${barsSvg('応募（日別・28日）', byDay.map((x) => ({ date: x.d, v: x.t.conversions })), (n) => `${n}件`)}</section>`;
+})()}
 ${(() => {
   const alerts: string[] = [];
   if (state.halted) alerts.push(`緊急停止中（${escapeXml(state.halted.reason)}）。企画・入稿・投稿を止めています`);
