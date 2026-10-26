@@ -48,7 +48,7 @@ export function dailyRows(state: State, today: string, days = 60): (string | num
 }
 
 export function creativeRows(state: State, catalog: Catalog): (string | number)[][] {
-  const rows: (string | number)[][] = [['クリエイティブ', '作成日', '状態', '求人', '訴求軸', '形式', 'レイアウト', '探索', '画像の文字', '見出し', '表示(累計)', 'クリック', '費用', '応募', '面接', '入社', '状態の理由']];
+  const rows: (string | number)[][] = [['クリエイティブ', '作成日', '状態', '求人', '訴求軸', '形式', 'レイアウト', '探索', '言語', '画像の文字', '見出し', '表示(累計)', 'クリック', '費用', '応募', '面接', '入社', '状態の理由']];
   for (const c of Object.values(state.creatives).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))) {
     const b = state.briefs[c.briefId];
     const t = totals(c.metrics);
@@ -61,6 +61,7 @@ export function creativeRows(state: State, catalog: Catalog): (string | number)[
       FORMAT_LABEL[c.format],
       c.layout ?? '',
       c.explore ? '探索' : '',
+      b?.language ?? 'ja',
       b?.overlay.main ?? '',
       b?.headline ?? '',
       t.impressions,
