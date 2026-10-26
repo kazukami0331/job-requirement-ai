@@ -3,12 +3,37 @@ import type { Ctx } from './context.ts';
 import type { Decision } from '../types.ts';
 import { decide, type AdsetInfo } from '../optimize/decide.ts';
 import { logger } from '../util/log.ts';
+import { emergencyStop } from './emergency.ts';
+import { notifySlack } from '../notify/slack.ts';
 import { daysBetween } from '../util/id.ts';
 
 const log = logger('optimize');
 
+/**
+ * 1日の広告費の上限（ADOPS_DAILY_SPEND_CAP、円）。当日の消化額（adops の広告と検索広告の合計）が超えていたら、
+ * adops の広告をすべて止めて入稿も凍結する（人が resume するまで）。設定や判断の誤りで費用が膨らむのを防ぐ最後の砦。
+ */
+export async function enforceSpendCap(ctx: Ctx): Promise<string | null> {
+  const cap = Number(process.env.ADOPS_DAILY_SPEND_CAP ?? 0);
+  if (!(cap > 0) || ctx.store.state.halted) return null;
+  const spent =
+    ctx.store.creatives().reduce((a, c) => a + c.metrics.filter((m) => m.date === ctx.today).reduce((x, m) => x + m.spend, 0), 0) +
+    Object.values(ctx.store.state.searchAds ?? {}).reduce((a, s) => a + s.metrics.filter((m) => m.date === ctx.today).reduce((x, m) => x + m.spend, 0), 0);
+  if (spent <= cap) return null;
+  const reason = `本日の広告費 ${Math.round(spent).toLocaleString()}円 が上限 ${cap.toLocaleString()}円 を超えたため自動で緊急停止`;
+  log.warn(reason);
+  if (ctx.dryRun) return `${reason}（DRY RUN のため実際には止めていません）`;
+  const r = await emergencyStop(ctx, reason);
+  await notifySlack(ctx.settings.slack.webhookUrl, {
+    text: `:rotating_light: *adops: ${reason}*\n${r.paused} 件を停止し、新しい入稿も止めました。原因を確認して、問題なければ Actions の control: resume で解除してください。`,
+  });
+  return reason;
+}
+
 export async function optimize(ctx: Ctx): Promise<Decision[]> {
   const { store, catalog, today } = ctx;
+  const capped = await enforceSpendCap(ctx);
+  if (capped && !ctx.dryRun) return [];
   const adsetsByJob = new Map<string, AdsetInfo[]>();
   if (ctx.meta) {
     for (const job of catalog.jobs.filter((j) => j.active)) {

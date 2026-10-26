@@ -442,3 +442,20 @@ test('placeholderProblems: サンプルの社名・URL だけを検出し、実�
   assert.equal(placeholderProblems({ ...base, brand: brand({ name: '' }) }).length, 1);
   assert.equal(placeholderProblems({ ...base, jobs: [job({ landingUrl: 'https://www.example.com/x' })] }).length, 1);
 });
+
+test('enforceSpendCap: 当日の広告費が上限を超えたら全停止して入稿を凍結する', async () => {
+  const { optimize } = await import('../src/pipeline/optimize.ts');
+  const { creative, daily } = await import('./fixtures.ts');
+  const stopped: string[] = [];
+  const ctx = ctxWith(offlineLlm(catalog()), { dryRun: false, meta: { stopAd: async (id: string) => void stopped.push(id), getAdset: async () => ({ id: '111', dailyBudget: null, status: 'ACTIVE' }) } as any });
+  ctx.store.state.creatives.a = creative({ id: 'a', metrics: daily('2026-10-10', 1, { impressions: 10000, clicks: 100, spend: 60000, conversions: 1 }) });
+  process.env.ADOPS_DAILY_SPEND_CAP = '50000';
+  try {
+    const d = await optimize(ctx);
+    assert.equal(d.length, 0);
+    assert.deepEqual(stopped, ['ad1']);
+    assert.match(ctx.store.state.halted!.reason, /上限/);
+  } finally {
+    delete process.env.ADOPS_DAILY_SPEND_CAP;
+  }
+});

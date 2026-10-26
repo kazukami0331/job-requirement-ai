@@ -9,7 +9,7 @@
 | 0. 準備 | 1〜2日 | — | `config/` に求人・ペルソナ・ブランドを書く（求人票があれば `add-job`）。媒体でキャンペーン・広告セットを作る。Secrets / Variables を登録。`check --live` が全部 OK | 接続テストが通る |
 | 1. 試運転 | 3〜7日 | `ADOPS_DRY_RUN=true` | 毎朝の Slack とレポートで、企画・コピー・画像・動画の質を見る。気になる表現は `brand.json` の NG 表現や `examples.json` の悪い例に足す | 「このまま出してよい」と思える企画が大半になる |
 | 2. 下書き入稿 | 1〜2週 | `ADOPS_DRY_RUN=false` / `autonomy: draft` | 停止状態で入稿される広告を管理画面で確認して ON にする。停止判断は自動で動く | 媒体審査の不承認がほぼ無い。応募単価が目標の範囲 |
-| 3. 完全自動 | 以降 | `autonomy: auto` | 毎朝 Slack を見るだけ。月曜の戦略メモで予算配分などを判断 | — |
+| 3. 完全自動 | 以降 | `autonomy: auto` ＋ `ADOPS_DAILY_SPEND_CAP` | 毎朝 Slack を見るだけ。月曜の戦略メモで予算配分などを判断 | — |
 
 `autonomy` は `config/policy.json`、`ADOPS_DRY_RUN` は GitHub の Variables で切り替えます。
 
