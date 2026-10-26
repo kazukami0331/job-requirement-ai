@@ -20,8 +20,11 @@ export function organicCandidates(ctx: Ctx): { c: Creative; kind: 'feed' | 'reel
   const o = ctx.catalog.policy.organic!;
   const out: { c: Creative; kind: 'feed' | 'reels' | 'carousel'; path: string; paths?: string[]; score: number }[] = [];
   const draft = ctx.catalog.policy.autonomy === 'draft';
+  const activeJobs = new Set(ctx.catalog.jobs.filter((j) => j.active).map((j) => j.id));
   for (const c of ctx.store.creatives({ status: ['produced', 'published', 'paused', 'retired'] })) {
     if (c.organic) continue;
+    // 募集が終わった求人の素材は投稿しない
+    if (!activeJobs.has(c.jobId)) continue;
     // 2回失敗した素材は使わない（同じ素材が毎日枠を占めて他が投稿されなくなるのを防ぐ）
     if ((c.organicFailures ?? 0) >= 2) continue;
     // draft モードでは、人が管理画面で ON にした（＝人が確認した）広告の素材だけを公開投稿に使う
