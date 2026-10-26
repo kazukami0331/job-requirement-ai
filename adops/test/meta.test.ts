@@ -80,3 +80,27 @@ test('publishToMeta: 一部の広告セットで失敗しても作成済みの�
   assert.equal(r.errors.length, 1);
   assert.match(r.previewUrl!, /^https:\/\/cdn\//);
 });
+
+test('クリエイティブ: Meta の自動テキスト最適化などを OPT_OUT し、拒否されたら指定なしで作り直す', async () => {
+  const { client, sent } = fakeClient();
+  await client.createCreative(brief(), job(), [img('4:5'), img('9:16')], 'n');
+  const first = sent.filter((x) => x.path.endsWith('adcreatives'));
+  assert.equal(first.length, 1);
+  assert.equal(first[0].params.degrees_of_freedom_spec.creative_features_spec.text_optimizations.enroll_status, 'OPT_OUT');
+
+  // 指定が拒否された場合（サーバーのエラー）は1回だけ指定なしで作る
+  const f2 = fakeClient();
+  const orig = f2.client.call;
+  f2.client.call = async (method: string, path: string, params: any) => {
+    if (path.endsWith('adcreatives') && params.degrees_of_freedom_spec) {
+      f2.sent.push({ method, path, params });
+      throw new Error('Meta API POST act_1/adcreatives: Invalid parameter');
+    }
+    return orig(method, path, params);
+  };
+  const id = await f2.client.createCreative(brief(), job(), [img('4:5'), img('9:16')], 'n');
+  assert.equal(id, 'cre1');
+  const tries = f2.sent.filter((x) => x.path.endsWith('adcreatives'));
+  assert.equal(tries.length, 2);
+  assert.equal(tries[1].params.degrees_of_freedom_spec, undefined);
+});

@@ -146,7 +146,7 @@ export class MetaClient {
           call_to_action: { type: brief.cta, value: ctaValue },
         });
       }
-      const res = await this.call<{ id: string }>('POST', `${this.account}/adcreatives`, {
+      const res = await this.postCreative({
         name,
         object_story_spec: {
           page_id: this.s.pageId,
@@ -194,7 +194,7 @@ export class MetaClient {
               call_to_action: { type: brief.cta, value: ctaValue },
             },
           };
-      const res = await this.call<{ id: string }>('POST', `${this.account}/adcreatives`, { name, object_story_spec: story });
+      const res = await this.postCreative({ name, object_story_spec: story });
       return res.id;
     }
 
@@ -243,12 +243,31 @@ export class MetaClient {
         },
       ],
     };
-    const res = await this.call<{ id: string }>('POST', `${this.account}/adcreatives`, {
+    const res = await this.postCreative({
       name,
       object_story_spec: { page_id: this.s.pageId, ...ig },
       asset_feed_spec: assetFeedSpec,
     });
     return res.id;
+  }
+
+  /**
+   * 広告クリエイティブを作る。Meta の自動「テキストの最適化」などは、レビュー済みのコピーを書き換えて
+   * 法令チェックを通っていない表現になりうるので、既定で OPT_OUT する（ADOPS_META_ENHANCEMENTS=allow で無効化）。
+   * その指定が広告の種類に合わず拒否された場合だけ、指定なしで作り直す（クリエイティブ自体は配信されないので安全）。
+   */
+  private async postCreative(params: Record<string, unknown>): Promise<{ id: string }> {
+    if (process.env.ADOPS_META_ENHANCEMENTS === 'allow') return this.call<{ id: string }>('POST', `${this.account}/adcreatives`, params);
+    const optOut = { enroll_status: 'OPT_OUT' };
+    const spec = { creative_features_spec: { text_optimizations: optOut, image_touchups: optOut, image_template: optOut } };
+    try {
+      return await this.call<{ id: string }>('POST', `${this.account}/adcreatives`, { ...params, degrees_of_freedom_spec: spec });
+    } catch (e) {
+      // サーバーが拒否した（＝作られていない）ときだけ。タイムアウトは作られた可能性があるので作り直さない
+      if (!(e as Error).message.startsWith('Meta API')) throw e;
+      log.warn(`自動補正の OPT_OUT 指定が受け付けられなかったため、指定なしで作成します: ${(e as Error).message.slice(0, 200)}`);
+      return this.call<{ id: string }>('POST', `${this.account}/adcreatives`, params);
+    }
   }
 
   async createAd(adsetId: string, creativeId: string, name: string, active: boolean): Promise<string> {
