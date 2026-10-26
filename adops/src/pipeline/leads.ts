@@ -35,18 +35,23 @@ export function leadWindow(now = new Date()): { since: number; until: number } {
 
 /**
  * 前回どこまで通知したか（cursorPath）があれば、そこから今までを対象にする（実行の遅延・失敗で取りこぼさない）。
- * 無ければ（初回・キャッシュ切れ）時刻で区切った窓。さかのぼるのは最大24時間。
+ * 無ければ（初回・キャッシュ切れ）時刻で区切った窓。さかのぼるのは最大24時間（それより古い位置なら直近24時間）。
+ * hookSince は連携先（CRM）への送信が前回失敗していたときの、未送信分の開始位置（最大7日さかのぼる）。
  */
-export function windowFromCursor(cursorPath: string | undefined, now = new Date()): { since: number; until: number } {
+export function windowFromCursor(cursorPath: string | undefined, now = new Date()): { since: number; until: number; hookSince: number } {
   const fallback = leadWindow(now);
-  if (!cursorPath || !existsSync(cursorPath)) return fallback;
+  if (!cursorPath || !existsSync(cursorPath)) return { ...fallback, hookSince: fallback.since };
   try {
-    const prev = Number(JSON.parse(readFileSync(cursorPath, 'utf8')).until);
+    const cur = JSON.parse(readFileSync(cursorPath, 'utf8'));
+    const prev = Number(cur.until);
     const until = Math.floor(now.getTime() / 1000) - 60;
-    if (!(prev > until - 24 * 3600) || prev >= until) return fallback;
-    return { since: prev, until };
+    if (!(prev < until)) return { ...fallback, hookSince: fallback.since };
+    const since = Math.max(prev, until - 24 * 3600);
+    const pending = Number(cur.hookPendingSince);
+    const hookSince = pending < since ? Math.max(pending, until - 7 * 86400) : since;
+    return { since, until, hookSince };
   } catch {
-    return fallback;
+    return { ...fallback, hookSince: fallback.since };
   }
 }
 
@@ -54,7 +59,7 @@ export async function notifyLeads(ctx: Ctx, now = new Date(), cursorPath?: strin
   if (!ctx.meta) return 'Meta 未設定';
   const forms = [...new Set(ctx.catalog.jobs.flatMap((j) => allPlacements(j).flatMap((p) => (p.meta?.leadFormId ? [p.meta.leadFormId] : []))))];
   if (forms.length === 0) return 'インスタントフォーム未使用';
-  const { since, until } = windowFromCursor(cursorPath, now);
+  const { since, until, hookSince } = windowFromCursor(cursorPath, now);
   const adToCreative = new Map<string, string>();
   for (const c of ctx.store.creatives()) for (const id of c.platformRefs.meta?.adIds ?? []) adToCreative.set(id, c.id);
 
@@ -62,12 +67,15 @@ export async function notifyLeads(ctx: Ctx, now = new Date(), cursorPath?: strin
   const forward: Record<string, unknown>[] = [];
   for (const formId of forms) {
     // API は「より後」の指定なので1秒手前から取り、範囲 [since, until) で絞る
-    const leads = (await ctx.meta.leads(formId, since - 1)).filter((l) => l.createdTime >= since && l.createdTime < until);
+    // 連携先への未送信分があれば、その分もさかのぼって取る（Slack には新しい分だけ）
+    const leads = (await ctx.meta.leads(formId, hookSince - 1)).filter((l) => l.createdTime >= hookSince && l.createdTime < until);
     const job = ctx.catalog.jobs.find((j) => allPlacements(j).some((p) => p.meta?.leadFormId === formId));
     for (const l of leads.sort((a, b) => a.createdTime - b.createdTime)) {
       const c = l.adId ? ctx.store.state.creatives[adToCreative.get(l.adId) ?? ''] : undefined;
-      const when = new Date(l.createdTime * 1000).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
-      lines.push(`• ${when} ${maskName(l.fields)}｜${job?.title ?? formId}${c ? `｜広告: ${ANGLE_LABELS[c.angle]}「${ctx.store.state.briefs[c.briefId]?.overlay.main ?? ''}」` : ''}`);
+      if (l.createdTime >= since) {
+        const when = new Date(l.createdTime * 1000).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+        lines.push(`• ${when} ${maskName(l.fields)}｜${job?.title ?? formId}${c ? `｜広告: ${ANGLE_LABELS[c.angle]}「${ctx.store.state.briefs[c.briefId]?.overlay.main ?? ''}」` : ''}`);
+      }
       forward.push({
         leadId: l.id,
         createdAt: new Date(l.createdTime * 1000).toISOString(),
@@ -82,21 +90,24 @@ export async function notifyLeads(ctx: Ctx, now = new Date(), cursorPath?: strin
     }
   }
   // 連携先（自社の CRM・ATS など）に応募者情報を送る。個人情報はここにだけ送り、adops には残さない。
-  // Slack より先に送り、失敗したら位置を進めずに失敗させる（次回また送る。受け手は leadId で重複を除く）
+  // 失敗しても Slack 通知は止めない。未送信分の位置を残して次回さかのぼって再送する（受け手は leadId で重複を除く）
   const hook = (process.env.ADOPS_LEADS_WEBHOOK_URL ?? '').trim();
-  if (hook && forward.length) await postLeads(hook, forward);
+  let hookError: Error | null = null;
+  if (hook && forward.length) await postLeads(hook, forward).catch((e: Error) => (hookError = e));
   if (lines.length) {
     const ok = await notifySlack(ctx.settings.slack.webhookUrl, {
       text: [
         `:inbox_tray: *新しい応募（インスタントフォーム）${lines.length} 件*`,
         ...lines.slice(0, 30),
-        hook ? '連絡先は連携先の CRM に送りました。' : '連絡先は Meta のリードセンター（または連携先の CRM）で確認してください。',
+        hook && !hookError ? '連絡先は連携先の CRM に送りました。' : '連絡先は Meta のリードセンター（または連携先の CRM）で確認してください。',
+        ...(hookError ? [`:warning: 連携先（CRM）への送信に失敗しました。次回の実行で再送します: ${(hookError as Error).message}`] : []),
       ].join('\n'),
     });
-    // 通知に失敗したら実行を失敗にして気づけるようにする（Actions の失敗通知）
+    // 通知に失敗したら実行を失敗にして気づけるようにする（Actions の失敗通知）。位置は進めない
     if (!ok) throw new Error(`応募 ${lines.length} 件の Slack 通知に失敗しました。リードセンターで確認してください`);
   }
-  if (cursorPath) writeFileSync(cursorPath, JSON.stringify({ until }));
+  if (cursorPath) writeFileSync(cursorPath, JSON.stringify(hookError ? { until, hookPendingSince: hookSince } : { until }));
+  if (hookError) throw hookError;
   log.info(`リード ${lines.length} 件（${new Date(since * 1000).toISOString()}〜）`);
   return `新しい応募 ${lines.length} 件`;
 }

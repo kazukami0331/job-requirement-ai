@@ -195,7 +195,7 @@ Vercel に `ADOPS_GITHUB_REPO` と `ADOPS_GITHUB_TOKEN`（このリポジトリ�
 ### 応募者情報を自社の CRM・ATS に送る（任意）
 インスタントフォームで届いた応募は毎時 Slack に通知します（氏名はイニシャルのみ）。Secrets に `ADOPS_LEADS_WEBHOOK_URL`（と署名鍵 `ADOPS_LEADS_WEBHOOK_SECRET`）を
 設定すると、応募者情報（フォームの全項目・求人・どの広告からか）を JSON で POST します。個人情報はそこにだけ送り、adops には残しません。
-送信に失敗したら次の実行で再送するので、受け手は `leadId` で重複を除いてください。署名はヘッダ `x-adops-signature: sha256=<本文の HMAC-SHA256>`。
+送信に失敗しても Slack 通知は届き、未送信分は次の実行以降にさかのぼって再送します（最大7日）。受け手は `leadId` で重複を除いてください。署名はヘッダ `x-adops-signature: sha256=<本文の HMAC-SHA256>`。
 
 ### 実績をスプレッドシートに書き出す（任意）
 

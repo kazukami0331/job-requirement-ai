@@ -546,14 +546,55 @@ test('windowFromCursor: 前回の通知位置から今までを対象にし、�
   const dir = mkdtempSync(join(tmpdir(), 'adops-leads-'));
   const p = join(dir, 'cursor.json');
   const now = new Date('2026-10-26T05:40:00Z');
-  assert.deepEqual(windowFromCursor(p, now), leadWindow(now));
+  assert.deepEqual(windowFromCursor(p, now), { ...leadWindow(now), hookSince: leadWindow(now).since });
   const prev = Math.floor(new Date('2026-10-26T02:30:00Z').getTime() / 1000);
   writeFileSync(p, JSON.stringify({ until: prev }));
   const w = windowFromCursor(p, now);
   assert.equal(w.since, prev);
+  assert.equal(w.hookSince, prev);
   assert.equal(w.until, Math.floor(now.getTime() / 1000) - 60);
+  // 古すぎる位置なら直近24時間（1時間に縮めて取りこぼさない）
   writeFileSync(p, JSON.stringify({ until: prev - 3 * 86400 }));
-  assert.deepEqual(windowFromCursor(p, now), leadWindow(now));
+  const old = windowFromCursor(p, now);
+  assert.equal(old.since, old.until - 24 * 3600);
+  // 連携先への未送信分があれば、そこからさかのぼる
+  writeFileSync(p, JSON.stringify({ until: prev, hookPendingSince: prev - 3 * 86400 }));
+  assert.equal(windowFromCursor(p, now).hookSince, prev - 3 * 86400);
+  assert.equal(windowFromCursor(p, now).since, prev);
+});
+
+test('notifyLeads: 連携先への送信に失敗しても Slack には通知し、未送信分を次回再送する', async () => {
+  const { notifyLeads } = await import('../src/pipeline/leads.ts');
+  const { job } = await import('./fixtures.ts');
+  const { readFileSync, writeFileSync } = await import('node:fs');
+  const dir = mkdtempSync(join(tmpdir(), 'adops-leads-'));
+  const cursor = join(dir, 'cursor.json');
+  const now = new Date('2026-10-26T05:40:00Z');
+  const t0 = Math.floor(Date.parse('2026-10-26T05:00:00Z') / 1000);
+  writeFileSync(cursor, JSON.stringify({ until: t0 - 600 }));
+  const fakeMeta = { leads: async () => [{ id: 'l1', createdTime: t0, fields: { full_name: '山田 太郎' } }] } as any;
+  const ctx = ctxWith(offlineLlm(catalog()), { meta: fakeMeta });
+  ctx.catalog.jobs = [job({ placements: { meta: { adsetIds: ['1'], leadFormId: 'form1' } } })];
+  const slack: string[] = [];
+  const realFetch = globalThis.fetch;
+  ctx.settings.slack.webhookUrl = 'https://hooks.example/slack';
+  process.env.ADOPS_LEADS_WEBHOOK_URL = 'https://crm.example/hook';
+  globalThis.fetch = (async (url: string, init: any) => {
+    if (String(url).includes('crm')) return new Response('ng', { status: 500 });
+    slack.push(init.body);
+    return new Response('ok');
+  }) as any;
+  try {
+    await assert.rejects(notifyLeads(ctx, now, cursor), /再送/);
+    assert.equal(slack.length, 1);
+    assert.match(slack[0], /送信に失敗/);
+    const saved = JSON.parse(readFileSync(cursor, 'utf8'));
+    assert.equal(saved.hookPendingSince, t0 - 600);
+    assert.ok(saved.until > t0);
+  } finally {
+    globalThis.fetch = realFetch;
+    delete process.env.ADOPS_LEADS_WEBHOOK_URL;
+  }
 });
 
 test('postLeads: 応募者情報を署名つきで連携先に送り、失敗したら例外', async () => {
