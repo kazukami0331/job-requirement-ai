@@ -13,6 +13,7 @@ import { buildVideo, reframeVideo, thumbnail } from '../creative/video.ts';
 import { finalQa, pickBestImage } from '../agents/artJudge.ts';
 import { createTts } from '../creative/tts.ts';
 import { logger } from '../util/log.ts';
+import { landingBroken } from './landing.ts';
 
 const log = logger('produce');
 
@@ -95,6 +96,8 @@ export async function produceOne(ctx: Ctx, c: Creative): Promise<void> {
     store.setStatus(c, 'retired', '求人の募集が終了したため制作を中止');
     return;
   }
+  // 応募ページが壊れている求人は、画像生成の費用をかける前に待つ（直れば次回から制作を続ける）
+  if (c.imageJobs.length === 0 && landingBroken(ctx, job.id)) return;
   if (!(await ensureImages(ctx, c, brief))) {
     store.setStatus(c, 'awaiting_images', '画像の生成待ち');
     return;
