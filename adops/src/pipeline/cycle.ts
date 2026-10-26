@@ -202,5 +202,10 @@ function summaryMessage(
   if (r.organicNote) lines.push(`*Instagram 投稿* ${r.organicNote}`);
   lines.push('', `AI費用 $${record.llmCostUsd}${process.env.ADOPS_REPORT_URL ? `｜<${process.env.ADOPS_REPORT_URL}|レポートを開く>` : ''}`);
   const text = lines.join('\n');
-  return { text, blocks: sections(text) };
+  // 今日入稿した広告のプレビュー画像（Meta の CDN の公開 URL があるもの）を最大3枚
+  const previews = r.published.published
+    .filter((c) => c.platformRefs.meta?.previewUrl)
+    .slice(0, 3)
+    .map((c) => ({ type: 'image', image_url: c.platformRefs.meta!.previewUrl!, alt_text: store.state.briefs[c.briefId]?.overlay.main ?? c.id }));
+  return { text, blocks: [...sections(text), ...previews] };
 }
