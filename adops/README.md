@@ -83,7 +83,8 @@ Node.js 22.18 以上（TypeScript をそのまま実行します）、`ffmpeg`�
 
 ### 2. 求人・ペルソナ・ブランド・運用方針を書く（`config/`）
 
-- `jobs.json` — 集客したい求人。**給与・待遇はここに書いた事実だけが広告に使われます**（書いていない待遇を広告に出すとレビューで止まります）。
+- `jobs.json` — 集客したい求人。求人票のテキストがあれば `node src/cli.ts add-job --file 求人票.txt --write` で
+  Claude が事実だけを抜き出して追加します（`active: false` で入るので、確認してから `true` に）。**給与・待遇はここに書いた事実だけが広告に使われます**（書いていない待遇を広告に出すとレビューで止まります）。
   `placements` に入稿先（Meta の広告セット ID、Google の広告グループ ID / アセットグループ ID）を書きます。
 - `personas.json` — 狙う求職者像（動機・不安・響く言葉）。
 - `brand.json` — 社名、トーン、色、NG表現、画像の共通スタイル、必須表記（許可番号など）。
@@ -166,6 +167,7 @@ node src/cli.ts plan | produce | publish | collect | optimize | analyze | report
 node src/cli.ts status        # クリエイティブの状態一覧
 node src/cli.ts check [--live]  # 設定の確認（--live で各サービスへ読み取りだけの接続テスト）
 node src/cli.ts simulate --days 21 [--seed 42]
+node src/cli.ts add-job --file 求人票.txt [--write]   # 求人票から jobs.json に追加
 共通: --offline（Claude を使わない） --today YYYY-MM-DD
 ```
 

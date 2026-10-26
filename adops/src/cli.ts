@@ -13,6 +13,7 @@
  *   node src/cli.ts status                現在の状態を一覧
  *   node src/cli.ts check [--live]        設定の確認（--live で各サービスに読み取りの接続テスト）
  *   node src/cli.ts simulate --days 14    架空の配信データで改善ループを試す（媒体・API キー不要）
+ *   node src/cli.ts add-job --file 求人票.txt [--write]  求人票から jobs.json に1件追加
  *
  * 共通オプション: --offline（Claude を呼ばずテンプレートで動かす） --today YYYY-MM-DD
  */
@@ -30,6 +31,9 @@ import { lastNDays, totals } from './optimize/stats.ts';
 import { newId } from './util/id.ts';
 import { simulate } from './sim/simulate.ts';
 import { liveChecks } from './doctor.ts';
+import { importJob } from './agents/jobImporter.ts';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 function parseArgs(argv: string[]) {
   const [command = 'help', ...rest] = argv;
@@ -154,13 +158,35 @@ async function main() {
       if (!catalogOk) process.exitCode = 1;
       break;
     }
+    case 'add-job': {
+      // 求人票テキストから jobs.json に1件追加（active=false で追加し、人が確認して true にする）
+      loadDotEnv();
+      const settings = loadSettings();
+      const catalog = loadCatalog(settings.configDir);
+      const file = typeof flags.file === 'string' ? flags.file : '';
+      const text = file ? readFileSync(file, 'utf8') : readFileSync(0, 'utf8');
+      if (!text.trim()) throw new Error('求人票のテキストを --file か標準入力で渡してください');
+      if (!settings.anthropic.apiKey) throw new Error('add-job には ANTHROPIC_API_KEY が必要です');
+      const { job, warnings } = await importJob(new ClaudeLlm(settings.anthropic), text, catalog.personas);
+      while (catalog.jobs.some((j) => j.id === job.id)) job.id = `${job.id}-2`;
+      console.log(JSON.stringify(job, null, 2));
+      for (const w of warnings) console.log(`注意: ${w}`);
+      if (flags.write) {
+        const path = join(settings.configDir, 'jobs.json');
+        const jobs = JSON.parse(readFileSync(path, 'utf8'));
+        jobs.push(job);
+        writeFileSync(path, `${JSON.stringify(jobs, null, 2)}\n`);
+        console.log(`\n${path} に追加しました（active=false）。内容と placements を確認して active を true にしてください。`);
+      } else console.log('\n（--write を付けると config/jobs.json に追加します）');
+      break;
+    }
     case 'simulate': {
       const ctx = buildCtx({ ...flags });
       await simulate(ctx, { days: Number(flags.days ?? 14), seed: Number(flags.seed ?? 42) });
       break;
     }
     default:
-      console.log(`使い方: node src/cli.ts <cycle|plan|produce|publish|collect|optimize|analyze|report|status|check|simulate> [--offline] [--steps a,b] [--today YYYY-MM-DD]`);
+      console.log(`使い方: node src/cli.ts <cycle|plan|produce|publish|collect|optimize|analyze|report|status|check|simulate|add-job> [--offline] [--steps a,b] [--today YYYY-MM-DD]`);
   }
 }
 
