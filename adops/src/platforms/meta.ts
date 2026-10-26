@@ -434,10 +434,12 @@ export class MetaClient {
     await this.call('POST', commentId, { is_hidden: 'true' });
   }
 
-  async getAdset(adsetId: string): Promise<{ id: string; dailyBudget: number | null; status: string }> {
-    const r = await this.call<{ id: string; daily_budget?: string; effective_status?: string }>('GET', adsetId, { fields: 'id,daily_budget,effective_status' });
-    // JPY は補助通貨単位が無いので daily_budget はそのまま円
-    return { id: r.id, dailyBudget: r.daily_budget ? Number(r.daily_budget) : null, status: r.effective_status ?? '' };
+  async getAdset(adsetId: string): Promise<{ id: string; dailyBudget: number | null; status: string; learning?: string }> {
+    const r = await this.call<{ id: string; daily_budget?: string; effective_status?: string; learning_stage_info?: { status?: string } }>('GET', adsetId, {
+      fields: 'id,daily_budget,effective_status,learning_stage_info',
+    });
+    // JPY は補助通貨単位が無いので daily_budget はそのまま円。learning は LEARNING / SUCCESS / FAIL（＝学習が制限されている）
+    return { id: r.id, dailyBudget: r.daily_budget ? Number(r.daily_budget) : null, status: r.effective_status ?? '', learning: r.learning_stage_info?.status };
   }
 
   /** 広告セットの期間中のフリークエンシー（1人あたりの平均表示回数）とリーチ。同じ人に出しすぎていないかの確認に使う。 */

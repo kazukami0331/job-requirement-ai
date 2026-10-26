@@ -90,6 +90,9 @@ export async function optimize(ctx: Ctx): Promise<Decision[]> {
         try {
           const a = await ctx.meta.getAdset(id);
           const freq = await adsetFrequency(ctx, id);
+          // 学習が制限されている（最適化イベントが週50件に届かない）広告セットを記録して知らせる
+          const aud = ctx.store.state.audience?.[id];
+          if (aud && a.learning) aud.learning = a.learning;
           infos.push({ id: a.id, dailyBudget: a.dailyBudget, personaIds: [...personas], frequency: freq ?? undefined });
         } catch (e) {
           log.warn(`広告セット ${id} の取得に失敗: ${(e as Error).message}`);

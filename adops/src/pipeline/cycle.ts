@@ -223,6 +223,12 @@ function summaryMessage(
       `:repeat: 同じ人に出しすぎている広告セット: ${saturated.map(([id, a]) => `${id}（7日のフリークエンシー ${a.frequency} / リーチ ${a.reach.toLocaleString()}人）`).join(' / ')}。予算は増やしません。配信地域・年齢を広げると単価が下がりやすいです`,
     );
   }
+  const limited = Object.entries(store.state.audience ?? {}).filter(([, a]) => a.date === today && a.learning === 'FAIL');
+  if (limited.length) {
+    lines.push(
+      `:snail: 学習が制限されている広告セット: ${limited.map(([id]) => id).join(' / ')}。応募が週50件に届かず最適化が安定しません。広告セットをまとめるか、最適化の対象を手前のイベント（LP 閲覧など）にすると改善しやすいです`,
+    );
+  }
   const brokenLp = ctx.catalog.jobs.filter((j) => store.state.landing?.[j.id]?.ok === false);
   if (brokenLp.length) lines.push(`:rotating_light: 応募ページに問題: ${brokenLp.map((j) => `${j.title}（${store.state.landing![j.id].note}）`).join(' / ')}。この求人は新規入稿を止めています`);
   const failedSteps = record.steps.filter((s) => !s.ok);
