@@ -168,6 +168,13 @@ draft モードでは、入稿した広告ごとに Slack へ「プレビュー�
 ボタンが押されると媒体の広告が ON（却下なら停止のまま）になり、メッセージが「◯◯さんが配信を開始しました」に書き換わります。
 次の adops の実行で状態が同期され、配信中の広告として停止判断の対象になります。
 
+### レポートをスマホで見る（任意）
+
+Next.js アプリを Vercel にデプロイしていれば、`https://<Vercel のドメイン>/adops` でパスワード付きのレポートが見られます
+（`adops-state` ブランチの最新のレポートと画像を GitHub から取って表示します。状態ファイル自体は公開しません）。
+Vercel の環境変数に `ADOPS_REPORT_PASSWORD`（ユーザー名は `adops`）、`ADOPS_GITHUB_REPO`（例: `kazukami0331/job-requirement-ai`）、
+`ADOPS_GITHUB_TOKEN`（このリポジトリの Contents: Read-only の fine-grained トークン）を設定してください。
+
 ### 4. GitHub Actions で毎日動かす
 
 `.github/workflows/adops.yml` が毎朝 6:00（フル）と 12:00 / 18:00（停止判断のみ）に動きます。

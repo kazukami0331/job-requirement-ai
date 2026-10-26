@@ -2,7 +2,7 @@ name: adops CI
 
 on:
   pull_request:
-    paths: ['adops/**', 'app/api/adops/**', '.github/workflows/adops*.yml']
+    paths: ['adops/**', 'app/api/adops/**', 'app/adops/**', '.github/workflows/adops*.yml']
   push:
     branches: [main]
     paths: ['adops/**']

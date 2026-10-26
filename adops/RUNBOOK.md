@@ -26,7 +26,7 @@ Slack の日次通知で次を見ます。
 ## 毎週の確認（月曜・15分）
 
 - Slack の **週次戦略メモ**「判断してほしいこと」に対応する（媒体間の予算配分、求人・ペルソナの追加など）。
-- `data/report.html`（`adops-state` ブランチ、または Actions の Artifacts）で、訴求軸別の成績とクリエイティブ一覧を見る。
+- レポート（`https://<Vercel のドメイン>/adops`、または Actions の Artifacts）で、訴求軸別の成績とクリエイティブ一覧を見る。
 - 反応の良かった表現を `config/examples.json` の good に足す（企画の質が上がります）。
 - 選考結果のスプレッドシート（`ADOPS_OUTCOMES_CSV_URL`）が更新されているか確認する。
 
