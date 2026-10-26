@@ -89,6 +89,12 @@ export async function produceOne(ctx: Ctx, c: Creative): Promise<void> {
     store.setStatus(c, 'failed', '企画または求人が見つかりません');
     return;
   }
+  if (!job.active) {
+    // 募集が終わった求人の制作待ちは、画像生成の費用をかけずに片付ける
+    await Promise.all(c.imageJobs.map((j) => ctx.images.discard?.(`${c.id}_${j.ratio.replace(':', 'x').replace('.', '')}`)));
+    store.setStatus(c, 'retired', '求人の募集が終了したため制作を中止');
+    return;
+  }
   if (!(await ensureImages(ctx, c, brief))) {
     store.setStatus(c, 'awaiting_images', '画像の生成待ち');
     return;
