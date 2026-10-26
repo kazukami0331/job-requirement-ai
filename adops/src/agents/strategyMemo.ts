@@ -75,7 +75,14 @@ ${byPlatform}
 - 目標応募単価: ${formatYen(g.targetCpa)} / 日予算の自動上限: ${formatYen(g.maxDailyBudget)}
 - 求人: ${catalog.jobs.map((j) => `${j.id}（${j.title}・${j.location}・${j.active ? '稼働' : '停止'}）`).join(' / ')}
 - ペルソナ: ${catalog.personas.map((p) => p.name).join(' / ')}
-
+${(() => {
+  // Meta 広告セットの様子（同じ人への出しすぎ・学習の制限）。予算や対象の見直しの判断材料
+  const aud = Object.entries(state.audience ?? {}).filter(([, a]) => a.date >= addDays(today, -3));
+  if (!aud.length) return '';
+  return `\n## Meta 広告セットの状態（直近）\n${aud
+    .map(([id, a]) => `- ${id}: 7日のフリークエンシー ${a.frequency ?? '-'} / リーチ ${a.reach?.toLocaleString() ?? '-'}人 / 学習 ${a.learning === 'FAIL' ? '制限あり（最適化イベント不足）' : (a.learning ?? '-')}`)
+    .join('\n')}\n`;
+})()}
 ## Google 検索広告: クリックはあるが応募が無い検索語句（除外キーワードの候補。求職者でない検索・別職種・別地域など）
 ${
   searchTerms.filter((t) => t.clicks >= 3 && t.conversions === 0).slice(0, 20).map((t) => `- 「${t.term}」 クリック ${t.clicks}`).join('\n') || '- なし'
