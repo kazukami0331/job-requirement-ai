@@ -10,6 +10,7 @@ import { MetaClient } from './platforms/meta.ts';
 import { GoogleAdsClient } from './platforms/google.ts';
 import { DriveInbox } from './creative/inbox.ts';
 import { requestJson } from './util/http.ts';
+import { classifyPage, fetchPage } from './pipeline/landing.ts';
 
 export interface CheckResult {
   name: string;
@@ -122,6 +123,12 @@ export async function liveChecks(s: Settings, catalog: Catalog): Promise<CheckRe
   }
   if (s.image.provider === 'midjourney') {
     out.push({ name: 'Midjourney 中継 API', ok: s.image.midjourney.apiKey ? true : false, detail: s.image.midjourney.apiKey ? `${s.image.midjourney.baseUrl}（規約上のリスクに注意）` : 'MJ_API_KEY 未設定' });
+  }
+
+  // 応募ページ（求人ごと）
+  for (const j of catalog.jobs.filter((x) => x.active)) {
+    const c = classifyPage(await fetchPage(j.landingUrl));
+    out.push({ name: `応募ページ ${j.id}`, ok: c.ok, detail: `${c.note} ${j.landingUrl}` });
   }
 
   return out;
