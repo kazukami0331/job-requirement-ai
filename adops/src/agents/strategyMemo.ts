@@ -29,7 +29,8 @@ const SYSTEM = `あなたはブルーカラー専門の人材紹介会社の集�
   新しく追加すべき求人・ペルソナ・入稿先、止めるべき求人、計測や LP の問題の疑いなどを扱う
 - データが少ない場合は「判断を保留し、何が分かれば決められるか」を書く
 - 推奨は具体的に（「Meta の豊田の広告セット日予算を 1.5 万円 → 2 万円」のように）
-- 選考結果（面接・入社）があれば、応募数より入社を重視する`;
+- 選考結果（面接・入社）があれば、応募数より入社を重視する
+- 検索語句に求職者でない検索（例: 「◯◯ 求人 在宅」「会社名 評判」）や別職種・別地域があれば、除外キーワードとして具体的に提案する`;
 
 export function shouldWriteMemo(state: State, today: string): boolean {
   const weekday = new Date(`${today}T00:00:00Z`).getUTCDay(); // today は日本時間の日付
@@ -38,7 +39,13 @@ export function shouldWriteMemo(state: State, today: string): boolean {
   return !last || last.date < addDays(today, -6);
 }
 
-export async function writeMemo(llm: Llm, state: State, catalog: Catalog, today: string): Promise<Memo> {
+export async function writeMemo(
+  llm: Llm,
+  state: State,
+  catalog: Catalog,
+  today: string,
+  searchTerms: { term: string; clicks: number; conversions: number; impressions: number }[] = [],
+): Promise<Memo> {
   const creatives = Object.values(state.creatives);
   const from = addDays(today, -27);
   const byPlatform = (['meta', 'google'] as const)
@@ -68,6 +75,11 @@ ${byPlatform}
 - 目標応募単価: ${formatYen(g.targetCpa)} / 日予算の自動上限: ${formatYen(g.maxDailyBudget)}
 - 求人: ${catalog.jobs.map((j) => `${j.id}（${j.title}・${j.location}・${j.active ? '稼働' : '停止'}）`).join(' / ')}
 - ペルソナ: ${catalog.personas.map((p) => p.name).join(' / ')}
+
+## Google 検索広告: クリックはあるが応募が無い検索語句（除外キーワードの候補。求職者でない検索・別職種・別地域など）
+${
+  searchTerms.filter((t) => t.clicks >= 3 && t.conversions === 0).slice(0, 20).map((t) => `- 「${t.term}」 クリック ${t.clicks}`).join('\n') || '- なし'
+}
 
 ## 直近の AI 分析の学び
 ${(state.insights.at(-1)?.learnings ?? []).map((l) => `- ${l}`).join('\n') || '- なし'}

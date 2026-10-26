@@ -85,7 +85,13 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
   // 毎週月曜は人向けの戦略メモも書いて、日次とは別のメッセージで送る
   if (steps.includes('analyze') && shouldWriteMemo(store.state, ctx.today) && store.creatives().some((c) => c.metrics.length)) {
     await step('analyze', async () => {
-      const memo = await writeMemo(ctx.llm, store.state, ctx.catalog, ctx.today);
+      // 検索広告の検索語句（除外キーワードの提案に使う）
+      const google = ctx.google;
+      const groups = ctx.catalog.jobs.flatMap((j) => j.placements.google?.searchAdGroupIds ?? []);
+      const terms = google
+        ? (await Promise.all(groups.map((g) => Promise.resolve().then(() => google.searchTerms(g, 50)).catch(() => [])))).flat()
+        : [];
+      const memo = await writeMemo(ctx.llm, store.state, ctx.catalog, ctx.today, terms);
       (store.state.memos ??= []).push(memo);
       await notifySlack(ctx.settings.slack.webhookUrl, { text: memoToSlack(memo), blocks: sections(memoToSlack(memo)) });
       return `週次戦略メモ: ${memo.headline}`;
