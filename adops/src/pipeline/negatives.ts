@@ -30,12 +30,12 @@ export async function excludeIrrelevantTerms(ctx: Ctx): Promise<string> {
   const notes: string[] = [];
   for (const job of ctx.catalog.jobs.filter((j) => j.active)) {
     for (const ag of job.placements.google?.searchAdGroupIds ?? []) {
-      // 入れたものは再判定しない。提案だけのものは auto でなければ7日間、「求職者の検索」と判定したものは30日間は判定し直さない
+      // 入れたものは再判定しない。提案だけ・追加に失敗したもの（重複など）は7日間、「求職者の検索」と判定したものは30日間は判定し直さない
       const weekAgo = addDays(ctx.today, -7);
       const monthAgo = addDays(ctx.today, -30);
       const done = new Set(
         (negatives[ag] ?? [])
-          .filter((n) => n.applied || (n.keep ? n.addedOn > monthAgo : !auto && n.addedOn > weekAgo))
+          .filter((n) => n.applied || (n.keep ? n.addedOn > monthAgo : n.addedOn > weekAgo))
           .map((n) => n.term),
       );
       const terms = (await google.searchTerms(ag, 50)).filter((t) => t.clicks >= MIN_CLICKS && t.conversions === 0 && !done.has(t.term));
