@@ -77,6 +77,12 @@ export async function plan(ctx: Ctx): Promise<PlanResult> {
   const { store, catalog, today, llm } = ctx;
   // 制作待ちが溜まっている（手渡しモードで人の作業が追いついていない等）ときは新規企画を控える
   const backlog = store.creatives({ status: ['planned', 'awaiting_images'] }).length;
+  // 完成したのに入稿されないもの（DRY RUN の試運転中・入稿先の未設定など）も、溜まりすぎたら作るのを止める（AI 費用と人の画像作業を無駄にしない）
+  const unpublished = store.creatives({ status: 'produced' }).length;
+  if (unpublished >= catalog.policy.briefsPerCycle * 4) {
+    log.info(`入稿されていない完成品が ${unpublished} 本あるため新規企画はスキップ（入稿されれば再開）`);
+    return { created: [], rejected: [] };
+  }
   const room = Math.max(0, catalog.policy.briefsPerCycle * 2 - backlog);
   // 今月の応募目標に達した求人と、応募ページが壊れている求人は新しく作らない（その分を他の求人に回す）
   const full = new Set(jobsAtTarget(catalog.jobs, store.creatives(), Object.values(store.state.searchAds ?? {}), today).map((x) => x.job.id));

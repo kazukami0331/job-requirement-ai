@@ -711,3 +711,14 @@ test('optimize: 広告セットのフリークエンシーと学習の状態を�
   await optimize(ctx);
   assert.deepEqual(ctx.store.state.audience['111'], { date: '2026-10-11', learning: 'FAIL' });
 });
+
+test('plan: 入稿されない完成品が溜まりすぎたら新規企画を止める（DRY RUN の試運転が続いても費用を使い続けない）', async () => {
+  const { plan } = await import('../src/pipeline/plan.ts');
+  const { creative } = await import('./fixtures.ts');
+  const ctx = ctxWith(offlineLlm(catalog()));
+  const n = ctx.catalog.policy.briefsPerCycle * 4;
+  for (let i = 0; i < n; i++) ctx.store.state.creatives[`p${i}`] = creative({ id: `p${i}`, status: 'produced' });
+  assert.equal((await plan(ctx)).created.length, 0);
+  delete ctx.store.state.creatives.p0;
+  assert.ok((await plan(ctx)).created.length > 0);
+});
