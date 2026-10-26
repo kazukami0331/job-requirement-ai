@@ -76,6 +76,7 @@ jobs:
           ADOPS_DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && 'true' || vars.ADOPS_DRY_RUN || 'true' }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ADOPS_MODEL: ${{ vars.ADOPS_MODEL }}
+          ADOPS_MAX_LLM_USD: ${{ vars.ADOPS_MAX_LLM_USD }}
           IMAGE_PROVIDER: ${{ vars.IMAGE_PROVIDER || 'handoff' }}
           MJ_API_BASE_URL: ${{ vars.MJ_API_BASE_URL }}
           MJ_API_KEY: ${{ secrets.MJ_API_KEY }}

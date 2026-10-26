@@ -65,14 +65,25 @@ export class ClaudeLlm implements Llm {
   private fastModel: string;
   private effort: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
-  constructor(opts: { apiKey: string; model: string; fastModel: string; effort: ClaudeLlm['effort'] }) {
+  /** 1回の実行で使ってよい上限（USD）。暴走や設定ミスで費用が膨らむのを防ぐ */
+  private maxUsd: number;
+
+  constructor(opts: { apiKey: string; model: string; fastModel: string; effort: ClaudeLlm['effort']; maxUsdPerRun?: number }) {
     this.client = new Anthropic({ apiKey: opts.apiKey || undefined, maxRetries: 4 });
+    this.maxUsd = opts.maxUsdPerRun ?? 20;
     this.model = opts.model;
     this.fastModel = opts.fastModel;
     this.effort = opts.effort;
   }
 
+  spentUsd(): number {
+    return this.usage.reduce((a, u) => a + u.costUsd, 0);
+  }
+
   async structured<S extends z.ZodType>(req: StructuredRequest<S>): Promise<z.infer<S>> {
+    if (this.spentUsd() >= this.maxUsd) {
+      throw new Error(`AI 費用が今回の実行の上限 $${this.maxUsd} に達したため ${req.agent} を中止しました（ADOPS_MAX_LLM_USD で変更）`);
+    }
     const model = req.tier === 'fast' ? this.fastModel : this.model;
     const content: Anthropic.Beta.BetaContentBlockParam[] = [];
     for (const img of req.images ?? []) {

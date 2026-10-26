@@ -36,7 +36,7 @@ export interface Settings {
   dryRun: boolean;
   dataDir: string;
   configDir: string;
-  anthropic: { apiKey: string; model: string; fastModel: string; effort: 'low' | 'medium' | 'high' | 'xhigh' | 'max' };
+  anthropic: { apiKey: string; model: string; fastModel: string; effort: 'low' | 'medium' | 'high' | 'xhigh' | 'max'; maxUsdPerRun: number };
   image: {
     provider: ImageProviderKind;
     midjourney: {
@@ -84,6 +84,7 @@ export function loadSettings(): Settings {
       model: env('ADOPS_MODEL', 'claude-opus-5-5'),
       fastModel: env('ADOPS_FAST_MODEL', 'claude-sonnet-5-5'),
       effort: env('ADOPS_EFFORT', 'high') as Settings['anthropic']['effort'],
+      maxUsdPerRun: Number(env('ADOPS_MAX_LLM_USD', '20')),
     },
     image: {
       provider: env('IMAGE_PROVIDER', 'mock') as ImageProviderKind,

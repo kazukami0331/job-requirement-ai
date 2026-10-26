@@ -8,6 +8,7 @@ import type { Catalog } from '../config.ts';
 import { ANGLE_LABELS, type Angle, type CreativeBrief, type Format, type Job, type Persona, type ReviewIssue } from '../types.ts';
 import { formatYen } from '../compliance/rules.ts';
 import { BriefDraftSchema, PlanOutputSchema, type BriefDraft } from './schemas.ts';
+import { HOUSING_HINT, visualHint } from '../creative/visualPresets.ts';
 
 export interface Slot {
   slot: number;
@@ -65,6 +66,7 @@ function describeJob(job: Job): string {
     job.hours ? `- 勤務時間: ${job.hours}` : '',
     job.holidays ? `- 休日: ${job.holidays}` : '',
     job.requirements ? `- 応募条件: ${job.requirements}` : '',
+    `- 画像表現のヒント（imagePrompt の参考。英語）: ${visualHint(job.category, job.title)}`,
   ]
     .filter(Boolean)
     .join('\n');
@@ -120,7 +122,9 @@ ${ctx.activeHooks.length ? ctx.activeHooks.map((h) => `- ${h}`).join('\n') : '- 
 ${slots
   .map(
     (s) =>
-      `- slot ${s.slot}: 求人=${s.jobId} / ペルソナ=${s.personaId} / 訴求軸=${ANGLE_LABELS[s.angle]}(${s.angle}) / 形式=${s.format === 'video' ? '動画(9:16)' : '画像'} / ${s.explore ? '探索枠' : '活用枠'}`,
+      `- slot ${s.slot}: 求人=${s.jobId} / ペルソナ=${s.personaId} / 訴求軸=${ANGLE_LABELS[s.angle]}(${s.angle}) / 形式=${s.format === 'video' ? '動画(9:16)' : '画像'} / ${s.explore ? '探索枠' : '活用枠'}${
+        s.angle === 'housing' ? `\n  （寮訴求なので画像は住まいを見せる案も検討: ${HOUSING_HINT}）` : ''
+      }`,
   )
   .join('\n')}`;
 }
