@@ -85,6 +85,12 @@ export function offlineLlm(catalog: Catalog): ScriptedLlm {
       path2: '詳細',
     };
   });
+  llm.on('strategyMemo', () => ({
+    headline: '（オフライン）集計のみ',
+    findings: ['AI の戦略メモは ANTHROPIC_API_KEY 設定後に有効になります'],
+    decisions: [],
+    experiments: [],
+  }));
   llm.on('analyst', () => ({
     summary: '（オフライン）集計のみ。AI 分析は ANTHROPIC_API_KEY 設定後に有効になります。',
     learnings: [],

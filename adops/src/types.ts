@@ -325,6 +325,8 @@ export interface SearchAd {
 export interface State {
   version: 1;
   searchAds?: Record<string, SearchAd>;
+  /** 週次の戦略メモ */
+  memos?: { date: string; headline: string; findings: string[]; decisions: { topic: string; recommendation: string; why: string }[]; experiments: string[] }[];
   briefs: Record<string, CreativeBrief>;
   reviews: Review[];
   creatives: Record<string, Creative>;

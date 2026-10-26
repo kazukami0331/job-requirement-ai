@@ -91,5 +91,6 @@ export class StateStore {
     s.decisions = s.decisions.slice(-limits.decisions);
     s.cycles = s.cycles.slice(-limits.cycles);
     s.insights = s.insights.slice(-limits.insights);
+    if (s.memos) s.memos = s.memos.slice(-52);
   }
 }

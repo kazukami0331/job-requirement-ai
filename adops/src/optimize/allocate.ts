@@ -72,6 +72,32 @@ export function posterior(t: Totals | undefined, opts = { assumedCvr: 0.05, maxE
   return { a: 1 + s, b: 200 + Math.max(0, n - s) };
 }
 
+/**
+ * 訴求軸ごとの「応募の質」補正係数（面接に進む率が全体平均の何倍か）。
+ * 選考結果（funnel）が取り込まれていれば使い、データが少ない軸は平均に寄せる（縮小推定）。
+ * 応募は多いが面接に来ない訴求を下げ、入社につながる訴求を上げるための係数で、0.5〜1.5 に収める。
+ */
+export function qualityFactors(creatives: Creative[], opts = { minApplied: 20, prior: 10 }): Map<Angle, number> {
+  const byAngle = new Map<Angle, { applied: number; interview: number }>();
+  for (const c of creatives) {
+    if (!c.funnel) continue;
+    const r = byAngle.get(c.angle) ?? { applied: 0, interview: 0 };
+    r.applied += c.funnel.applied;
+    r.interview += c.funnel.interview;
+    byAngle.set(c.angle, r);
+  }
+  const applied = [...byAngle.values()].reduce((a, r) => a + r.applied, 0);
+  const interview = [...byAngle.values()].reduce((a, r) => a + r.interview, 0);
+  const out = new Map<Angle, number>();
+  if (applied < opts.minApplied || interview === 0) return out;
+  const base = interview / applied;
+  for (const [angle, r] of byAngle) {
+    const rate = (r.interview + opts.prior * base) / (r.applied + opts.prior);
+    out.set(angle, Math.max(0.5, Math.min(1.5, rate / base)));
+  }
+  return out;
+}
+
 export interface AllocationInput {
   catalog: Catalog;
   creatives: Creative[];
@@ -119,6 +145,7 @@ export function allocateSlots(input: AllocationInput): Slot[] {
     for (let k = 0; k < exploreTarget; k++) explorePositions.add(Math.min(total - 1, Math.floor(k * step + step / 2)));
   }
 
+  const quality = qualityFactors(creatives);
   const slots: Slot[] = [];
   let slotNo = 1;
   for (const job of catalog.jobs.filter((j) => j.active)) {
@@ -140,7 +167,7 @@ export function allocateSlots(input: AllocationInput): Slot[] {
       } else {
         const draws = ANGLES.filter((a) => !usedThisCycle.has(a)).map((a) => {
           const { a: alpha, b: beta } = posterior(stats.get(a));
-          return { a, v: betaSample(alpha, beta, rng) };
+          return { a, v: betaSample(alpha, beta, rng) * (quality.get(a) ?? 1) };
         });
         draws.sort((x, y) => y.v - x.v);
         angle = draws[0]?.a ?? 'pay';

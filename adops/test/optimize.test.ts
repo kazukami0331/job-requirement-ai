@@ -146,3 +146,17 @@ test('decideVerdict: blocker は改訂上限まで差し戻し、上限で却下
   assert.equal(decideVerdict(90, major, 75, 0, 2), 'revise');
   assert.equal(decideVerdict(90, major, 75, 2, 2), 'pass');
 });
+
+test('qualityFactors: 面接に進む率が低い訴求軸は係数が下がる（データが少なければ平均に寄せる）', async () => {
+  const { qualityFactors } = await import('../src/optimize/allocate.ts');
+  const f = (applied: number, interview: number) => ({ applied, interview, offer: 0, hired: 0, updatedAt: '' });
+  const q = qualityFactors([
+    creative({ id: 'a', angle: 'quick_cash', funnel: f(40, 4) }),
+    creative({ id: 'b', angle: 'housing', funnel: f(40, 20) }),
+    creative({ id: 'c', angle: 'skill', funnel: f(2, 0) }),
+  ]);
+  assert.ok(q.get('quick_cash')! < 0.6);
+  assert.ok(q.get('housing')! > 1.3);
+  assert.ok(q.get('skill')! > 0.7 && q.get('skill')! < 1);
+  assert.equal(qualityFactors([creative({ funnel: f(5, 1) })]).size, 0);
+});

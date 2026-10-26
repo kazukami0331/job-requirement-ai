@@ -108,6 +108,13 @@ ${insight.learnings.length ? `<h3>学び</h3><ul>${insight.learnings.map((l) => 
 ${insight.nextActions.length ? `<h3>次の打ち手</h3><ul>${insight.nextActions.map((l) => `<li>${escapeXml(l)}</li>`).join('')}</ul>` : ''}`
     : ''
 }
+${(() => {
+  const m = state.memos?.at(-1);
+  if (!m) return '';
+  return `<h2>週次戦略メモ（${m.date}）</h2><p><b>${escapeXml(m.headline)}</b></p>
+<ul>${m.findings.map((f) => `<li>${escapeXml(f)}</li>`).join('')}</ul>
+${m.decisions.length ? `<h3>判断してほしいこと</h3><ul>${m.decisions.map((d) => `<li><b>${escapeXml(d.topic)}</b>: ${escapeXml(d.recommendation)}<br><span class="muted">${escapeXml(d.why)}</span></li>`).join('')}</ul>` : ''}`;
+})()}
 <h2>訴求軸別（7日）</h2>
 <table><thead><tr><th>訴求軸</th><th>本数</th><th>表示</th><th>CTR</th><th>応募</th><th>応募単価</th></tr></thead><tbody>
 ${angleRows.map((r) => `<tr><td>${ANGLE_LABELS[r.key as Angle]}</td><td>${r.count}</td><td>${r.totals.impressions.toLocaleString()}</td><td>${r.totals.ctr.toFixed(2)}%</td><td>${r.totals.conversions}</td><td>${yen(r.totals.cpa)}</td></tr>`).join('')}

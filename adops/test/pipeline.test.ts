@@ -247,3 +247,14 @@ test('publish: 一部の広告セットで失敗しても作成済みの広告�
   // Meta は二重に入稿しない
   assert.deepEqual(c.platformRefs.meta?.adIds, ['ad_a1']);
 });
+
+test('shouldWriteMemo: 月曜（日本時間の日付）に週1回だけ', async () => {
+  const { shouldWriteMemo } = await import('../src/agents/strategyMemo.ts');
+  const { emptyState } = await import('../src/store/stateStore.ts');
+  const s = emptyState();
+  assert.equal(shouldWriteMemo(s, '2026-10-26'), true); // 月曜
+  assert.equal(shouldWriteMemo(s, '2026-10-27'), false);
+  s.memos = [{ date: '2026-10-26', headline: '', findings: [], decisions: [], experiments: [] }];
+  assert.equal(shouldWriteMemo(s, '2026-10-26'), false);
+  assert.equal(shouldWriteMemo(s, '2026-11-02'), true);
+});

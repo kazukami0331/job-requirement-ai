@@ -13,6 +13,7 @@ import { collectOrganic, postOrganic } from './organic.ts';
 import { importOutcomes } from './outcomes.ts';
 import { rotateSearchAds } from './search.ts';
 import { analyze } from '../agents/analyst.ts';
+import { memoToSlack, shouldWriteMemo, writeMemo } from '../agents/strategyMemo.ts';
 import { lastNDays, totals } from '../optimize/stats.ts';
 import { notifySlack, sections } from '../notify/slack.ts';
 import { writeReport } from '../report/html.ts';
@@ -72,6 +73,15 @@ export async function runCycle(ctx: Ctx, steps: StepName[] = ALL_STEPS): Promise
     analyzed = true;
     return insight.summary.slice(0, 200);
   });
+  // 毎週月曜は人向けの戦略メモも書いて、日次とは別のメッセージで送る
+  if (steps.includes('analyze') && shouldWriteMemo(store.state, ctx.today) && store.creatives().some((c) => c.metrics.length)) {
+    await step('analyze', async () => {
+      const memo = await writeMemo(ctx.llm, store.state, ctx.catalog, ctx.today);
+      (store.state.memos ??= []).push(memo);
+      await notifySlack(ctx.settings.slack.webhookUrl, { text: memoToSlack(memo), blocks: sections(memoToSlack(memo)) });
+      return `週次戦略メモ: ${memo.headline}`;
+    });
+  }
   await step('plan', async () => {
     planned = await plan(ctx);
     return `採用 ${planned.created.length} / 却下 ${planned.rejected.length}`;
