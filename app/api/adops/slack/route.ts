@@ -7,7 +7,8 @@
  *
  * 必要な環境変数（Vercel）:
  *   SLACK_SIGNING_SECRET        Slack アプリの Signing Secret（必須）
- *   ADOPS_SLACK_APPROVERS       承認できる Slack ユーザー ID（カンマ区切り。未設定ならワークスペースの誰でも）
+ *   ADOPS_APPROVAL_SECRET       ボタンの値の署名鍵（必須。GitHub 側の ADOPS_APPROVAL_SECRET と同じ値）
+ *   ADOPS_SLACK_APPROVERS       承認できる Slack ユーザー ID（カンマ区切り。必須。未設定なら誰も承認できない）
  *   META_ACCESS_TOKEN / META_APP_SECRET / META_API_VERSION
  *   GOOGLE_ADS_DEVELOPER_TOKEN / GOOGLE_ADS_CLIENT_ID / GOOGLE_ADS_CLIENT_SECRET / GOOGLE_ADS_REFRESH_TOKEN /
  *   GOOGLE_ADS_LOGIN_CUSTOMER_ID / GOOGLE_ADS_API_VERSION（Google の広告も承認する場合）
@@ -21,6 +22,41 @@ interface ApprovalValue {
   c: string;
   m: string[];
   g: string[];
+  e: number;
+  s: string;
+}
+
+/** adops が止めた広告の名前に付く印（adops/src/platforms/meta.ts の STOP_MARK と同じ） */
+const STOP_MARK = "[adops停止]";
+
+/** ボタンの値が adops の発行したものか（改ざん・偽ボタン対策）と、有効期限内かを確かめる。 */
+function verifyValue(v: ApprovalValue): string | null {
+  const secret = process.env.ADOPS_APPROVAL_SECRET;
+  if (!secret) return "ADOPS_APPROVAL_SECRET が未設定です";
+  if (!Array.isArray(v.m) || !Array.isArray(v.g) || typeof v.s !== "string") return "ボタンの値が不正です";
+  if (!v.m.every((id) => /^\d+$/.test(id))) return "Meta の広告 ID が不正です";
+  if (!v.g.every((rn) => /^customers\/\d+\/adGroupAds\/\d+~\d+$/.test(rn))) return "Google の広告 ID が不正です";
+  const expected = createHmac("sha256", secret).update(`${v.c}|${v.m.join(",")}|${v.g.join(",")}|${v.e}`).digest("hex");
+  const a = Buffer.from(expected);
+  const b = Buffer.from(v.s);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return "ボタンの署名が一致しません";
+  if (!(v.e > Date.now() / 1000)) return "このボタンは有効期限（48時間）が切れています。次回の通知か管理画面から操作してください";
+  return null;
+}
+
+/** adops が止めた広告（停止判断・緊急停止）を、古い承認ボタンで再開させない。 */
+async function metaAdIsAwaitingApproval(adId: string): Promise<string | null> {
+  const token = process.env.META_ACCESS_TOKEN;
+  if (!token) return "META_ACCESS_TOKEN が未設定です";
+  const params = new URLSearchParams({ access_token: token, fields: "name,status" });
+  const secret = process.env.META_APP_SECRET;
+  if (secret) params.set("appsecret_proof", createHmac("sha256", secret).update(token).digest("hex"));
+  const res = await fetch(`https://graph.facebook.com/${process.env.META_API_VERSION || "v25.0"}/${adId}?${params}`);
+  if (!res.ok) return `Meta ${adId} の状態を取得できませんでした`;
+  const ad = (await res.json()) as { name?: string; status?: string };
+  if (ad.name?.includes(STOP_MARK)) return `Meta ${adId} は adops が停止した広告のため再開しません`;
+  if (ad.status !== "PAUSED") return `Meta ${adId} は承認待ちの状態ではありません（${ad.status}）`;
+  return null;
 }
 
 function verifySlack(body: string, timestamp: string | null, signature: string | null): boolean {
@@ -91,19 +127,37 @@ export async function POST(req: Request) {
 
   const userId: string = payload.user?.id ?? "";
   const approvers = (process.env.ADOPS_SLACK_APPROVERS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  if (approvers.length && !approvers.includes(userId)) {
+  // 承認者が未設定なら誰にも承認させない（有料の広告を誰でも ON にできてしまうため）
+  if (!approvers.includes(userId)) {
     after(() => respond(payload.response_url, { response_type: "ephemeral", replace_original: false, text: "この広告を承認する権限がありません。" }));
     return new NextResponse("", { status: 200 });
   }
 
   const approve = action.action_id === "adops_approve";
-  const value = JSON.parse(action.value) as ApprovalValue;
+  let value: ApprovalValue;
+  try {
+    value = JSON.parse(action.value) as ApprovalValue;
+  } catch {
+    return new NextResponse("", { status: 200 });
+  }
+  const invalid = verifyValue(value);
+  if (invalid) {
+    after(() => respond(payload.response_url, { response_type: "ephemeral", replace_original: false, text: invalid }));
+    return new NextResponse("", { status: 200 });
+  }
 
   // Slack には3秒以内に応答する必要があるので、媒体の操作は応答後に行い、結果でメッセージを書き換える
   after(async () => {
     const errors: string[] = [];
     if (approve) {
-      for (const id of value.m) await setMetaStatus(id, "ACTIVE").catch((e: Error) => errors.push(e.message));
+      for (const id of value.m) {
+        const blocked = await metaAdIsAwaitingApproval(id);
+        if (blocked) {
+          errors.push(blocked);
+          continue;
+        }
+        await setMetaStatus(id, "ACTIVE").catch((e: Error) => errors.push(e.message));
+      }
       for (const rn of value.g) await setGoogleStatus(rn, "ENABLED").catch((e: Error) => errors.push(e.message));
     } else {
       // 却下: 停止のまま（念のため停止を明示）

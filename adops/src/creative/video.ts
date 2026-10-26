@@ -107,7 +107,8 @@ export async function buildVideo(input: VideoInput): Promise<{ path: string; dur
     const voicePath = join(workDir, `narr_${i}.mp3`);
     const voiceSec = await narrate(input.tts, scene.text, voicePath);
     if (voiceSec > 0) voices.push({ path: voicePath, part: i });
-    const sec = Math.max(1.5, Math.min(voiceSec > 0 ? 8 : 6, Math.max(scene.seconds, voiceSec + 0.4)));
+    // 声が次のカットに重ならないよう、読み終わり + 0.4 秒までは必ず伸ばす（字幕だけなら最大6秒）
+    const sec = voiceSec > 0 ? Math.max(1.5, scene.seconds, voiceSec + 0.4 + (i === 0 ? 0.1 : 0.3)) : Math.max(1.5, Math.min(6, scene.seconds));
     const cap = join(workDir, `cap_${i}.png`);
     writeFileSync(cap, await captionPng(scene.text, W, H, brand, { position: i === 0 ? 'center' : 'lower' }));
     const out = join(workDir, `scene_${i}.mp4`);
@@ -138,7 +139,7 @@ export async function buildVideo(input: VideoInput): Promise<{ path: string; dur
     endVoicePath,
   );
   if (endVoiceSec > 0) voices.push({ path: endVoicePath, part: scenes.length });
-  const endSec = Math.min(8, Math.max(input.endCardSeconds ?? 3, endVoiceSec + 0.5));
+  const endSec = Math.max(input.endCardSeconds ?? 3, endVoiceSec + 0.8);
   const endPng = join(workDir, 'endcard.png');
   writeFileSync(endPng, await endCardPng(brief, job, brand, W, H));
   const endMp4 = join(workDir, 'scene_end.mp4');

@@ -24,7 +24,9 @@ on:
         default: ''
 
 concurrency:
-  group: adops
+  # 毎時の応募通知は別グループにする（同じグループだと、待機中の緊急停止などを押し出してしまうため）。
+  # 応募通知は状態を保存しないので、本体の実行と並行しても状態を上書きし合わない
+  group: ${{ github.event.schedule == '30 0-12 * * *' && 'adops-leads' || 'adops' }}
   cancel-in-progress: false
 
 permissions:
@@ -115,6 +117,7 @@ jobs:
           GOOGLE_ADS_BUSINESS_NAME: ${{ vars.GOOGLE_ADS_BUSINESS_NAME }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           ADOPS_SLACK_APPROVALS: ${{ vars.ADOPS_SLACK_APPROVALS }}
+          ADOPS_APPROVAL_SECRET: ${{ secrets.ADOPS_APPROVAL_SECRET }}
           ADOPS_TTS: ${{ vars.ADOPS_TTS }}
           ADOPS_TTS_VOICE: ${{ vars.ADOPS_TTS_VOICE }}
           ADOPS_OUTCOMES_CSV_URL: ${{ secrets.ADOPS_OUTCOMES_CSV_URL }}
@@ -130,7 +133,7 @@ jobs:
           fi
 
       - name: 素材とレポートを保存（14日）
-        if: always()
+        if: always() && steps.steps.outputs.steps != 'leads'
         uses: actions/upload-artifact@v4
         with:
           name: adops-${{ github.run_id }}
@@ -141,7 +144,8 @@ jobs:
           if-no-files-found: ignore
 
       - name: 状態を保存（${{ env.STATE_BRANCH }} ブランチ。履歴を持たない最新スナップショット）
-        if: always()
+        # 毎時の応募通知は状態を読むだけなので保存しない
+        if: always() && steps.steps.outputs.steps != 'leads'
         working-directory: adops/data
         run: |
           [ -f state.json ] || { echo "state.json がないので保存しません"; exit 0; }

@@ -333,8 +333,6 @@ export interface SearchAd {
 export interface State {
   version: 1;
   searchAds?: Record<string, SearchAd>;
-  /** リード（インスタントフォームの応募）の取得位置（フォーム ID → 最後に取得した作成時刻 UNIX 秒） */
-  leadCursor?: Record<string, number>;
   /** 緊急停止中（解除するまで企画・制作・入稿・投稿をしない） */
   halted?: { at: string; reason: string };
   /** 週次の戦略メモ */

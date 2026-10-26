@@ -9,16 +9,18 @@ export interface SlackMessage {
   blocks?: unknown[];
 }
 
-export async function notifySlack(webhookUrl: string, msg: SlackMessage): Promise<void> {
+/** 送れたら true。失敗してもサイクル全体は止めない（呼び出し側で必要なら扱う）。 */
+export async function notifySlack(webhookUrl: string, msg: SlackMessage): Promise<boolean> {
   if (!webhookUrl) {
     log.info(`(Slack 未設定のため出力のみ)\n${msg.text}`);
-    return;
+    return true;
   }
   try {
     await request(webhookUrl, { method: 'POST', json: msg, attempts: 3 });
+    return true;
   } catch (e) {
-    // 通知の失敗でサイクル全体を止めない
     log.warn(`Slack 通知に失敗: ${(e as Error).message}`);
+    return false;
   }
 }
 

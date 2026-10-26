@@ -46,7 +46,7 @@ export async function optimize(ctx: Ctx): Promise<Decision[]> {
           // 媒体に出ているのに API が未設定だと止められない。黙って「止めたこと」にしない
           if (metaAds.length && !ctx.meta) throw new Error('Meta の API が未設定のため停止できません');
           if (googleRefs.length && !ctx.google) throw new Error('Google 広告の API が未設定のため停止できません');
-          for (const adId of metaAds) await ctx.meta!.setAdStatus(adId, 'PAUSED');
+          for (const adId of metaAds) await ctx.meta!.stopAd(adId);
           for (const rn of googleRefs) if (rn.includes('/adGroupAds/')) await ctx.google!.setAdGroupAdStatus(rn, 'PAUSED');
           const pmax = googleRefs.filter((rn) => rn.includes('/assetGroupAssets/'));
           if (pmax.length) await ctx.google!.removeAssetGroupAssets(pmax);
@@ -57,7 +57,7 @@ export async function optimize(ctx: Ctx): Promise<Decision[]> {
         if (d.applied || !onPlatform) store.setStatus(c, d.action === 'retire' ? 'retired' : 'paused', d.reason);
       } else if (d.action === 'scale_budget' && d.adsetId) {
         // 予算を増やすのは auto モードのときだけ。draft モードでは提案として通知する
-        if (auto && !ctx.dryRun && ctx.meta) {
+        if (auto && !ctx.dryRun && ctx.meta && !store.state.halted) {
           await ctx.meta.setAdsetDailyBudget(d.adsetId, Number(d.detail?.to));
           d.applied = true;
         }

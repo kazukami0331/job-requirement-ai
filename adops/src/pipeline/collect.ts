@@ -36,7 +36,7 @@ export async function syncStatuses(ctx: Ctx): Promise<string> {
       const why = [...m.map((x) => x.review), ...g.map((x) => x.topics)].filter(Boolean).join(' / ');
       store.setStatus(c, 'failed', `媒体審査で不承認: ${why || '理由不明'}`);
       disapproved++;
-    } else if (c.status === 'paused' && c.live) {
+    } else if (c.status === 'paused' && c.live && !store.state.halted) {
       store.setStatus(c, 'published', '管理画面で再開されたため配信中として扱います');
       resumed++;
     }

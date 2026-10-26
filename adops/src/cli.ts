@@ -178,6 +178,7 @@ async function main() {
       // インスタントフォームの新しい応募を Slack に通知するだけ（1時間おきの軽い定期実行用）
       const ctx = buildCtx({ ...flags, offline: true });
       console.log(await notifyLeads(ctx));
+      // 状態は読むだけ（毎時の実行は状態を保存しない）
       break;
     }
     case 'resume': {

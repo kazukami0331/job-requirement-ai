@@ -18,7 +18,7 @@ export async function emergencyStop(ctx: Ctx, reason = '緊急停止'): Promise<
     for (const id of metaAds) {
       try {
         if (!ctx.meta) throw new Error('Meta の API が未設定');
-        await ctx.meta.setAdStatus(id, 'PAUSED');
+        await ctx.meta.stopAd(id);
       } catch (e) {
         ok = false;
         errors.push(`${c.id} Meta ${id}: ${(e as Error).message}`);

@@ -157,9 +157,13 @@ draft モードでは、入稿した広告ごとに Slack へ「プレビュー�
 
 1. このリポジトリの Next.js アプリを Vercel にデプロイする（受け口 `app/api/adops/slack/route.ts` が含まれます）。
 2. Slack アプリ（Incoming Webhook を発行したもの）で **Interactivity** を ON にし、Request URL に `https://<Vercel のドメイン>/api/adops/slack` を設定。
-3. Vercel の環境変数に `SLACK_SIGNING_SECRET`（Slack アプリの Signing Secret）、`META_ACCESS_TOKEN`（と `META_APP_SECRET`）、
-   Google の広告も承認するなら `GOOGLE_ADS_*` を設定。承認できる人を絞るなら `ADOPS_SLACK_APPROVERS`（Slack のユーザー ID をカンマ区切り）。
-4. GitHub の Variables に `ADOPS_SLACK_APPROVALS=true`。
+3. ランダムな長い文字列を1つ作り（例: `openssl rand -hex 32`）、**GitHub の Secrets と Vercel の環境変数の両方**に `ADOPS_APPROVAL_SECRET` として登録
+   （ボタンの値に署名を付け、偽のボタンや改ざんを受け付けないため）。
+4. Vercel の環境変数に `SLACK_SIGNING_SECRET`（Slack アプリの Signing Secret）、`ADOPS_SLACK_APPROVERS`（承認できる人の Slack ユーザー ID をカンマ区切り。**必須**）、
+   `META_ACCESS_TOKEN`（と `META_APP_SECRET`）、Google の広告も承認するなら `GOOGLE_ADS_*` を設定。
+5. GitHub の Variables に `ADOPS_SLACK_APPROVALS=true`。
+
+ボタンの有効期限は48時間です。adops が停止判断や緊急停止で止めた広告（広告名の末尾に `[adops停止]`）は、古いボタンを押しても再開しません。
 
 ボタンが押されると媒体の広告が ON（却下なら停止のまま）になり、メッセージが「◯◯さんが配信を開始しました」に書き換わります。
 次の adops の実行で状態が同期され、配信中の広告として停止判断の対象になります。
@@ -171,7 +175,7 @@ draft モードでは、入稿した広告ごとに Slack へ「プレビュー�
 
 | 種類 | 名前 |
 |---|---|
-| Secrets | `GEMINI_API_KEY` `GOOGLE_SERVICE_ACCOUNT_JSON` `ADOPS_OUTCOMES_CSV_URL` `ANTHROPIC_API_KEY` `META_ACCESS_TOKEN` `META_APP_SECRET` `GOOGLE_ADS_DEVELOPER_TOKEN` `GOOGLE_ADS_CLIENT_ID` `GOOGLE_ADS_CLIENT_SECRET` `GOOGLE_ADS_REFRESH_TOKEN` `YOUTUBE_REFRESH_TOKEN` `MJ_API_KEY` `SLACK_WEBHOOK_URL` |
+| Secrets | `ADOPS_APPROVAL_SECRET` `GEMINI_API_KEY` `GOOGLE_SERVICE_ACCOUNT_JSON` `ADOPS_OUTCOMES_CSV_URL` `ANTHROPIC_API_KEY` `META_ACCESS_TOKEN` `META_APP_SECRET` `GOOGLE_ADS_DEVELOPER_TOKEN` `GOOGLE_ADS_CLIENT_ID` `GOOGLE_ADS_CLIENT_SECRET` `GOOGLE_ADS_REFRESH_TOKEN` `YOUTUBE_REFRESH_TOKEN` `MJ_API_KEY` `SLACK_WEBHOOK_URL` |
 | Variables | `ADOPS_DRY_RUN`（`false` で本番）`IMAGE_PROVIDER` `META_AD_ACCOUNT_ID` `META_PAGE_ID` `META_INSTAGRAM_USER_ID` `META_CONVERSION_ACTION_TYPES` `GOOGLE_ADS_CUSTOMER_ID` `GOOGLE_ADS_LOGIN_CUSTOMER_ID` `GOOGLE_ADS_CONVERSION_ACTION` `GOOGLE_ADS_LOGO_ASSET` `GOOGLE_ADS_BUSINESS_NAME` `ADOPS_MODEL` `MJ_API_BASE_URL` `MJ_VIDEO_ENABLED` `MJ_INBOX` `DRIVE_INBOX_FOLDER_ID` `ADOPS_MAX_LLM_USD` `ADOPS_SLACK_APPROVALS` `ADOPS_TTS` `ADOPS_TTS_VOICE` `GEMINI_IMAGE_MODEL` `IMAGE_FALLBACK_AFTER_HOURS` |
 
 本番前に、手元で `.env` を作って `node src/cli.ts check --live` を実行すると、Claude・Meta（広告アカウント・各広告セット・Instagram）・

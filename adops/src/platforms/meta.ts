@@ -17,6 +17,9 @@ import { logger } from '../util/log.ts';
 
 const log = logger('meta');
 
+/** adops が止めた広告の名前に付ける印（Slack 承認の受け口でも参照する） */
+export const STOP_MARK = '[adops停止]';
+
 /** 応募としてカウントする action_type（ピクセル/リード広告の設定に合わせて変える） */
 export const DEFAULT_CONVERSION_ACTIONS = [
   'offsite_conversion.fb_pixel_lead',
@@ -226,6 +229,17 @@ export class MetaClient {
 
   async setAdStatus(adId: string, status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED'): Promise<void> {
     await this.call('POST', adId, { status });
+  }
+
+  /**
+   * adops の判断で止めた広告として印を付けて停止する（広告名の末尾に [adops停止]）。
+   * Slack の古い承認ボタンや、人の再開と区別するために使う。
+   */
+  async stopAd(adId: string): Promise<void> {
+    const cur = await this.call<{ name?: string }>('GET', adId, { fields: 'name' }).catch(() => ({ name: undefined }));
+    const params: Record<string, string> = { status: 'PAUSED' };
+    if (cur.name && !cur.name.includes(STOP_MARK)) params.name = `${cur.name} ${STOP_MARK}`.slice(0, 400);
+    await this.call('POST', adId, params);
   }
 
   /**

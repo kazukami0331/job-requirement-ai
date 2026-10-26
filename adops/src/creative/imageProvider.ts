@@ -341,10 +341,16 @@ export class FallbackProvider implements ImageProvider {
     if (r.status === 'done' || !req.requestedAt) return r;
     if (Date.now() - Date.parse(req.requestedAt) < this.afterMs) return r;
     log.info(`${req.creativeId}: 手渡しの画像が ${this.afterMs / 3600_000} 時間届かないため ${this.fallback.name} で生成します`);
-    const fb = await this.fallback.generate(req);
-    // 人が後から同じ依頼に取り組まないよう、置き場所を片付ける
-    if (fb.status === 'done') await this.primary.discard?.(req.creativeId);
-    return fb;
+    try {
+      const fb = await this.fallback.generate(req);
+      // 人が後から同じ依頼に取り組まないよう、置き場所を片付ける
+      if (fb.status === 'done') await this.primary.discard?.(req.creativeId);
+      return fb;
+    } catch (e) {
+      // 代替の失敗（上限・安全フィルタ・障害）で制作を失敗扱いにしない。次回また試し、その間も人の画像を待つ
+      log.warn(`${req.creativeId}: ${this.fallback.name} での代替生成に失敗（次回再試行）: ${(e as Error).message.slice(0, 200)}`);
+      return r;
+    }
   }
 
   async discard(creativeId: string): Promise<void> {

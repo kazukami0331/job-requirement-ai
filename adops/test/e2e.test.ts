@@ -33,6 +33,9 @@ class FakeMeta {
   async setAdStatus(id: string, status: string): Promise<void> {
     this.ads.get(id)!.status = status;
   }
+  async stopAd(id: string): Promise<void> {
+    this.ads.get(id)!.status = 'PAUSED';
+  }
   async adStatuses(ids: string[]) {
     return new Map(ids.map((id) => [id, { status: this.ads.get(id)?.status ?? 'DELETED' }]));
   }

@@ -12,7 +12,6 @@ import { publish, type PublishSummary } from './publish.ts';
 import { collectOrganic, postOrganic } from './organic.ts';
 import { importOutcomes } from './outcomes.ts';
 import { rotateSearchAds } from './search.ts';
-import { notifyLeads } from './leads.ts';
 import { analyze } from '../agents/analyst.ts';
 import { memoToSlack, shouldWriteMemo, writeMemo } from '../agents/strategyMemo.ts';
 import { lastNDays, totals } from '../optimize/stats.ts';
@@ -64,8 +63,7 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
     const ads = await collectMetrics(ctx);
     const organic = await collectOrganic(ctx).catch((e) => `オーガニック取得失敗: ${(e as Error).message}`);
     const outcomes = await importOutcomes(ctx).catch((e) => `選考結果の取り込み失敗: ${(e as Error).message}`);
-    const leads = await notifyLeads(ctx).catch((e) => `応募の取得失敗: ${(e as Error).message}`);
-    return `${ads} / ${organic} / ${outcomes} / ${leads}`;
+    return `${ads} / ${organic} / ${outcomes}`;
   });
   await step('optimize', async () => {
     decisions = await optimize(ctx);
@@ -102,7 +100,7 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
   await step('publish', async () => {
     published = await publish(ctx);
     // draft モードでは、入稿した広告ごとに Slack へ承認ボタンつきのメッセージを送る（設定時のみ）
-    if (ctx.catalog.policy.autonomy === 'draft' && process.env.ADOPS_SLACK_APPROVALS === 'true' && ctx.settings.slack.webhookUrl) {
+    if (ctx.catalog.policy.autonomy === 'draft' && process.env.ADOPS_SLACK_APPROVALS === 'true' && process.env.ADOPS_APPROVAL_SECRET && ctx.settings.slack.webhookUrl) {
       for (const c of published.published) {
         const brief = store.state.briefs[c.briefId];
         const job = ctx.catalog.jobs.find((j) => j.id === c.jobId);

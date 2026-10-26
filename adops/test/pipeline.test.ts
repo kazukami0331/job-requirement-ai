@@ -185,7 +185,7 @@ test('optimize: DRY RUN では媒体に出ている広告の状態を変えな�
   const { creative, daily } = await import('./fixtures.ts');
   const bad = () => creative({ id: 'bad', metrics: daily('2026-10-04', 7, { impressions: 4000, clicks: 40, spend: 3000, conversions: 0 }) });
   const paused: string[] = [];
-  const fakeMeta = { setAdStatus: async (id: string) => void paused.push(id), getAdset: async () => ({ id: '111', dailyBudget: null, status: 'ACTIVE' }) } as any;
+  const fakeMeta = { stopAd: async (id: string) => void paused.push(id), getAdset: async () => ({ id: '111', dailyBudget: null, status: 'ACTIVE' }) } as any;
 
   const dry = ctxWith(offlineLlm(catalog()), { meta: fakeMeta, dryRun: true });
   dry.store.state.creatives.bad = bad();
@@ -272,7 +272,7 @@ test('emergencyStop: 入稿済みの広告をすべて止め、解除まで企�
   const { emergencyStop } = await import('../src/pipeline/emergency.ts');
   const { creative } = await import('./fixtures.ts');
   const paused: string[] = [];
-  const ctx = ctxWith(offlineLlm(catalog()), { dryRun: false, meta: { setAdStatus: async (id: string) => void paused.push(id) } as any });
+  const ctx = ctxWith(offlineLlm(catalog()), { dryRun: false, meta: { stopAd: async (id: string) => void paused.push(id) } as any });
   ctx.store.state.creatives.a = creative({ id: 'a' });
   ctx.store.state.creatives.b = creative({ id: 'b', status: 'produced', platformRefs: {} });
   const r = await emergencyStop(ctx);
@@ -285,25 +285,30 @@ test('emergencyStop: 入稿済みの広告をすべて止め、解除まで企�
   assert.equal(ctx.store.state.creatives.b.status, 'produced');
 });
 
-test('notifyLeads: 新しい応募だけを数え、氏名はイニシャルにして通知し、取得位置を進める', async () => {
-  const { notifyLeads, maskName } = await import('../src/pipeline/leads.ts');
+test('notifyLeads: 直前1時間（朝は夜間分）の応募だけを、氏名はイニシャルにして通知し、状態に個人情報を残さない', async () => {
+  const { notifyLeads, maskName, leadWindow } = await import('../src/pipeline/leads.ts');
   const { creative, job } = await import('./fixtures.ts');
   assert.equal(maskName({ full_name: '山田 太郎' }), '山…様');
   assert.equal(maskName({}), '（氏名なし）');
-  const now = Math.floor(Date.now() / 1000);
-  const calls: number[] = [];
+  // 10:35 JST の実行 → 9:30〜10:30 JST
+  const at1035 = new Date('2026-10-26T01:35:00Z');
+  const w = leadWindow(at1035);
+  assert.equal(new Date(w.since * 1000).toISOString(), '2026-10-26T00:30:00.000Z');
+  assert.equal(new Date(w.until * 1000).toISOString(), '2026-10-26T01:30:00.000Z');
+  // 9:40 JST の実行 → 前日 21:30 から
+  const w9 = leadWindow(new Date('2026-10-26T00:40:00Z'));
+  assert.equal(new Date(w9.since * 1000).toISOString(), '2026-10-25T12:30:00.000Z');
+
+  const inWindow = Math.floor(Date.parse('2026-10-26T01:00:00Z') / 1000);
   const fakeMeta = {
-    leads: async (_form: string, since: number) => {
-      calls.push(since);
-      return since < now - 10 ? [{ id: 'l1', createdTime: now - 5, adId: 'ad1', fields: { full_name: '山田 太郎', phone_number: '090-0000-0000' } }] : [];
-    },
+    leads: async () => [
+      { id: 'l1', createdTime: inWindow, adId: 'ad1', fields: { full_name: '山田 太郎', phone_number: '090-0000-0000' } },
+      { id: 'l0', createdTime: w.since - 10, fields: { full_name: '前の時間' } },
+    ],
   } as any;
   const ctx = ctxWith(offlineLlm(catalog()), { meta: fakeMeta });
   ctx.catalog.jobs = [job({ placements: { meta: { adsetIds: ['1'], leadFormId: 'form1' } } })];
   ctx.store.state.creatives.c = creative({ id: 'c' });
-  assert.match(await notifyLeads(ctx), /1 件/);
-  assert.equal(ctx.store.state.leadCursor!.form1, now - 5);
-  assert.match(await notifyLeads(ctx), /0 件/);
-  // 個人情報（電話番号）を状態に残さない
+  assert.match(await notifyLeads(ctx, at1035), /1 件/);
   assert.ok(!JSON.stringify(ctx.store.state).includes('090-0000-0000'));
 });

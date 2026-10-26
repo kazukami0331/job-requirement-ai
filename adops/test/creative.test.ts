@@ -117,7 +117,10 @@ test('approvalBlocks: プレビュー画像と承認ボタン（広告 ID 入り
   assert.equal(blocks[1].type, 'image');
   const actions = blocks.at(-1);
   assert.deepEqual(actions.elements.map((e: any) => e.action_id), ['adops_approve', 'adops_reject']);
-  assert.deepEqual(JSON.parse(actions.elements[0].value), { c: 'cr_1', m: ['a1'], g: ['customers/1/adGroupAds/2~3'] });
+  const v = JSON.parse(actions.elements[0].value);
+  assert.deepEqual({ c: v.c, m: v.m, g: v.g }, { c: 'cr_1', m: ['a1'], g: ['customers/1/adGroupAds/2~3'] });
+  assert.ok(v.e > Date.now() / 1000 + 47 * 3600);
+  assert.match(v.s, /^[0-9a-f]{64}$/);
 });
 
 test('buildVideo: ナレーションに合わせてカットを伸ばし、音声を混ぜる', async () => {
