@@ -97,7 +97,11 @@ export async function buildVideo(input: VideoInput): Promise<{ path: string; dur
       ...bgInput,
       '-loop', '1', '-t', String(sec), '-framerate', String(FPS), '-i', cap,
       '-filter_complex',
-      `[0:v]${bgFilter}[bg];[bg][1:v]overlay=0:0,fade=t=in:st=0:d=0.2,format=yuv420p[v]`,
+      // 1カット目は最初のフレームから字幕を出す（自動再生前のサムネイルや最初の0.5秒で止めるため）。
+      // 2カット目以降は字幕を少し遅れてフェードイン（カットが切り替わってから文字が出ると目が追いやすい）
+      i === 0
+        ? `[0:v]${bgFilter}[bg];[bg][1:v]overlay=0:0,format=yuv420p[v]`
+        : `[0:v]${bgFilter}[bg];[1:v]format=rgba,fade=t=in:st=0.15:d=0.3:alpha=1[cap];[bg][cap]overlay=0:0,fade=t=in:st=0:d=0.2,format=yuv420p[v]`,
       '-map', '[v]', '-r', String(FPS), '-t', String(sec),
       '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-an', out,
     ]);
