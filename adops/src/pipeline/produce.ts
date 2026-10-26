@@ -171,7 +171,7 @@ export async function produceOne(ctx: Ctx, c: Creative): Promise<void> {
       workDir: join(outDir, 'video_work'),
       outPath: vertical,
       bgmPath: bgm && existsSync(bgm) ? bgm : undefined,
-      tts: createTts(),
+      tts: createTts(brief.language ?? 'ja'),
     });
     await thumbnail(vertical, vertical.replace(/\.mp4$/, '.jpg'), Math.min(1, durationSec / 4));
     assets.push({ ratio: '9:16', kind: 'video', path: vertical, width: 1080, height: 1920, durationSec });

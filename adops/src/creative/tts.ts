@@ -30,11 +30,14 @@ export class GoogleTts implements Tts {
   private rate: number;
   private token: { value: string; exp: number } | null = null;
 
-  constructor(serviceAccountJson: string, voice = 'ja-JP-Neural2-C', rate = 1.1) {
+  private languageCode: string;
+
+  constructor(serviceAccountJson: string, voice = 'ja-JP-Neural2-C', rate = 1.1, languageCode = 'ja-JP') {
     if (!serviceAccountJson) throw new Error('ナレーションには GOOGLE_SERVICE_ACCOUNT_JSON が必要です');
     this.sa = JSON.parse(serviceAccountJson);
     this.voice = voice;
     this.rate = rate;
+    this.languageCode = languageCode;
   }
 
   private async auth(): Promise<string> {
@@ -54,8 +57,8 @@ export class GoogleTts implements Tts {
       method: 'POST',
       headers: { authorization: `Bearer ${await this.auth()}` },
       json: {
-        input: { text: narrationText(text) },
-        voice: { languageCode: 'ja-JP', name: this.voice },
+        input: { text: this.languageCode === 'ja-JP' ? narrationText(text) : text.replace(/\n+/g, ', ').replace(/[｜|]/g, ', ').trim() },
+        voice: { languageCode: this.languageCode, name: this.voice },
         audioConfig: { audioEncoding: 'MP3', speakingRate: this.rate, sampleRateHertz: 44100 },
       },
     });
@@ -63,7 +66,22 @@ export class GoogleTts implements Tts {
   }
 }
 
-export function createTts(): Tts | null {
+/** 外国語の広告のナレーションに使う声（Google Cloud TTS）。無い言語はナレーションなし（字幕のみ） */
+const FOREIGN_VOICES: Record<string, { code: string; voice: string }> = {
+  en: { code: 'en-US', voice: 'en-US-Neural2-F' },
+  vi: { code: 'vi-VN', voice: 'vi-VN-Standard-A' },
+  pt: { code: 'pt-BR', voice: 'pt-BR-Neural2-A' },
+  id: { code: 'id-ID', voice: 'id-ID-Standard-A' },
+  tl: { code: 'fil-PH', voice: 'fil-PH-Standard-A' },
+  zh: { code: 'cmn-CN', voice: 'cmn-CN-Standard-A' },
+  es: { code: 'es-ES', voice: 'es-ES-Neural2-A' },
+};
+
+export function createTts(language = 'ja'): Tts | null {
   if (process.env.ADOPS_TTS !== 'google') return null;
-  return new GoogleTts(process.env.GOOGLE_SERVICE_ACCOUNT_JSON ?? '', process.env.ADOPS_TTS_VOICE || undefined, Number(process.env.ADOPS_TTS_RATE) || undefined);
+  const sa = process.env.GOOGLE_SERVICE_ACCOUNT_JSON ?? '';
+  const rate = Number(process.env.ADOPS_TTS_RATE) || undefined;
+  if (language === 'ja') return new GoogleTts(sa, process.env.ADOPS_TTS_VOICE || undefined, rate);
+  const v = FOREIGN_VOICES[language];
+  return v ? new GoogleTts(sa, v.voice, rate ?? 1, v.code) : null;
 }
