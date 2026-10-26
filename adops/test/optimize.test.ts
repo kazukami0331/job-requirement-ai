@@ -248,3 +248,29 @@ test('jobsAtTarget: 今月の応募が目標に達した求人だけを返す（
   // 翌月はリセット
   assert.deepEqual(jobsAtTarget(jobs, creatives, searchAds, '2026-11-01'), []);
 });
+
+test('allocateSlots: 学習は言語ごとに分かれ、外国語ペルソナの実績で日本語向けの配分が動かない', async () => {
+  const { catalog, creative, daily, job, persona, policy } = await import('./fixtures.ts');
+  const cat = catalog({
+    personas: [persona(), persona({ id: 'vi', language: 'vi' })],
+    jobs: [job({ personas: ['p1', 'vi'], dailyCreativeQuota: 2 })],
+    policy: policy({ briefsPerCycle: 2, videoShare: 0, exploreShare: 0 }),
+  });
+  const strong = { impressions: 20000, clicks: 400, spend: 20000, conversions: 20 };
+  const weak = { impressions: 20000, clicks: 100, spend: 20000, conversions: 0 };
+  const creatives = [
+    creative({ id: 'a', personaId: 'p1', angle: 'pay', metrics: daily('2026-10-01', 7, strong) }),
+    creative({ id: 'b', personaId: 'p1', angle: 'housing', metrics: daily('2026-10-01', 7, weak) }),
+    creative({ id: 'c', personaId: 'vi', angle: 'housing', metrics: daily('2026-10-01', 7, strong) }),
+    creative({ id: 'd', personaId: 'vi', angle: 'pay', metrics: daily('2026-10-01', 7, weak) }),
+  ];
+  const picks: Record<string, Record<string, number>> = { p1: {}, vi: {} };
+  for (let seed = 1; seed <= 60; seed++) {
+    for (const s of allocateSlots({ catalog: cat, creatives, today: '2026-10-08', rng: seededRng(seed) })) {
+      picks[s.personaId][s.angle] = (picks[s.personaId][s.angle] ?? 0) + 1;
+    }
+  }
+  // 共有で学習していれば両方の軸が同じくらい選ばれるはず。言語ごとなら、それぞれの勝ち軸だけが選ばれる
+  assert.ok((picks.p1.pay ?? 0) > (picks.p1.housing ?? 0) + 10, JSON.stringify(picks));
+  assert.ok((picks.vi.housing ?? 0) > (picks.vi.pay ?? 0) + 10, JSON.stringify(picks));
+});

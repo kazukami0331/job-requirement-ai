@@ -175,23 +175,34 @@ export function allocateSlots(input: AllocationInput): Slot[] {
   let slotNo = 1;
   for (const job of catalog.jobs.filter((j) => j.active)) {
     const n = quotas.get(job.id) ?? 0;
-    // 面接数は期間で区切れない累計なので、その場合は表示回数なども1年分で数えて揃える
-    const stats = angleTotals(creatives, job.id, policy.rewardMetric === 'interviews' ? addDays(today, -365) : from, today);
-    // 報酬を「面接数」にする設定なら、選考結果の面接数で応募数を置き換える（応募の質まで含めて学習する）
-    const withFunnel = new Set<Angle>();
-    if (policy.rewardMetric === 'interviews') {
-      for (const [angle, t] of stats) {
-        const cs = creatives.filter((c) => c.jobId === job.id && c.angle === angle && c.funnel);
-        if (cs.length) withFunnel.add(angle);
-        stats.set(angle, { ...t, conversions: cs.reduce((a, c) => a + c.funnel!.interview, 0) });
+    // 言語（ペルソナの言語）ごとに学習を分ける（外国人向けの反応で日本人向けの配分が動かないように）
+    const langOf = (personaId: string) => catalog.personas.find((p) => p.id === personaId)?.language ?? 'ja';
+    const byLang = new Map<string, { stats: Map<Angle, Totals>; post: (a: Angle) => { a: number; b: number } }>();
+    const learnFor = (lang: string) => {
+      const hit = byLang.get(lang);
+      if (hit) return hit;
+      const pool = creatives.filter((c) => langOf(c.personaId) === lang);
+      // 面接数は期間で区切れない累計なので、その場合は表示回数なども1年分で数えて揃える
+      const stats = angleTotals(pool, job.id, policy.rewardMetric === 'interviews' ? addDays(today, -365) : from, today);
+      // 報酬を「面接数」にする設定なら、選考結果の面接数で応募数を置き換える（応募の質まで含めて学習する）
+      const withFunnel = new Set<Angle>();
+      if (policy.rewardMetric === 'interviews') {
+        for (const [angle, t] of stats) {
+          const cs = pool.filter((c) => c.jobId === job.id && c.angle === angle && c.funnel);
+          if (cs.length) withFunnel.add(angle);
+          stats.set(angle, { ...t, conversions: cs.reduce((a, c) => a + c.funnel!.interview, 0) });
+        }
       }
-    }
-    // 面接数が報酬のときは、選考結果がある軸はその数をそのまま使い、無い軸はクリック × 想定面接率（1.5%）で近似する
-    const post = (a: Angle) =>
-      policy.rewardMetric === 'interviews'
-        ? // 面接は応募の4割程度なので、事前分布も表示あたり 0.02% 前後に下げる
-          posterior(stats.get(a), { assumedCvr: 0.015, maxEffective: 20000, minConv: withFunnel.has(a) ? 0 : Infinity, priorB: 5000 })
-        : posterior(stats.get(a));
+      // 面接数が報酬のときは、選考結果がある軸はその数をそのまま使い、無い軸はクリック × 想定面接率（1.5%）で近似する
+      const post = (a: Angle) =>
+        policy.rewardMetric === 'interviews'
+          ? // 面接は応募の4割程度なので、事前分布も表示あたり 0.02% 前後に下げる
+            posterior(stats.get(a), { assumedCvr: 0.015, maxEffective: 20000, minConv: withFunnel.has(a) ? 0 : Infinity, priorB: 5000 })
+          : posterior(stats.get(a));
+      const out = { stats, post };
+      byLang.set(lang, out);
+      return out;
+    };
     const jobCreatives = creatives.filter((c) => c.jobId === job.id);
     const personaUse = new Map(job.personas.map((p) => [p, jobCreatives.filter((c) => c.personaId === p).length]));
     const usedThisCycle = new Set<Angle>();
@@ -212,6 +223,10 @@ export function allocateSlots(input: AllocationInput): Slot[] {
         slots.push({ slot: slotNo++, jobId: job.id, personaId: w.personaId, angle: w.angle, format: w.format, explore: false, iterateOf: w.briefId });
         continue;
       }
+      // ペルソナは使用回数の少ない順に回す（言語ごとの学習を使うため、訴求軸より先に決める）
+      const personaId = [...personaUse.entries()].sort((x, y) => x[1] - y[1])[0][0];
+      personaUse.set(personaId, personaUse.get(personaId)! + 1);
+      const { stats, post } = learnFor(langOf(personaId));
       let angle: Angle;
       if (explore) {
         // 試行回数（インプレッション）が少ない軸を優先。同数ならランダム
@@ -228,10 +243,6 @@ export function allocateSlots(input: AllocationInput): Slot[] {
         angle = draws[0]?.a ?? 'pay';
       }
       usedThisCycle.add(angle);
-
-      // ペルソナは使用回数の少ない順に回す
-      const personaId = [...personaUse.entries()].sort((x, y) => x[1] - y[1])[0][0];
-      personaUse.set(personaId, personaUse.get(personaId)! + 1);
 
       slots.push({ slot: slotNo++, jobId: job.id, personaId, angle, format: 'image', explore });
     }
