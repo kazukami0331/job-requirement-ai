@@ -42,6 +42,8 @@ export interface ImageProvider {
   poll(req: GenerateRequest, jobId: string): Promise<GenerateResult>;
   /** 生成済みの画像を破棄して作り直せるようにする（手渡しモードで画像審査が全滅したとき） */
   discard?(creativeId: string): Promise<void>;
+  /** 他の生成元で作った画像を取り込み済みとして保存する（手渡しモード。次回 poll で取り直せるように） */
+  keep?(creativeId: string, paths: string[]): Promise<void>;
   /** 画像から短い動画を作る（対応していなければ null） */
   animate?(req: GenerateRequest & { imagePath: string; motionPrompt: string }): Promise<string | null>;
 }
@@ -263,6 +265,11 @@ export class HandoffProvider implements ImageProvider {
   async discard(creativeId: string): Promise<void> {
     await this.inbox.discard(creativeId);
   }
+
+  /** 他の生成元で作った画像を置き場所に取り込み済みとして保存し、次回以降は poll で取り直せるようにする。 */
+  async keep(creativeId: string, paths: string[]): Promise<void> {
+    await this.inbox.keep(creativeId, paths);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -342,7 +349,7 @@ export class FallbackProvider implements ImageProvider {
     if (req.lowPriority && this.fallbackFirstForLow) {
       try {
         const r = await this.fallback.generate(req);
-        if (r.status === 'done') return r;
+        if (r.status === 'done') return this.kept(req, r);
       } catch (e) {
         log.warn(`${req.creativeId}: ${this.fallback.name} での生成に失敗したため手渡しにします: ${(e as Error).message.slice(0, 200)}`);
       }
@@ -358,11 +365,29 @@ export class FallbackProvider implements ImageProvider {
     try {
       const fb = await this.fallback.generate(req);
       // 人が後から同じ依頼に取り組まないよう、置き場所を片付ける
-      if (fb.status === 'done') await this.primary.discard?.(req.creativeId);
+      if (fb.status === 'done') {
+        await this.primary.discard?.(req.creativeId);
+        return this.kept(req, fb);
+      }
       return fb;
     } catch (e) {
       // 代替の失敗（上限・安全フィルタ・障害）で制作を失敗扱いにしない。次回また試し、その間も人の画像を待つ
       log.warn(`${req.creativeId}: ${this.fallback.name} での代替生成に失敗（次回再試行）: ${(e as Error).message.slice(0, 200)}`);
+      return r;
+    }
+  }
+
+  /**
+   * 代替で作った画像を手渡しの置き場所に保存する。CI は毎回まっさらなので、残さないと次回また生成し直して
+   * 費用がかかるうえ、選んだ・承認された画像と違うものになる。保存できたら置き場所の ID を jobId にする。
+   */
+  private async kept(req: GenerateRequest, r: Extract<GenerateResult, { status: 'done' }>): Promise<GenerateResult> {
+    if (!this.primary.keep) return r;
+    try {
+      await this.primary.keep(req.creativeId, r.paths);
+      return { ...r, jobId: req.creativeId };
+    } catch (e) {
+      log.warn(`${req.creativeId}: 生成した画像を置き場所に保存できませんでした（次回は作り直します）: ${(e as Error).message.slice(0, 200)}`);
       return r;
     }
   }

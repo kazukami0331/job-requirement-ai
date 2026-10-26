@@ -3,7 +3,7 @@
  * 毎日決まった時刻に GitHub Actions から実行する想定。各段階は独立して失敗を記録し、後続を止めない。
  */
 import type { Ctx } from './context.ts';
-import type { CycleRecord, Decision } from '../types.ts';
+import type { Creative, CycleRecord, Decision, ImageJob } from '../types.ts';
 import { collectMetrics } from './collect.ts';
 import { optimize } from './optimize.ts';
 import { plan, type PlanResult } from './plan.ts';
@@ -182,6 +182,12 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
   return record;
 }
 
+/** 人が Midjourney で作る必要がある画像（置き場所を用意済みで、まだ届いていないもの）。自動生成に回る探索枠は含めない */
+const needsHand = (j: ImageJob) => !j.paths?.length && !!j.note?.startsWith('置き場所');
+function handoffWaiting(ctx: Ctx): Creative[] {
+  return ctx.store.creatives({ status: 'awaiting_images' }).filter((c) => c.imageJobs.some(needsHand));
+}
+
 function summaryMessage(
   ctx: Ctx,
   record: CycleRecord,
@@ -194,7 +200,7 @@ function summaryMessage(
   if (store.state.halted) lines.push(`:octagonal_sign: 緊急停止中（${store.state.halted.reason}）。企画・入稿は止めています。解除は \`resume\``);
   // 人がやること（無ければ出さない）
   const todo: string[] = [];
-  const waitingImages = store.creatives({ status: 'awaiting_images' }).length;
+  const waitingImages = handoffWaiting(ctx).length;
   if (waitingImages && ctx.images.name === 'handoff') todo.push(`Midjourney で画像を作る（${waitingImages} 本。下にプロンプト）`);
   if (ctx.catalog.policy.autonomy === 'draft' && !ctx.dryRun && r.published.published.length) todo.push(`入稿した ${r.published.published.length} 本を確認して配信開始（Slack の承認ボタンか管理画面）`);
   const lpBad = ctx.catalog.jobs.filter((j) => store.state.landing?.[j.id]?.ok === false).length;
@@ -229,11 +235,11 @@ function summaryMessage(
     lines.push(`• [${ANGLE_LABELS[c.angle]}${c.format !== 'image' ? `・${FORMAT_LABEL[c.format]}` : ''}${c.explore ? '・探索' : ''}${lang}] ${b.overlay.main}${b.translationJa?.main ? `（訳: ${b.translationJa.main}）` : ''}`);
   }
   lines.push(`*制作* 完成 ${r.produced.produced} / 画像待ち ${r.produced.waiting} / 失敗 ${r.produced.failed}`);
-  const waiting = store.creatives({ status: 'awaiting_images' });
+  const waiting = handoffWaiting(ctx);
   if (waiting.length && ctx.images.name === 'handoff') {
     lines.push('', `*:art: Midjourney で生成してください（${waiting.length} 本）*`, '各プロンプトを midjourney.com で生成し、良い画像を1〜4枚、示したフォルダに保存すると次回の実行で取り込みます。');
     for (const c of waiting.slice(0, 10)) {
-      for (const j of c.imageJobs.filter((j) => !j.paths?.length)) {
+      for (const j of c.imageJobs.filter(needsHand)) {
         const id = `${c.id}_${j.ratio.replace(':', 'x').replace('.', '')}`;
         const where = j.note?.replace(/^置き場所: /, '') ?? `inbox/${id}/`;
         lines.push(`• \`${id}\` → ${where.startsWith('http') ? `<${where}|フォルダを開く>` : `\`${where}\``}\n\`\`\`${j.prompt} --ar ${j.ratio === '1.91:1' ? '191:100' : j.ratio}\`\`\``);

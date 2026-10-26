@@ -177,6 +177,24 @@ test('FallbackProvider: 手渡しの画像が期限内に届かなければ代�
   assert.equal((await p.generate({ ...base, lowPriority: true })).status, 'pending');
 });
 
+test('FallbackProvider: 代替で作った画像は手渡しの置き場所に保存し、次回は取り直せる（作り直さない）', async () => {
+  const { FallbackProvider } = await import('../src/creative/imageProvider.ts');
+  const dir = mkdtempSync(join(tmpdir(), 'adops-keep-'));
+  const img = join(dir, 'gm.png');
+  await sharp({ create: { width: 8, height: 8, channels: 3, background: '#888' } }).png().toFile(img);
+  let generated = 0;
+  const fallback = { name: 'gemini', generate: async () => (generated++, { status: 'done' as const, paths: [img] }), poll: async () => ({ status: 'done' as const, paths: [img] }) };
+  const p = new FallbackProvider(new HandoffProvider(new LocalInbox(join(dir, 'inbox'))), fallback, 24, true);
+  const req = { creativeId: 'c1_4x5', prompt: 'p', ratio: '4:5' as const, outDir: join(dir, 'out'), lowPriority: true };
+  const r = await p.generate(req);
+  assert.equal(r.status, 'done');
+  assert.equal(r.jobId, 'c1_4x5');
+  // 次の実行（ファイルは消えている想定）は置き場所から取り直す
+  const again = await p.poll({ ...req, outDir: join(dir, 'out2') }, r.jobId!);
+  assert.equal(again.status, 'done');
+  assert.equal(generated, 1);
+});
+
 test('i18n: 外国語のエンドカードは給与の種類を訳し、金額は「300,000円」の形にする', async () => {
   const { salaryLine, ctaText } = await import('../src/creative/i18n.ts');
   const { job } = await import('./fixtures.ts');

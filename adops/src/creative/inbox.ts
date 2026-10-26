@@ -19,6 +19,8 @@ export interface Inbox {
   markImported(id: string): Promise<void>;
   /** 置かれた画像を使わないことにする（画像審査で全滅したとき）。次の prepare で新しいフォルダを作る */
   discard(id: string): Promise<void>;
+  /** 自動生成した画像を取り込み済みとして保存する（次回の実行で生成し直さずに済むように） */
+  keep(id: string, files: string[]): Promise<void>;
 }
 
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp']);
@@ -51,6 +53,12 @@ export class LocalInbox implements Inbox {
     if (!existsSync(dir)) return;
     rmSync(`${dir}.imported`, { recursive: true, force: true });
     renameSync(dir, `${dir}.imported`);
+  }
+  async keep(id: string, files: string[]): Promise<void> {
+    const dir = join(this.root, `${id}.imported`);
+    rmSync(dir, { recursive: true, force: true });
+    mkdirSync(dir, { recursive: true });
+    for (const f of files) writeFileSync(join(dir, basename(f)), readFileSync(f));
   }
   async discard(id: string): Promise<void> {
     // 消さずに名前を変える。GitHub Actions の保存時に、リモートに残る古いフォルダを取り込み直さないための印にもなる
@@ -186,6 +194,31 @@ export class DriveInbox implements Inbox {
     // ドライブ上では消さずに名前を変えて残す（人が後で見返せるように）
     const folder = await this.findFolder(id);
     if (folder) await this.rename(folder.id, `${id}.rejected-${Date.now()}`);
+  }
+
+  async keep(id: string, files: string[]): Promise<void> {
+    const found = await this.findFolder(id);
+    const folder =
+      found?.name.endsWith('.imported')
+        ? found
+        : await requestJson<{ id: string }>(`${DRIVE}/files?supportsAllDrives=true`, {
+            method: 'POST',
+            headers: await this.auth(),
+            json: { name: `${id}.imported`, mimeType: FOLDER_MIME, parents: [this.rootId] },
+            attempts: 1,
+          });
+    for (const f of files) {
+      const boundary = `adops${Date.now()}`;
+      const head = Buffer.from(
+        [`--${boundary}`, 'Content-Type: application/json; charset=UTF-8', '', JSON.stringify({ name: basename(f), parents: [folder.id] }), `--${boundary}`, 'Content-Type: image/png', '', ''].join('\r\n'),
+      );
+      await request('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true', {
+        method: 'POST',
+        headers: { ...(await this.auth()), 'content-type': `multipart/related; boundary=${boundary}` },
+        body: Buffer.concat([head, readFileSync(f), Buffer.from(`\r\n--${boundary}--\r\n`)]),
+        attempts: 1,
+      });
+    }
   }
 
   private async rename(fileId: string, name: string): Promise<void> {
