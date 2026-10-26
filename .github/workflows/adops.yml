@@ -68,7 +68,7 @@ jobs:
           elif [ "${{ github.event.schedule }}" = "0 3,9 * * *" ]; then
             echo "steps=collect,optimize,report" >> "$GITHUB_OUTPUT"
           else
-            echo "steps=collect,optimize,analyze,plan,produce,publish,report" >> "$GITHUB_OUTPUT"
+            echo "steps=collect,optimize,analyze,plan,produce,publish,organic,report" >> "$GITHUB_OUTPUT"
           fi
 
       - name: 実行

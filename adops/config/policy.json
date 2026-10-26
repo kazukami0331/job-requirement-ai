@@ -3,7 +3,23 @@
   "briefsPerCycle": 6,
   "videoShare": 0.4,
   "exploreShare": 0.3,
-  "review": { "passScore": 75, "maxRevisions": 2 },
+  "review": {
+    "passScore": 75,
+    "maxRevisions": 2
+  },
+  "organic": {
+    "enabled": true,
+    "postsPerDay": 1,
+    "baseHashtags": [
+      "#求人",
+      "#転職",
+      "#未経験歓迎",
+      "#寮付き求人",
+      "#工場勤務",
+      "#ドライバー求人"
+    ],
+    "minAdCtrForRepost": 1.0
+  },
   "imageCandidates": 4,
   "guardrails": {
     "minImpressions": 3000,

@@ -9,6 +9,7 @@ import { optimize } from './optimize.ts';
 import { plan, type PlanResult } from './plan.ts';
 import { produce } from './produce.ts';
 import { publish, type PublishSummary } from './publish.ts';
+import { collectOrganic, postOrganic } from './organic.ts';
 import { analyze } from '../agents/analyst.ts';
 import { lastNDays, totals } from '../optimize/stats.ts';
 import { notifySlack, sections } from '../notify/slack.ts';
@@ -19,8 +20,8 @@ import { logger } from '../util/log.ts';
 
 const log = logger('cycle');
 
-export type StepName = 'collect' | 'optimize' | 'analyze' | 'plan' | 'produce' | 'publish' | 'report';
-export const ALL_STEPS: StepName[] = ['collect', 'optimize', 'analyze', 'plan', 'produce', 'publish', 'report'];
+export type StepName = 'collect' | 'optimize' | 'analyze' | 'plan' | 'produce' | 'publish' | 'organic' | 'report';
+export const ALL_STEPS: StepName[] = ['collect', 'optimize', 'analyze', 'plan', 'produce', 'publish', 'organic', 'report'];
 
 export async function runCycle(ctx: Ctx, steps: StepName[] = ALL_STEPS): Promise<CycleRecord> {
   const { store } = ctx;
@@ -48,7 +49,11 @@ export async function runCycle(ctx: Ctx, steps: StepName[] = ALL_STEPS): Promise
 
   log.info(`サイクル開始 ${ctx.cycleId}（${ctx.dryRun ? 'DRY RUN' : '本番'} / 画像: ${ctx.images.name} / Meta: ${ctx.meta ? 'ON' : 'OFF'} / Google: ${ctx.google ? 'ON' : 'OFF'}）`);
 
-  await step('collect', () => collectMetrics(ctx));
+  await step('collect', async () => {
+    const ads = await collectMetrics(ctx);
+    const organic = await collectOrganic(ctx).catch((e) => `オーガニック取得失敗: ${(e as Error).message}`);
+    return `${ads} / ${organic}`;
+  });
   await step('optimize', async () => {
     decisions = await optimize(ctx);
     return `${decisions.length} 件`;
@@ -77,6 +82,12 @@ export async function runCycle(ctx: Ctx, steps: StepName[] = ALL_STEPS): Promise
     return `入稿 ${published.published.length} / 保留 ${published.skipped.length} / 失敗 ${published.failed.length}`;
   });
 
+  let organicNote = '';
+  await step('organic', async () => {
+    organicNote = await postOrganic(ctx);
+    return organicNote;
+  });
+
   const pruned = store.pruneAssets(ctx.settings.image.inboxDir);
   if (pruned) log.info(`入稿済み等の素材 ${pruned} ファイルを掃除（サムネイルは保持）`);
 
@@ -89,7 +100,7 @@ export async function runCycle(ctx: Ctx, steps: StepName[] = ALL_STEPS): Promise
 
   await step('report', async () => {
     const path = writeReport(store.state, ctx.catalog, store.dir, ctx.today);
-    await notifySlack(ctx.settings.slack.webhookUrl, summaryMessage(ctx, record, { decisions, planned, produced, published, analyzed }));
+    await notifySlack(ctx.settings.slack.webhookUrl, summaryMessage(ctx, record, { decisions, planned, produced, published, analyzed, organicNote }));
     return path;
   });
   // report の結果も記録に残す
@@ -102,7 +113,7 @@ export async function runCycle(ctx: Ctx, steps: StepName[] = ALL_STEPS): Promise
 function summaryMessage(
   ctx: Ctx,
   record: CycleRecord,
-  r: { decisions: Decision[]; planned: PlanResult; produced: { produced: number; waiting: number; failed: number }; published: PublishSummary; analyzed: boolean },
+  r: { decisions: Decision[]; planned: PlanResult; produced: { produced: number; waiting: number; failed: number }; published: PublishSummary; analyzed: boolean; organicNote: string },
 ) {
   const { store, today } = ctx;
   const t7 = totals(store.creatives().flatMap((c) => lastNDays(c.metrics, today, 7)));
@@ -140,6 +151,7 @@ function summaryMessage(
   for (const f of r.published.failed.slice(0, 5)) lines.push(`• :x: ${f.creative.id}: ${f.error.slice(0, 200)}`);
   const skippedReasons = [...new Set(r.published.skipped.map((s) => s.reason))];
   if (skippedReasons.length) lines.push(`• 保留 ${r.published.skipped.length} 本: ${skippedReasons.join(' / ')}`);
+  if (r.organicNote) lines.push(`*Instagram 投稿* ${r.organicNote}`);
   lines.push('', `AI費用 $${record.llmCostUsd}`);
   const text = lines.join('\n');
   return { text, blocks: sections(text) };

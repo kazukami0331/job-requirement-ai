@@ -69,6 +69,10 @@ export function offlineLlm(catalog: Catalog): ScriptedLlm {
     reason: '（オフライン）先頭を選択',
   }));
   llm.on('artJudge.qa', () => ({ pass: true, score: 80, problems: [], note: '（オフライン）' }));
+  llm.on('socialWriter', (req) => {
+    const hook = req.prompt.match(/- フック: (.+)/)?.[1] ?? '';
+    return { caption: `${hook}\n\n（オフライン生成のキャプション）\nプロフィールのリンクから詳細を見られます。`, hashtags: ['#求人'] };
+  });
   llm.on('analyst', () => ({
     summary: '（オフライン）集計のみ。AI 分析は ANTHROPIC_API_KEY 設定後に有効になります。',
     learnings: [],

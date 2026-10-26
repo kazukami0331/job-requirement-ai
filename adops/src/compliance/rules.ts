@@ -200,6 +200,16 @@ export function checkBrief(brief: CreativeBrief, job: Job, brand: Brand): Review
     ...brief.overlay.badges.map((b, i) => [`overlay.badges[${i}]`, b] as [string, string]),
     ...brief.storyboard.map((s, i) => [`storyboard[${i}]`, s.text] as [string, string]),
   ];
+  const issues = checkTexts(fields, job, brand);
+  issues.push(...checkBriefFormat(brief));
+  return issues;
+}
+
+/**
+ * 任意の文章（広告コピー・SNS 投稿のキャプション等）を法令・ポリシー・求人情報との一致で検査する。
+ * fields は [項目名, 文章] の組。
+ */
+export function checkTexts(fields: [string, string][], job: Job, brand: Brand): ReviewIssue[] {
   const issues: ReviewIssue[] = [];
   const allRules = [...AGE_RULES, ...GENDER_RULES, ...EXAGGERATION_RULES, ...PERSONAL_ATTRIBUTE_RULES];
   for (const [field, text] of fields) {
@@ -234,7 +244,12 @@ export function checkBrief(brief: CreativeBrief, job: Job, brand: Brand): Review
       });
     }
   }
+  return issues;
+}
 
+/** 広告フォーマット固有の検査（文字数・画像プロンプト・動画の尺）。 */
+function checkBriefFormat(brief: CreativeBrief): ReviewIssue[] {
+  const issues: ReviewIssue[] = [];
   // 文字数
   const len = (s: string) => [...s].length;
   if (len(brief.overlay.main) > LIMITS.overlayMain)

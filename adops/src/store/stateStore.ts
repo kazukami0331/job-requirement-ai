@@ -41,7 +41,7 @@ export class StateStore {
   }
 
   /**
-   * 入稿・停止・却下が済んだクリエイティブの素材ファイルを消し、サムネイルだけ残す。
+   * 入稿・停止・却下が済んだクリエイティブの素材ファイルを消し、サムネイルとフィード画像だけ残す。
    * 素材は媒体側に保管されるので、こちらに持ち続ける必要はない（state ブランチを小さく保つ）。
    */
   pruneAssets(inboxDir?: string, keepStatuses: CreativeStatus[] = ['planned', 'awaiting_images', 'produced']): number {
@@ -60,7 +60,8 @@ export class StateStore {
       const dir = join(this.dir, 'assets', c.id);
       if (!existsSync(dir)) continue;
       for (const f of readdirSync(dir)) {
-        if (f === 'thumb.jpg') continue;
+        // サムネイルと、オーガニック投稿に転用できるフィード画像（4:5）は残す
+        if (f === 'thumb.jpg' || f.endsWith('_4x5.jpg')) continue;
         rmSync(join(dir, f), { recursive: true, force: true });
         removed++;
       }

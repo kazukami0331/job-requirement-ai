@@ -109,6 +109,21 @@ ${
 <table><thead><tr><th>訴求軸</th><th>本数</th><th>表示</th><th>CTR</th><th>応募</th><th>応募単価</th></tr></thead><tbody>
 ${angleRows.map((r) => `<tr><td>${ANGLE_LABELS[r.key as Angle]}</td><td>${r.count}</td><td>${r.totals.impressions.toLocaleString()}</td><td>${r.totals.ctr.toFixed(2)}%</td><td>${r.totals.conversions}</td><td>${yen(r.totals.cpa)}</td></tr>`).join('')}
 </tbody></table>
+${(() => {
+  const posts = creatives.filter((c) => c.organic).sort((a, b) => (a.organic!.postedAt < b.organic!.postedAt ? 1 : -1)).slice(0, 20);
+  if (posts.length === 0) return '';
+  return `<h2>Instagram 投稿（直近）</h2>
+<table><thead><tr><th>投稿日</th><th>種類</th><th>素材</th><th>リーチ</th><th>再生</th><th>いいね</th><th>保存</th><th>シェア</th></tr></thead><tbody>
+${posts
+  .map((c) => {
+    const o = c.organic!;
+    const last = o.insights.at(-1);
+    const n = (k: 'reach' | 'views' | 'likes' | 'saved' | 'shares') => (last ? last[k].toLocaleString() : '-');
+    return `<tr><td>${o.postedAt.slice(0, 10)}</td><td>${o.kind === 'reels' ? 'リール' : 'フィード'}</td><td style="text-align:left"><a href="${escapeXml(o.permalink)}">${escapeXml(state.briefs[c.briefId]?.overlay.main ?? c.id)}</a></td><td>${n('reach')}</td><td>${n('views')}</td><td>${n('likes')}</td><td>${n('saved')}</td><td>${n('shares')}</td></tr>`;
+  })
+  .join('')}
+</tbody></table>`;
+})()}
 <h2>クリエイティブ（新しい順）</h2>
 <div class="grid">${creatives.slice(0, 120).map(card).join('\n')}</div>
 <h2>直近の判断</h2>

@@ -129,3 +129,23 @@ test('syncStatuses: 人が ON にしたら live、全媒体で不承認なら fa
   assert.match(cs.ng.statusReason!, /差別的表現/);
   assert.equal(cs.resumed.status, 'published');
 });
+
+test('organic: 広告で反応の良い素材を優先し、DRY RUN では投稿予定だけ出す', async () => {
+  const { organicCandidates, postOrganic } = await import('../src/pipeline/organic.ts');
+  const { creative, daily, brief } = await import('./fixtures.ts');
+  const { writeFileSync } = await import('node:fs');
+  const ctx = ctxWith(offlineLlm(catalog()));
+  ctx.catalog.policy.organic = { enabled: true, postsPerDay: 1, baseHashtags: ['#求人'], minAdCtrForRepost: 1 };
+  const img = join(ctx.store.dir, 'x_4x5.jpg');
+  writeFileSync(img, 'x');
+  const asset = { ratio: '4:5' as const, kind: 'image' as const, path: img, width: 1080, height: 1350 };
+  ctx.store.state.briefs.br_1 = brief();
+  ctx.store.state.creatives.fresh = creative({ id: 'fresh', status: 'produced', assets: [asset] });
+  ctx.store.state.creatives.proven = creative({ id: 'proven', assets: [asset], metrics: daily('2026-10-05', 5, { impressions: 1000, clicks: 20, spend: 500, conversions: 1 }) });
+  ctx.store.state.creatives.weak = creative({ id: 'weak', assets: [asset], metrics: daily('2026-10-05', 5, { impressions: 1000, clicks: 2, spend: 500, conversions: 0 }) });
+  const order = organicCandidates(ctx).map((x) => x.c.id);
+  assert.equal(order[0], 'proven');
+  const note = await postOrganic(ctx);
+  assert.match(note, /proven\(feed, 未投稿: DRY RUN\)/);
+  assert.equal(ctx.store.state.creatives.proven.organic, undefined);
+});

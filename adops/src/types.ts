@@ -102,6 +102,16 @@ export interface Policy {
   /** 新しい訴求軸を試す割合（探索率） */
   exploreShare: number;
   review: { passScore: number; maxRevisions: number };
+  /** Instagram のオーガニック投稿（広告素材の転用） */
+  organic?: {
+    enabled: boolean;
+    /** 1日の投稿数の上限 */
+    postsPerDay: number;
+    /** 毎回付けるハッシュタグ */
+    baseHashtags: string[];
+    /** 広告で成果が出た素材を優先して投稿する（CTR の下限 %） */
+    minAdCtrForRepost: number;
+  };
   /** 画像1枚あたりの Midjourney 生成候補の中から選ぶ枚数 */
   imageCandidates: number;
   guardrails: {
@@ -238,6 +248,16 @@ export interface Creative {
   createdAt: string;
   publishedAt?: string;
   updatedAt: string;
+  organic?: OrganicPost;
+}
+
+export interface OrganicPost {
+  kind: 'feed' | 'reels';
+  mediaId: string;
+  permalink: string;
+  postedAt: string;
+  caption: string;
+  insights: { date: string; reach: number; views: number; likes: number; comments: number; saved: number; shares: number }[];
 }
 
 export interface Insight {
