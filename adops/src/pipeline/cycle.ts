@@ -16,6 +16,7 @@ import { analyze } from '../agents/analyst.ts';
 import { memoToSlack, shouldWriteMemo, writeMemo } from '../agents/strategyMemo.ts';
 import { lastNDays, totals } from '../optimize/stats.ts';
 import { notifySlack, sections } from '../notify/slack.ts';
+import { approvalBlocks } from '../notify/approval.ts';
 import { writeReport } from '../report/html.ts';
 import { ANGLE_LABELS } from '../types.ts';
 import { daysBetween } from '../util/id.ts';
@@ -98,6 +99,14 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
   });
   await step('publish', async () => {
     published = await publish(ctx);
+    // draft モードでは、入稿した広告ごとに Slack へ承認ボタンつきのメッセージを送る（設定時のみ）
+    if (ctx.catalog.policy.autonomy === 'draft' && process.env.ADOPS_SLACK_APPROVALS === 'true' && ctx.settings.slack.webhookUrl) {
+      for (const c of published.published) {
+        const brief = store.state.briefs[c.briefId];
+        const job = ctx.catalog.jobs.find((j) => j.id === c.jobId);
+        if (brief && job) await notifySlack(ctx.settings.slack.webhookUrl, { text: `承認待ち: ${brief.overlay.main}`, blocks: approvalBlocks(c, brief, job) });
+      }
+    }
     return `入稿 ${published.published.length} / 保留 ${published.skipped.length} / 失敗 ${published.failed.length}`;
   });
 

@@ -139,6 +139,20 @@ Node.js 22.18 以上（TypeScript をそのまま実行します）、`ffmpeg`�
 |---|---|---|
 | br_20261027_600542 | 1234 | 面接 |
 
+### Slack で承認する（draft モード・任意）
+
+draft モードでは、入稿した広告ごとに Slack へ「プレビュー画像・コピー・**配信開始 / 却下**ボタン」を送れます。
+スマホの Slack からワンタップで配信を始められるので、媒体の管理画面を開く必要がありません。
+
+1. このリポジトリの Next.js アプリを Vercel にデプロイする（受け口 `app/api/adops/slack/route.ts` が含まれます）。
+2. Slack アプリ（Incoming Webhook を発行したもの）で **Interactivity** を ON にし、Request URL に `https://<Vercel のドメイン>/api/adops/slack` を設定。
+3. Vercel の環境変数に `SLACK_SIGNING_SECRET`（Slack アプリの Signing Secret）、`META_ACCESS_TOKEN`（と `META_APP_SECRET`）、
+   Google の広告も承認するなら `GOOGLE_ADS_*` を設定。承認できる人を絞るなら `ADOPS_SLACK_APPROVERS`（Slack のユーザー ID をカンマ区切り）。
+4. GitHub の Variables に `ADOPS_SLACK_APPROVALS=true`。
+
+ボタンが押されると媒体の広告が ON（却下なら停止のまま）になり、メッセージが「◯◯さんが配信を開始しました」に書き換わります。
+次の adops の実行で状態が同期され、配信中の広告として停止判断の対象になります。
+
 ### 4. GitHub Actions で毎日動かす
 
 `.github/workflows/adops.yml` が毎朝 6:00（フル）と 12:00 / 18:00（停止判断のみ）に動きます。
@@ -147,7 +161,7 @@ Node.js 22.18 以上（TypeScript をそのまま実行します）、`ffmpeg`�
 | 種類 | 名前 |
 |---|---|
 | Secrets | `GOOGLE_SERVICE_ACCOUNT_JSON` `ADOPS_OUTCOMES_CSV_URL` `ANTHROPIC_API_KEY` `META_ACCESS_TOKEN` `META_APP_SECRET` `GOOGLE_ADS_DEVELOPER_TOKEN` `GOOGLE_ADS_CLIENT_ID` `GOOGLE_ADS_CLIENT_SECRET` `GOOGLE_ADS_REFRESH_TOKEN` `YOUTUBE_REFRESH_TOKEN` `MJ_API_KEY` `SLACK_WEBHOOK_URL` |
-| Variables | `ADOPS_DRY_RUN`（`false` で本番）`IMAGE_PROVIDER` `META_AD_ACCOUNT_ID` `META_PAGE_ID` `META_INSTAGRAM_USER_ID` `META_CONVERSION_ACTION_TYPES` `GOOGLE_ADS_CUSTOMER_ID` `GOOGLE_ADS_LOGIN_CUSTOMER_ID` `GOOGLE_ADS_CONVERSION_ACTION` `GOOGLE_ADS_LOGO_ASSET` `GOOGLE_ADS_BUSINESS_NAME` `ADOPS_MODEL` `MJ_API_BASE_URL` `MJ_VIDEO_ENABLED` `MJ_INBOX` `DRIVE_INBOX_FOLDER_ID` `ADOPS_MAX_LLM_USD` |
+| Variables | `ADOPS_DRY_RUN`（`false` で本番）`IMAGE_PROVIDER` `META_AD_ACCOUNT_ID` `META_PAGE_ID` `META_INSTAGRAM_USER_ID` `META_CONVERSION_ACTION_TYPES` `GOOGLE_ADS_CUSTOMER_ID` `GOOGLE_ADS_LOGIN_CUSTOMER_ID` `GOOGLE_ADS_CONVERSION_ACTION` `GOOGLE_ADS_LOGO_ASSET` `GOOGLE_ADS_BUSINESS_NAME` `ADOPS_MODEL` `MJ_API_BASE_URL` `MJ_VIDEO_ENABLED` `MJ_INBOX` `DRIVE_INBOX_FOLDER_ID` `ADOPS_MAX_LLM_USD` `ADOPS_SLACK_APPROVALS` |
 
 本番前に、手元で `.env` を作って `node src/cli.ts check --live` を実行すると、Claude・Meta（広告アカウント・各広告セット・Instagram）・
 Google 広告（アカウント・広告グループがデマンド ジェネレーションか）・ドライブの設定を読み取りだけで確認できます。

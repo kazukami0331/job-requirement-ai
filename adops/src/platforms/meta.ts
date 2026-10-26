@@ -31,6 +31,8 @@ export interface MetaPublishResult {
   creativeIds: string[];
   /** 一部の広告セットで失敗した場合の理由（作成できた広告は adIds に入る） */
   errors: string[];
+  /** フィード用画像（動画ならサムネイル）の公開 URL */
+  previewUrl?: string;
 }
 
 export class MetaClient {
@@ -80,11 +82,15 @@ export class MetaClient {
     return `act_${this.s.adAccountId}`;
   }
 
+  /** アップロードした画像の公開 URL（ローカルパス → URL）。Slack の承認メッセージのプレビューに使う */
+  readonly imageUrls = new Map<string, string>();
+
   async uploadImage(path: string): Promise<string> {
     const bytes = readFileSync(path).toString('base64');
-    const res = await this.call<{ images: Record<string, { hash: string }> }>('POST', `${this.account}/adimages`, { bytes, name: basename(path) });
+    const res = await this.call<{ images: Record<string, { hash: string; url?: string }> }>('POST', `${this.account}/adimages`, { bytes, name: basename(path) });
     const first = Object.values(res.images ?? {})[0];
     if (!first?.hash) throw new Error('Meta: 画像ハッシュが返りませんでした');
+    if (first.url) this.imageUrls.set(path, first.url);
     return first.hash;
   }
 
@@ -326,5 +332,7 @@ export async function publishToMeta(client: MetaClient, creative: Creative, brie
       errors.push(`adset ${adsetId}: ${(e as Error).message}`);
     }
   }
-  return { adIds, creativeIds: [creativeId], errors };
+  const feed = creative.assets.find((a) => a.ratio === '4:5') ?? creative.assets.find((a) => a.ratio === '1:1') ?? creative.assets[0];
+  const previewUrl = feed ? client.imageUrls.get(feed.kind === 'video' ? thumbOf(feed) : feed.path) : undefined;
+  return { adIds, creativeIds: [creativeId], errors, previewUrl };
 }

@@ -73,7 +73,7 @@ export async function publish(ctx: Ctx): Promise<PublishSummary> {
       try {
         const r = await publishToMeta(ctx.meta!, c, brief, job, active);
         // 一部の広告セットだけ成功した場合も、作成済みの広告は必ず記録する
-        if (r.adIds.length) c.platformRefs.meta = { adIds: r.adIds, creativeIds: r.creativeIds, status: active ? 'ACTIVE' : 'PAUSED' };
+        if (r.adIds.length) c.platformRefs.meta = { adIds: r.adIds, creativeIds: r.creativeIds, status: active ? 'ACTIVE' : 'PAUSED', previewUrl: r.previewUrl };
         errors.push(...r.errors.map((e) => `Meta: ${e}`));
       } catch (e) {
         errors.push(`Meta: ${(e as Error).message}`);

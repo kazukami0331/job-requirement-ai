@@ -108,3 +108,14 @@ test('withUtm: 既存クエリを残して UTM を付ける', () => {
   const keep = new URL(withUtm('https://example.com/?utm_source=ig', 'meta', 'x'));
   assert.equal(keep.searchParams.get('utm_source'), 'ig');
 });
+
+test('approvalBlocks: プレビュー画像と承認ボタン（広告 ID 入り）を作る', async () => {
+  const { approvalBlocks } = await import('../src/notify/approval.ts');
+  const { creative } = await import('./fixtures.ts');
+  const c = creative({ platformRefs: { meta: { adIds: ['a1'], creativeIds: [], previewUrl: 'https://cdn.example/x.jpg' }, google: { assetResourceNames: [], linkedTo: ['customers/1/adGroupAds/2~3', 'customers/1/assetGroupAssets/x'] } } });
+  const blocks = approvalBlocks(c, brief(), job()) as any[];
+  assert.equal(blocks[1].type, 'image');
+  const actions = blocks.at(-1);
+  assert.deepEqual(actions.elements.map((e: any) => e.action_id), ['adops_approve', 'adops_reject']);
+  assert.deepEqual(JSON.parse(actions.elements[0].value), { c: 'cr_1', m: ['a1'], g: ['customers/1/adGroupAds/2~3'] });
+});

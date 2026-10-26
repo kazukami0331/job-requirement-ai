@@ -106,6 +106,7 @@ jobs:
           GOOGLE_ADS_LOGO_ASSET: ${{ vars.GOOGLE_ADS_LOGO_ASSET }}
           GOOGLE_ADS_BUSINESS_NAME: ${{ vars.GOOGLE_ADS_BUSINESS_NAME }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          ADOPS_SLACK_APPROVALS: ${{ vars.ADOPS_SLACK_APPROVALS }}
           ADOPS_OUTCOMES_CSV_URL: ${{ secrets.ADOPS_OUTCOMES_CSV_URL }}
         run: |
           if [ "${{ github.event.inputs.control }}" = "stop" ]; then
