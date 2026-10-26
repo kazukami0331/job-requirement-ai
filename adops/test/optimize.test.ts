@@ -231,3 +231,20 @@ test('decide: 募集が終わった求人の広告は成績に関係なく止め
   assert.deepEqual(d.filter((x) => x.action === 'pause').map((x) => x.creativeId).sort(), ['d', 'g']);
   assert.match(d[0].reason, /募集が終了/);
 });
+
+test('jobsAtTarget: 今月の応募が目標に達した求人だけを返す（先月分と検索広告も考慮）', async () => {
+  const { jobsAtTarget, monthApplications } = await import('../src/optimize/allocate.ts');
+  const { creative, daily, job } = await import('./fixtures.ts');
+  const jobs = [job({ monthlyApplicationTarget: 5 }), job({ id: 'driver', monthlyApplicationTarget: 5 }), job({ id: 'free' })];
+  const creatives = [
+    creative({ jobId: 'factory', metrics: daily('2026-10-01', 4, { impressions: 1000, clicks: 10, spend: 1000, conversions: 1 }) }),
+    creative({ id: 'cr_2', jobId: 'driver', metrics: daily('2026-09-25', 10, { impressions: 1000, clicks: 10, spend: 1000, conversions: 1 }) }),
+  ];
+  const searchAds = [{ id: 'rsa_1', jobId: 'factory', metrics: daily('2026-10-05', 1, { impressions: 100, clicks: 5, spend: 500, conversions: 1 }) }] as any;
+  assert.equal(monthApplications('factory', creatives, searchAds, '2026-10-10'), 5);
+  // driver は9月分を除くと 10/1〜10/4 の4件
+  assert.equal(monthApplications('driver', creatives, searchAds, '2026-10-10'), 4);
+  assert.deepEqual(jobsAtTarget(jobs, creatives, searchAds, '2026-10-10').map((x) => x.job.id), ['factory']);
+  // 翌月はリセット
+  assert.deepEqual(jobsAtTarget(jobs, creatives, searchAds, '2026-11-01'), []);
+});

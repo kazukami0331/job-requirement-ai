@@ -1,7 +1,8 @@
 /** 段階4: 配分 → 企画 → レビュー → 差し戻し修正 のループで、入稿候補のクリエイティブを作る。 */
 import type { Ctx } from './context.ts';
 import type { Creative, CreativeBrief, Review } from '../types.ts';
-import { allocateSlots } from '../optimize/allocate.ts';
+import { allocateSlots, jobsAtTarget } from '../optimize/allocate.ts';
+import { landingBroken } from './landing.ts';
 import { planBriefs, reviseBrief, seasonalContext, type PlanningContext, type Slot } from '../agents/strategist.ts';
 import { reviewBrief } from '../agents/reviewer.ts';
 import { lastNDays, totals } from '../optimize/stats.ts';
@@ -76,7 +77,11 @@ export async function plan(ctx: Ctx): Promise<PlanResult> {
   // 制作待ちが溜まっている（手渡しモードで人の作業が追いついていない等）ときは新規企画を控える
   const backlog = store.creatives({ status: ['planned', 'awaiting_images'] }).length;
   const room = Math.max(0, catalog.policy.briefsPerCycle * 2 - backlog);
-  const slots = allocateSlots({ catalog, creatives: store.creatives(), today }).slice(0, room);
+  // 今月の応募目標に達した求人と、応募ページが壊れている求人は新しく作らない（その分を他の求人に回す）
+  const full = new Set(jobsAtTarget(catalog.jobs, store.creatives(), Object.values(store.state.searchAds ?? {}), today).map((x) => x.job.id));
+  const jobs = catalog.jobs.filter((j) => !full.has(j.id) && !landingBroken(ctx, j.id));
+  if (jobs.length < catalog.jobs.length) log.info(`新規企画の対象外: ${catalog.jobs.filter((j) => !jobs.includes(j)).map((j) => j.id).join(', ')}（応募目標に到達 / 応募ページの異常）`);
+  const slots = allocateSlots({ catalog: { ...catalog, jobs }, creatives: store.creatives(), today }).slice(0, room);
   if (slots.length === 0) {
     log.info(`制作待ちが ${backlog} 本あるため新規企画はスキップ`);
     return { created: [], rejected: [] };

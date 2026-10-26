@@ -61,6 +61,8 @@ export interface Job {
   landingUrl: string;
   /** 1日に作る新規クリエイティブの上限（求人ごと） */
   dailyCreativeQuota?: number;
+  /** 今月の応募の目標件数。達したら新しい広告は作らない（配信中の広告はそのまま。翌月に再開） */
+  monthlyApplicationTarget?: number;
   /** 媒体ごとの入稿先。キャンペーン・広告セットは人が作り、AIは広告（素材）を回す。 */
   placements: {
     /** leadFormId を指定すると、LP ではなく Meta のインスタントフォーム（リード獲得）で応募を受ける */

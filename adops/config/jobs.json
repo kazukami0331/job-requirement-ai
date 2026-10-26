@@ -14,6 +14,7 @@
     "personas": ["young-switcher", "dekasegi"],
     "landingUrl": "https://example.com/jobs/factory-aichi",
     "dailyCreativeQuota": 2,
+    "monthlyApplicationTarget": 40,
     "placements": {
       "meta": { "adsetIds": [], "leadFormId": "" },
       "google": { "adGroupIds": [], "assetGroupIds": [], "searchAdGroupIds": [] }

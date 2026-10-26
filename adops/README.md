@@ -107,6 +107,7 @@ Node.js 22.18 以上（TypeScript をそのまま実行します）、`ffmpeg`�
 |---|---|
 | `autonomy` | `draft`: 停止状態で入稿（人が ON）。予算増は提案のみ / `auto`: 審査を通れば配信開始、予算増も自動 |
 | `briefsPerCycle` | 1日に企画する本数（全求人合計。求人ごとの上限は `jobs.json` の `dailyCreativeQuota`） |
+| `jobs.json` の `monthlyApplicationTarget` | 求人ごとの今月の応募目標。達したらその求人の新しい広告は作らず、枠を他の求人に回す（配信中の広告はそのまま。翌月に自動で再開） |
 | `videoShare` / `carouselShare` / `exploreShare` | 動画の割合 / カルーセル（「1日の流れ」などの複数枚。Meta と Instagram のみ）の割合 / 新しい訴求を試す割合 |
 | `review.passScore` / `maxRevisions` | 合格点（100点満点）/ 差し戻しの最大回数 |
 | `organic` | Instagram のオーガニック投稿（有効/無効、1日の本数、固定ハッシュタグ、転用する広告の CTR 下限） |

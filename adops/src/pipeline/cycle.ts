@@ -17,6 +17,7 @@ import { checkLandingPages } from './landing.ts';
 import { analyze } from '../agents/analyst.ts';
 import { memoToSlack, shouldWriteMemo, writeMemo } from '../agents/strategyMemo.ts';
 import { lastNDays, totals } from '../optimize/stats.ts';
+import { jobsAtTarget } from '../optimize/allocate.ts';
 import { notifySlack, sections } from '../notify/slack.ts';
 import { approvalBlocks } from '../notify/approval.ts';
 import { writeReport } from '../report/html.ts';
@@ -184,6 +185,8 @@ function summaryMessage(
   lines.push(`*広告自動運用 ${today}*${ctx.dryRun ? '（DRY RUN）' : ''}`);
   if (store.state.halted) lines.push(`:octagonal_sign: 緊急停止中（${store.state.halted.reason}）。企画・入稿は止めています。解除は \`resume\``);
   lines.push(`直近7日: 表示 ${t7.impressions.toLocaleString()} / CTR ${t7.ctr.toFixed(2)}% / 費用 ${Math.round(t7.spend).toLocaleString()}円 / 応募 ${t7.conversions}${t7.cpa ? ` / 単価 ${Math.round(t7.cpa).toLocaleString()}円` : ''}`);
+  const atTarget = jobsAtTarget(ctx.catalog.jobs, store.creatives(), Object.values(store.state.searchAds ?? {}), today);
+  if (atTarget.length) lines.push(`:tada: 今月の応募目標に到達: ${atTarget.map((x) => `${x.job.title}（${x.count}/${x.job.monthlyApplicationTarget} 件）`).join(' / ')}。新しい広告は作らず、配信中の広告はそのままです`);
   const brokenLp = ctx.catalog.jobs.filter((j) => store.state.landing?.[j.id]?.ok === false);
   if (brokenLp.length) lines.push(`:rotating_light: 応募ページに問題: ${brokenLp.map((j) => `${j.title}（${store.state.landing![j.id].note}）`).join(' / ')}。この求人は新規入稿を止めています`);
   const failedSteps = record.steps.filter((s) => !s.ok);

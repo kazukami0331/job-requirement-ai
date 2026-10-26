@@ -221,6 +221,7 @@ export function validateCatalog(c: Catalog): void {
     if (!j.salary || !(j.salary.min > 0)) errors.push(`${j.id}: salary.min が未設定です（給与の明示は必須）`);
     for (const p of j.personas) if (!personaIds.has(p)) errors.push(`${j.id}: 未定義のペルソナ ${p}`);
     if (j.personas.length === 0) errors.push(`${j.id}: personas が空です`);
+    if (j.monthlyApplicationTarget !== undefined && !(j.monthlyApplicationTarget > 0)) errors.push(`${j.id}: monthlyApplicationTarget は 1 以上の数（目標なしなら項目ごと消す）`);
   }
   const p = c.policy;
   if (!(p.videoShare >= 0 && p.videoShare <= 1)) errors.push('policy.videoShare は 0〜1');

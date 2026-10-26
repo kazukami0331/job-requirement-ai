@@ -88,7 +88,7 @@ ${
     .map((j) => {
       const t = totals(creatives.filter((c) => c.jobId === j.id).flatMap((c) => windowed(c.metrics, from, today)));
       const lp = state.landing?.[j.id];
-      return `- ${j.id}: クリック ${t.clicks} / 応募 ${t.conversions} / 応募率 ${t.clicks ? ((t.conversions / t.clicks) * 100).toFixed(1) + '%' : '-'}${lp?.ok === false ? `（応募ページ異常: ${lp.note}）` : ''}`;
+      return `- ${j.id}${j.monthlyApplicationTarget ? `（今月の応募目標 ${j.monthlyApplicationTarget} 件）` : ''}: クリック ${t.clicks} / 応募 ${t.conversions} / 応募率 ${t.clicks ? ((t.conversions / t.clicks) * 100).toFixed(1) + '%' : '-'}${lp?.ok === false ? `（応募ページ異常: ${lp.note}）` : ''}`;
     })
     .join('\n') || '- なし'
 }

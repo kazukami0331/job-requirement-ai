@@ -7,7 +7,7 @@
  * 報酬は「1000インプレッションあたりの応募」を主に使い、応募が少ない間はクリック率で代用する。
  */
 import type { Catalog } from '../config.ts';
-import { ANGLES, type Angle, type Creative, type Format, type Job } from '../types.ts';
+import { ANGLES, type Angle, type Creative, type Format, type Job, type SearchAd } from '../types.ts';
 import type { Slot } from '../agents/strategist.ts';
 import type { Totals } from './stats.ts';
 import { angleTotals, totals } from './stats.ts';
@@ -111,6 +111,24 @@ export interface AllocationInput {
   rng?: Rng;
   /** 学習に使う期間（日） */
   lookbackDays?: number;
+}
+
+/** 今月（日本時間の暦月）の応募数。adops の広告と検索広告の合計。 */
+export function monthApplications(jobId: string, creatives: Creative[], searchAds: SearchAd[], today: string): number {
+  const month = today.slice(0, 7);
+  const sum = (ms: { date: string; conversions: number }[]) => ms.filter((m) => m.date.startsWith(month)).reduce((a, m) => a + m.conversions, 0);
+  return (
+    creatives.filter((c) => c.jobId === jobId).reduce((a, c) => a + sum(c.metrics), 0) +
+    searchAds.filter((s) => s.jobId === jobId).reduce((a, s) => a + sum(s.metrics), 0)
+  );
+}
+
+/** 今月の応募目標に達した求人（新しい広告を作らない）。 */
+export function jobsAtTarget(jobs: Job[], creatives: Creative[], searchAds: SearchAd[], today: string): { job: Job; count: number }[] {
+  return jobs
+    .filter((j) => j.active && j.monthlyApplicationTarget && j.monthlyApplicationTarget > 0)
+    .map((job) => ({ job, count: monthApplications(job.id, creatives, searchAds, today) }))
+    .filter((x) => x.count >= x.job.monthlyApplicationTarget!);
 }
 
 /** 求人ごとの作成本数を決める（1サイクルの総数を quota の範囲で均等に配る）。 */
