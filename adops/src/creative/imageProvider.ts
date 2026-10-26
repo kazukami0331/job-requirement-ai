@@ -27,6 +27,8 @@ export interface GenerateRequest {
   outDir: string;
   /** 最初に依頼した日時（手渡しの待ち時間の判定に使う） */
   requestedAt?: string;
+  /** 探索枠など、人の手間をかけない画像でよいもの */
+  lowPriority?: boolean;
 }
 
 export type GenerateResult =
@@ -324,15 +326,27 @@ export class FallbackProvider implements ImageProvider {
   private fallback: ImageProvider;
   private afterMs: number;
 
-  constructor(primary: ImageProvider, fallback: ImageProvider, afterHours: number) {
+  private fallbackFirstForLow: boolean;
+
+  constructor(primary: ImageProvider, fallback: ImageProvider, afterHours: number, fallbackFirstForLow = false) {
     this.primary = primary;
     this.fallback = fallback;
     this.afterMs = afterHours * 3600_000;
+    this.fallbackFirstForLow = fallbackFirstForLow;
     // 状態ファイル上は手渡しの依頼として扱う（素材の再取得の判定で生成元が変わったとみなさないように）
     this.name = primary.name;
   }
 
   async generate(req: GenerateRequest): Promise<GenerateResult> {
+    // 探索枠は人に頼まず、最初から代替（Gemini）で作る（人の作業を勝ち筋の広告に集中させる）
+    if (req.lowPriority && this.fallbackFirstForLow) {
+      try {
+        const r = await this.fallback.generate(req);
+        if (r.status === 'done') return r;
+      } catch (e) {
+        log.warn(`${req.creativeId}: ${this.fallback.name} での生成に失敗したため手渡しにします: ${(e as Error).message.slice(0, 200)}`);
+      }
+    }
     return this.primary.generate(req);
   }
 
@@ -369,7 +383,13 @@ export function createImageProvider(s: Settings): ImageProvider {
       );
       // 一定時間待っても画像が置かれなければ Gemini で代わりに作る（GEMINI_API_KEY があるときだけ）
       if (s.image.gemini.apiKey && s.image.fallbackAfterHours > 0) {
-        return new FallbackProvider(handoff, new GeminiImageProvider(s.image.gemini.apiKey, s.image.gemini.model, s.image.gemini.count), s.image.fallbackAfterHours);
+        return new FallbackProvider(
+          handoff,
+          new GeminiImageProvider(s.image.gemini.apiKey, s.image.gemini.model, s.image.gemini.count),
+          s.image.fallbackAfterHours,
+          // 探索枠は最初から Gemini で（Midjourney の手作業は活用枠だけに）
+          process.env.IMAGE_EXPLORE_PROVIDER === 'gemini',
+        );
       }
       return handoff;
     }

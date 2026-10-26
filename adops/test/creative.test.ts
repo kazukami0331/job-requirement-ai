@@ -169,6 +169,12 @@ test('FallbackProvider: 手渡しの画像が期限内に届かなければ代�
   const late = await p.poll({ ...base, requestedAt: new Date(Date.now() - 25 * 3600_000).toISOString() }, 'x');
   assert.equal(late.status, 'done');
   assert.deepEqual(discarded, ['x']);
+
+  // 探索枠は最初から代替で（設定時のみ）。活用枠は従来どおり手渡し
+  const q = new FallbackProvider(primary, fallback, 24, true);
+  assert.equal((await q.generate({ ...base, lowPriority: true })).status, 'done');
+  assert.equal((await q.generate({ ...base })).status, 'pending');
+  assert.equal((await p.generate({ ...base, lowPriority: true })).status, 'pending');
 });
 
 test('i18n: 外国語のエンドカードは給与の種類を訳し、金額は「300,000円」の形にする', async () => {

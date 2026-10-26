@@ -41,7 +41,7 @@ async function ensureImages(ctx: Ctx, c: Creative, brief: CreativeBrief): Promis
       if (ctx.images.name !== job.provider) job.jobId = undefined;
     }
     if (job?.paths?.length) continue;
-    const req = { creativeId: `${c.id}_${ratio.replace(':', 'x').replace('.', '')}`, prompt, ratio, outDir, requestedAt: job?.requestedAt };
+    const req = { creativeId: `${c.id}_${ratio.replace(':', 'x').replace('.', '')}`, prompt, ratio, outDir, requestedAt: job?.requestedAt, lowPriority: c.explore };
     const r = job?.jobId ? await ctx.images.poll(req, job.jobId) : await ctx.images.generate(req);
     if (!job) {
       job = { ratio, provider: ctx.images.name, prompt, requestedAt: new Date().toISOString() } satisfies ImageJob;
