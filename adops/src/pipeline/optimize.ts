@@ -10,25 +10,45 @@ import { daysBetween } from '../util/id.ts';
 
 const log = logger('optimize');
 
+/** 指定した日付（の範囲）の広告費の合計（adops の広告と検索広告）。 */
+export function spendBetween(ctx: Ctx, from: string, to: string): number {
+  const sum = (ms: { date: string; spend: number }[]) => ms.filter((m) => m.date >= from && m.date <= to).reduce((x, m) => x + m.spend, 0);
+  return (
+    ctx.store.creatives().reduce((a, c) => a + sum(c.metrics), 0) + Object.values(ctx.store.state.searchAds ?? {}).reduce((a, s) => a + sum(s.metrics), 0)
+  );
+}
+
+/** 今月の広告費の上限（ADOPS_MONTHLY_SPEND_CAP、円）に対する消化状況。上限なしなら null。 */
+export function monthlySpend(ctx: Ctx): { spent: number; cap: number } | null {
+  const cap = Number(process.env.ADOPS_MONTHLY_SPEND_CAP || 0);
+  if (!(cap > 0)) return null;
+  return { spent: spendBetween(ctx, `${ctx.today.slice(0, 7)}-01`, ctx.today), cap };
+}
+
 /**
- * 1日の広告費の上限（ADOPS_DAILY_SPEND_CAP、円）。当日の消化額（adops の広告と検索広告の合計）が超えていたら、
- * adops の広告をすべて止めて入稿も凍結する（人が resume するまで）。設定や判断の誤りで費用が膨らむのを防ぐ最後の砦。
+ * 広告費の上限。設定や判断の誤りで費用が膨らむのを防ぐ最後の砦。超えていたら adops の広告をすべて止めて入稿も凍結する（人が resume するまで）。
+ * - 1日（ADOPS_DAILY_SPEND_CAP）: 当日の消化額。解除した日はもう止めない
+ * - 1か月（ADOPS_MONTHLY_SPEND_CAP）: 今月の消化額。解除した月はもう止めない（9割を超えたら予算増を止める）
  */
 export async function enforceSpendCap(ctx: Ctx): Promise<string | null> {
+  if (ctx.store.state.halted) return null;
+  let reason: string | null = null;
   const cap = Number(process.env.ADOPS_DAILY_SPEND_CAP || 0);
-  if (!(cap > 0) || ctx.store.state.halted) return null;
   // 上限超えで止まったあと、人が確認して同じ日に解除した場合は、その日はもう止めない（解除がすぐ打ち消されないように）
-  if (ctx.store.state.spendCapWaivedOn === ctx.today) return null;
-  const spent =
-    ctx.store.creatives().reduce((a, c) => a + c.metrics.filter((m) => m.date === ctx.today).reduce((x, m) => x + m.spend, 0), 0) +
-    Object.values(ctx.store.state.searchAds ?? {}).reduce((a, s) => a + s.metrics.filter((m) => m.date === ctx.today).reduce((x, m) => x + m.spend, 0), 0);
-  if (spent <= cap) return null;
-  const reason = `本日の広告費 ${Math.round(spent).toLocaleString()}円 が上限 ${cap.toLocaleString()}円 を超えたため自動で緊急停止`;
+  if (cap > 0 && ctx.store.state.spendCapWaivedOn !== ctx.today) {
+    const spent = spendBetween(ctx, ctx.today, ctx.today);
+    if (spent > cap) reason = `本日の広告費 ${Math.round(spent).toLocaleString()}円 が上限 ${cap.toLocaleString()}円 を超えたため自動で緊急停止`;
+  }
+  const month = monthlySpend(ctx);
+  if (!reason && month && month.spent > month.cap && ctx.store.state.monthlyCapWaivedFor !== ctx.today.slice(0, 7)) {
+    reason = `今月の広告費 ${Math.round(month.spent).toLocaleString()}円 が月の上限 ${month.cap.toLocaleString()}円 を超えたため自動で緊急停止`;
+  }
+  if (!reason) return null;
   log.warn(reason);
   if (ctx.dryRun) return `${reason}（DRY RUN のため実際には止めていません）`;
   const r = await emergencyStop(ctx, reason);
   await notifySlack(ctx.settings.slack.webhookUrl, {
-    text: `:rotating_light: *adops: ${reason}*\n${r.paused} 件を停止し、新しい入稿も止めました。原因を確認して、問題なければ Actions の control: resume（または Slack の /adops resume）で解除してください。解除した日は上限による停止をしません。`,
+    text: `:rotating_light: *adops: ${reason}*\n${r.paused} 件を停止し、新しい入稿も止めました。原因を確認して、問題なければ Actions の control: resume（または Slack の /adops resume）で解除してください。解除した日（月の上限なら月）は上限による停止をしません。`,
   });
   return reason;
 }
@@ -75,6 +95,13 @@ export async function optimize(ctx: Ctx): Promise<Decision[]> {
     targetCpaByJob: new Map(catalog.jobs.filter((j) => j.targetCpa).map((j) => [j.id, j.targetCpa!])),
   });
   const auto = catalog.policy.autonomy === 'auto';
+  // 今月の上限の9割を超えたら予算は増やさない（月末に上限で全停止になるのを避ける）
+  const month = monthlySpend(ctx);
+  if (month && month.spent >= month.cap * 0.9) {
+    const n = decisions.filter((d) => d.action === 'scale_budget').length;
+    if (n) log.info(`今月の広告費が上限の9割（${Math.round(month.spent).toLocaleString()}/${month.cap.toLocaleString()}円）を超えたため予算増 ${n} 件を見送り`);
+    decisions.splice(0, decisions.length, ...decisions.filter((d) => d.action !== 'scale_budget'));
+  }
 
   for (const d of decisions) {
     try {

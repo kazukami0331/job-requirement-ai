@@ -394,6 +394,8 @@ export interface State {
   halted?: { at: string; reason: string };
   /** 日予算の上限による停止を人が解除した日（日本時間）。その日は上限で止めない */
   spendCapWaivedOn?: string;
+  /** 月の広告費の上限による停止を人が解除した月（YYYY-MM）。その月は月の上限で止めない */
+  monthlyCapWaivedFor?: string;
   /** 応募ページの死活監視（求人 ID → 直近の確認結果） */
   landing?: Record<string, { ok: boolean | null; status: number; note: string; checkedAt: string; since?: string; failCount?: number }>;
   /** Google 検索広告に入れた除外キーワード（広告グループ ID → 語句） */

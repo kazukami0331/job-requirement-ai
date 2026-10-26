@@ -495,6 +495,42 @@ test('enforceSpendCap: 当日の広告費が上限を超えたら全停止して
   }
 });
 
+test('月の広告費の上限: 9割を超えたら予算を増やさず、超えたら全停止。解除した月は止め直さない', async () => {
+  const { optimize, monthlySpend } = await import('../src/pipeline/optimize.ts');
+  const { creative, daily } = await import('./fixtures.ts');
+  const stopped: string[] = [];
+  const meta = { stopAd: async (id: string) => void stopped.push(id), getAdset: async () => ({ id: '111', dailyBudget: 10000, status: 'ACTIVE' }), updateAdsetBudget: async () => {} } as any;
+  const ctx = ctxWith(offlineLlm(catalog()), { dryRun: false, meta });
+  // 先月分は数えない
+  ctx.store.state.creatives.a = creative({
+    id: 'a',
+    metrics: [...daily('2026-09-20', 5, { impressions: 10000, clicks: 200, spend: 9000, conversions: 3 }), ...daily('2026-10-04', 7, { impressions: 10000, clicks: 200, spend: 3000, conversions: 3 })],
+  });
+  try {
+    assert.equal(monthlySpend(ctx), null);
+    const scaling = (await optimize(ctx)).filter((d) => d.action === 'scale_budget');
+    assert.ok(scaling.length > 0, '上限なしなら予算増の判断が出る');
+
+    process.env.ADOPS_MONTHLY_SPEND_CAP = '22000';
+    assert.equal(monthlySpend(ctx)!.spent, 21000);
+    const d = await optimize(ctx);
+    assert.equal(d.filter((x) => x.action === 'scale_budget').length, 0);
+    assert.equal(ctx.store.state.halted, undefined);
+
+    process.env.ADOPS_MONTHLY_SPEND_CAP = '20000';
+    await optimize(ctx);
+    assert.match(ctx.store.state.halted!.reason, /月の上限/);
+    assert.deepEqual(stopped, ['ad1']);
+
+    delete ctx.store.state.halted;
+    ctx.store.state.monthlyCapWaivedFor = '2026-10';
+    await optimize(ctx);
+    assert.equal(ctx.store.state.halted, undefined);
+  } finally {
+    delete process.env.ADOPS_MONTHLY_SPEND_CAP;
+  }
+});
+
 test('runCycle: 途中で上限超えの緊急停止になったら、同じ実行の企画・入稿はしない', async () => {
   const { creative, daily } = await import('./fixtures.ts');
   const ctx = ctxWith(offlineLlm(catalog()), { dryRun: false, meta: { stopAd: async () => {}, getAdset: async () => ({ id: '111', dailyBudget: null, status: 'ACTIVE' }) } as any });

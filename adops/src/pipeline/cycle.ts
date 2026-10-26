@@ -5,7 +5,7 @@
 import type { Ctx } from './context.ts';
 import type { Creative, CycleRecord, Decision, ImageJob } from '../types.ts';
 import { collectMetrics } from './collect.ts';
-import { optimize } from './optimize.ts';
+import { monthlySpend, optimize } from './optimize.ts';
 import { plan, type PlanResult } from './plan.ts';
 import { produce } from './produce.ts';
 import { publish, type PublishSummary } from './publish.ts';
@@ -210,6 +210,8 @@ function summaryMessage(
   if (record.steps.some((st) => !st.ok)) todo.push('失敗した段階のログを確認する');
   if (todo.length) lines.push(`*:clipboard: 今日やること* ${todo.map((t, i) => `${i + 1}. ${t}`).join('　')}`);
   lines.push(`直近7日: 表示 ${t7.impressions.toLocaleString()} / CTR ${t7.ctr.toFixed(2)}% / 費用 ${Math.round(t7.spend).toLocaleString()}円 / 応募 ${t7.conversions}${t7.cpa ? ` / 単価 ${Math.round(t7.cpa).toLocaleString()}円` : ''}`);
+  const month = monthlySpend(ctx);
+  if (month) lines.push(`今月の広告費 ${Math.round(month.spent).toLocaleString()}円 / 上限 ${month.cap.toLocaleString()}円（${Math.round((month.spent / month.cap) * 100)}%）${month.spent >= month.cap * 0.9 ? ' :warning: 9割を超えたため予算増を止めています' : ''}`);
   const atTarget = jobsAtTarget(ctx.catalog.jobs, store.creatives(), Object.values(store.state.searchAds ?? {}), today);
   if (atTarget.length) lines.push(`:tada: 今月の応募目標に到達: ${atTarget.map((x) => `${x.job.title}（${x.count}/${x.job.monthlyApplicationTarget} 件）`).join(' / ')}。新しい広告は作らず、配信中の広告はそのままです`);
   const brokenLp = ctx.catalog.jobs.filter((j) => store.state.landing?.[j.id]?.ok === false);

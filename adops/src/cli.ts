@@ -222,7 +222,8 @@ async function main() {
       const was = ctx.store.state.halted;
       delete ctx.store.state.halted;
       // 日予算の上限で止まった日に解除したなら、その日はもう上限で止めない（すぐ止め直さないように）
-      if (was?.reason.includes('上限')) ctx.store.state.spendCapWaivedOn = ctx.today;
+      if (was?.reason.includes('月の上限')) ctx.store.state.monthlyCapWaivedFor = ctx.today.slice(0, 7);
+      else if (was?.reason.includes('上限')) ctx.store.state.spendCapWaivedOn = ctx.today;
       ctx.store.save();
       console.log(was ? `緊急停止を解除しました（${was.at} ${was.reason}）。止めた広告は自動では再開しません。必要なものを管理画面で ON にしてください。` : '緊急停止中ではありません');
       if (was) await notifySlack(ctx.settings.slack.webhookUrl, { text: ':arrow_forward: *adops 緊急停止を解除* 次回の実行から企画・入稿を再開します（止めた広告は管理画面で個別に再開してください）' });
