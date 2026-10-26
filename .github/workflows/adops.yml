@@ -50,13 +50,19 @@ jobs:
       - name: 状態を復元（${{ env.STATE_BRANCH }} ブランチ）
         working-directory: .
         run: |
-          if git ls-remote --exit-code --heads origin "$STATE_BRANCH" >/dev/null 2>&1; then
+          # 「ブランチが無い」（終了コード 2）だけを初回とみなす。通信・認証エラーで空の状態から始めて上書きしないように
+          rc=0
+          git ls-remote --exit-code --heads origin "$STATE_BRANCH" >/dev/null 2>&1 || rc=$?
+          if [ "$rc" = 0 ]; then
             git fetch --depth=1 origin "$STATE_BRANCH"
             mkdir -p adops/data
             git --work-tree=adops/data checkout "origin/$STATE_BRANCH" -- .
             git reset -q
-          else
+          elif [ "$rc" = 2 ]; then
             echo "初回実行: 状態ブランチはまだありません"
+          else
+            echo "状態ブランチを確認できませんでした（終了コード $rc）。空の状態で上書きしないよう中止します" >&2
+            exit 1
           fi
 
       - name: ffmpeg と日本語フォント
@@ -85,12 +91,22 @@ jobs:
             echo "steps=collect,optimize,analyze,plan,produce,publish,search,organic,report" >> "$GITHUB_OUTPUT"
           fi
 
+      # 応募通知の「どこまで通知したか」（状態ブランチには保存しないのでキャッシュに置く）
+      - name: 応募通知の位置を復元
+        if: steps.steps.outputs.steps == 'leads'
+        uses: actions/cache/restore@v4
+        with:
+          path: adops/data/leads-cursor.json
+          key: adops-leads-${{ github.run_id }}
+          restore-keys: adops-leads-
+
       - name: 実行
         env:
           ADOPS_DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && 'true' || vars.ADOPS_DRY_RUN || 'true' }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ADOPS_MODEL: ${{ vars.ADOPS_MODEL }}
           ADOPS_MAX_LLM_USD: ${{ vars.ADOPS_MAX_LLM_USD }}
+          ADOPS_MAX_LLM_USD_DAILY: ${{ vars.ADOPS_MAX_LLM_USD_DAILY }}
           ADOPS_DAILY_SPEND_CAP: ${{ vars.ADOPS_DAILY_SPEND_CAP }}
           IMAGE_PROVIDER: ${{ vars.IMAGE_PROVIDER || 'handoff' }}
           MJ_API_BASE_URL: ${{ vars.MJ_API_BASE_URL }}
@@ -139,16 +155,12 @@ jobs:
             node src/cli.ts cycle --steps "${{ steps.steps.outputs.steps }}"
           fi
 
-      - name: 実行の失敗を Slack に知らせる
-        if: failure()
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: |
-          [ -n "$SLACK_WEBHOOK_URL" ] || exit 0
-          url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          curl -sS -X POST -H 'content-type: application/json' \
-            --data "{\"text\":\":x: adops の実行が失敗しました（${{ steps.steps.outputs.steps || 'cycle' }}）。ログ: ${url}\"}" \
-            "$SLACK_WEBHOOK_URL" >/dev/null || true
+      - name: 応募通知の位置を保存
+        if: success() && steps.steps.outputs.steps == 'leads' && hashFiles('adops/data/leads-cursor.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: adops/data/leads-cursor.json
+          key: adops-leads-${{ github.run_id }}
 
       - name: 素材とレポートを保存（14日）
         if: always() && steps.steps.outputs.steps != 'leads'
@@ -168,10 +180,17 @@ jobs:
         run: |
           [ -f state.json ] || { echo "state.json がないので保存しません"; exit 0; }
           REMOTE="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          tmp_state=""
+          rc=0
+          git ls-remote --exit-code --heads "$REMOTE" "$STATE_BRANCH" >/dev/null 2>&1 || rc=$?
+          if [ "$rc" != 0 ] && [ "$rc" != 2 ]; then echo "状態ブランチを確認できないため保存を中止します（終了コード $rc）" >&2; exit 1; fi
           # 実行中に人が inbox にアップロードした画像を取りこぼさない（上書き保存の前に取り込む）
-          if git ls-remote --exit-code --heads "$REMOTE" "$STATE_BRANCH" >/dev/null 2>&1; then
+          if [ "$rc" = 0 ]; then
             tmp=$(mktemp -d)
             git clone -q --depth=1 --branch "$STATE_BRANCH" "$REMOTE" "$tmp"
+            # ひとつ前の状態を ${STATE_BRANCH}-prev に残す（壊れた状態を保存してしまったときの戻し先）
+            git -C "$tmp" push -qf "$REMOTE" "HEAD:refs/heads/${STATE_BRANCH}-prev" || echo "前回の状態のバックアップに失敗（続行）"
+            if [ -f "$tmp/state.json" ]; then tmp_state="$RUNNER_TEMP/remote_state.json"; cp "$tmp/state.json" "$tmp_state"; fi
             if [ -d "$tmp/inbox" ]; then
               mkdir -p inbox
               for d in "$tmp"/inbox/*/; do
@@ -188,9 +207,25 @@ jobs:
             fi
             rm -rf "$tmp"
           fi
+          # 復元した状態より広告の記録が減っていたら保存しない（復元の失敗などで空の状態を上書きするのを防ぐ）
+          if [ -f "$tmp_state" ]; then
+            node -e 'const [a,b]=process.argv.slice(1).map(f=>Object.keys(JSON.parse(require("fs").readFileSync(f,"utf8")).creatives||{}).length); if (a<b) { console.error(`広告の記録が ${b} → ${a} 本に減っています。保存を中止します`); process.exit(1) }' state.json "$tmp_state"
+          fi
           git init -q -b "$STATE_BRANCH"
           git config user.name "adops-bot"
           git config user.email "adops-bot@users.noreply.github.com"
           git add -A
           git commit -qm "adops state $(date -u +%Y-%m-%dT%H:%MZ) run ${{ github.run_id }}"
           git push -qf "$REMOTE" "HEAD:$STATE_BRANCH"
+
+      # 状態の保存の失敗も知らせるため、最後に置く
+      - name: 実行の失敗を Slack に知らせる
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -n "$SLACK_WEBHOOK_URL" ] || exit 0
+          url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -sS -X POST -H 'content-type: application/json' \
+            --data "{\"text\":\":x: adops の実行が失敗しました（${{ steps.steps.outputs.steps || 'cycle' }}）。ログ: ${url}\"}" \
+            "$SLACK_WEBHOOK_URL" >/dev/null || true

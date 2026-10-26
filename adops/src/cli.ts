@@ -31,7 +31,7 @@ import { ffmpegAvailable } from './creative/video.ts';
 import { writeReport } from './report/html.ts';
 import { ANGLE_LABELS } from './types.ts';
 import { lastNDays, totals } from './optimize/stats.ts';
-import { newId } from './util/id.ts';
+import { jstDate, newId } from './util/id.ts';
 import { simulate } from './sim/simulate.ts';
 import { liveChecks } from './doctor.ts';
 import { importJob } from './agents/jobImporter.ts';
@@ -79,6 +79,13 @@ function buildCtx(flags: Record<string, string | boolean>): Ctx {
   const llm: Llm = offline ? offlineLlm(catalog) : new ClaudeLlm(settings.anthropic);
   const store = new StateStore(settings.dataDir);
   const { meta, google } = platformClients(settings);
+  // 1日の AI 費用の上限（既定は1回の上限の3倍）。1日に何度実行しても膨らまないように
+  if (llm instanceof ClaudeLlm) {
+    const today = typeof flags.today === 'string' ? flags.today : jstDate();
+    const daily = Number(process.env.ADOPS_MAX_LLM_USD_DAILY || settings.anthropic.maxUsdPerRun * 3);
+    const used = store.state.llmUsage.filter((u) => u.date === today).reduce((a, u) => a + u.costUsd, 0);
+    llm.limitTo(daily - used);
+  }
   return makeCtx({
     settings,
     catalog,
@@ -197,7 +204,7 @@ async function main() {
     case 'leads': {
       // インスタントフォームの新しい応募を Slack に通知するだけ（1時間おきの軽い定期実行用）
       const ctx = buildCtx({ ...flags, offline: true });
-      console.log(await notifyLeads(ctx));
+      console.log(await notifyLeads(ctx, new Date(), join(ctx.settings.dataDir, 'leads-cursor.json')));
       // 状態は読むだけ（毎時の実行は状態を保存しない）
       break;
     }

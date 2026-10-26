@@ -2,6 +2,7 @@
  * インスタントフォーム（Meta リード獲得広告）に届いた応募を Slack に即知らせる。
  * 個人情報は Slack にも状態ファイルにも残さない（イニシャルと求人名だけ）。詳細は Meta のリードセンター/CRM で確認する。
  */
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import type { Ctx } from './context.ts';
 import { allPlacements } from '../config.ts';
 import { notifySlack } from '../notify/slack.ts';
@@ -31,11 +32,28 @@ export function leadWindow(now = new Date()): { since: number; until: number } {
   return { since, until };
 }
 
-export async function notifyLeads(ctx: Ctx, now = new Date()): Promise<string> {
+/**
+ * 前回どこまで通知したか（cursorPath）があれば、そこから今までを対象にする（実行の遅延・失敗で取りこぼさない）。
+ * 無ければ（初回・キャッシュ切れ）時刻で区切った窓。さかのぼるのは最大24時間。
+ */
+export function windowFromCursor(cursorPath: string | undefined, now = new Date()): { since: number; until: number } {
+  const fallback = leadWindow(now);
+  if (!cursorPath || !existsSync(cursorPath)) return fallback;
+  try {
+    const prev = Number(JSON.parse(readFileSync(cursorPath, 'utf8')).until);
+    const until = Math.floor(now.getTime() / 1000) - 60;
+    if (!(prev > until - 24 * 3600) || prev >= until) return fallback;
+    return { since: prev, until };
+  } catch {
+    return fallback;
+  }
+}
+
+export async function notifyLeads(ctx: Ctx, now = new Date(), cursorPath?: string): Promise<string> {
   if (!ctx.meta) return 'Meta 未設定';
   const forms = [...new Set(ctx.catalog.jobs.flatMap((j) => allPlacements(j).flatMap((p) => (p.meta?.leadFormId ? [p.meta.leadFormId] : []))))];
   if (forms.length === 0) return 'インスタントフォーム未使用';
-  const { since, until } = leadWindow(now);
+  const { since, until } = windowFromCursor(cursorPath, now);
   const adToCreative = new Map<string, string>();
   for (const c of ctx.store.creatives()) for (const id of c.platformRefs.meta?.adIds ?? []) adToCreative.set(id, c.id);
 
@@ -57,6 +75,7 @@ export async function notifyLeads(ctx: Ctx, now = new Date()): Promise<string> {
     // 通知に失敗したら実行を失敗にして気づけるようにする（Actions の失敗通知）
     if (!ok) throw new Error(`応募 ${lines.length} 件の Slack 通知に失敗しました。リードセンターで確認してください`);
   }
+  if (cursorPath) writeFileSync(cursorPath, JSON.stringify({ until }));
   log.info(`リード ${lines.length} 件（${new Date(since * 1000).toISOString()}〜）`);
   return `新しい応募 ${lines.length} 件`;
 }

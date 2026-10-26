@@ -41,6 +41,7 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
   if (halted) log.warn(`緊急停止中（${halted.at} ${halted.reason}）のため、企画・制作・入稿・投稿はしません。解除: node src/cli.ts resume`);
   const record: CycleRecord = { id: ctx.cycleId, startedAt: new Date().toISOString(), dryRun: ctx.dryRun, steps: [], llmCostUsd: 0 };
   const usageBefore = ctx.llm.usage.length;
+  let usagePushed = usageBefore;
   let decisions: Decision[] = [];
   let planned: PlanResult = { created: [], rejected: [] };
   let published: PublishSummary = { published: [], skipped: [], failed: [] };
@@ -63,6 +64,9 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
       log.error(`${name} 失敗: ${msg}`);
       record.steps.push({ name, ok: false, note: msg.slice(0, 500), ms: Date.now() - t });
     }
+    // AI の利用記録は段階ごとに残す（途中で打ち切られても1日の上限の計算から漏れないように）
+    store.state.llmUsage.push(...ctx.llm.usage.slice(usagePushed));
+    usagePushed = ctx.llm.usage.length;
     store.save();
   };
 
@@ -153,7 +157,8 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
   if (pruned) log.info(`入稿済み等の素材 ${pruned} ファイルを掃除（サムネイルは保持）`);
 
   record.llmCostUsd = Math.round(ctx.llm.usage.slice(usageBefore).reduce((a, u) => a + u.costUsd, 0) * 100) / 100;
-  store.state.llmUsage.push(...ctx.llm.usage.slice(usageBefore));
+  store.state.llmUsage.push(...ctx.llm.usage.slice(usagePushed));
+  usagePushed = ctx.llm.usage.length;
   record.finishedAt = new Date().toISOString();
   store.state.cycles.push(record);
   store.compact();

@@ -76,13 +76,18 @@ export class ClaudeLlm implements Llm {
     this.effort = opts.effort;
   }
 
+  /** 1日の上限の残りなどで、今回の実行の上限をさらに下げる。 */
+  limitTo(usd: number): void {
+    this.maxUsd = Math.max(0, Math.min(this.maxUsd, usd));
+  }
+
   spentUsd(): number {
     return this.usage.reduce((a, u) => a + u.costUsd, 0);
   }
 
   async structured<S extends z.ZodType>(req: StructuredRequest<S>): Promise<z.infer<S>> {
     if (this.spentUsd() >= this.maxUsd) {
-      throw new Error(`AI 費用が今回の実行の上限 $${this.maxUsd} に達したため ${req.agent} を中止しました（ADOPS_MAX_LLM_USD で変更）`);
+      throw new Error(`AI 費用が今回の実行の上限 $${this.maxUsd.toFixed(2)} に達したため ${req.agent} を中止しました（ADOPS_MAX_LLM_USD / ADOPS_MAX_LLM_USD_DAILY で変更）`);
     }
     const model = req.tier === 'fast' ? this.fastModel : this.model;
     const content: Anthropic.Beta.BetaContentBlockParam[] = [];

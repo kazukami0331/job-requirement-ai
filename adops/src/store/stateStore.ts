@@ -19,7 +19,17 @@ export class StateStore {
     this.dir = dataDir;
     this.path = join(dataDir, 'state.json');
     mkdirSync(dataDir, { recursive: true });
-    this.state = existsSync(this.path) ? { ...emptyState(), ...JSON.parse(readFileSync(this.path, 'utf8')) } : emptyState();
+    if (!existsSync(this.path)) {
+      this.state = emptyState();
+      return;
+    }
+    try {
+      this.state = { ...emptyState(), ...JSON.parse(readFileSync(this.path, 'utf8')) };
+    } catch (e) {
+      // 壊れた状態ファイルは退避して止める（そのまま上書き保存して記録を失わないように）。復旧は adops-state-prev ブランチから
+      renameSync(this.path, `${this.path}.corrupt`);
+      throw new Error(`state.json が壊れています（${(e as Error).message}）。state.json.corrupt に退避しました。adops-state-prev ブランチの state.json で復旧してください`);
+    }
   }
 
   /** 途中で落ちても壊れたファイルを残さないよう、一時ファイル経由で置き換える。 */
@@ -47,19 +57,26 @@ export class StateStore {
   pruneAssets(inboxDir?: string, keepStatuses: CreativeStatus[] = ['planned', 'awaiting_images', 'produced']): number {
     let removed = 0;
     const keep = new Set(keepStatuses);
+    const inbox = inboxDir && existsSync(inboxDir) ? readdirSync(inboxDir) : [];
+    // 終わってから90日以上たった広告は、サムネイルも含めて消す（状態ブランチが際限なく大きくならないように）
+    const old = new Date(Date.now() - 90 * 86_400_000).toISOString();
+    const terminal = new Set<CreativeStatus>(['retired', 'failed', 'rejected', 'qa_failed']);
     for (const c of Object.values(this.state.creatives)) {
       // 一部の媒体への入稿を再試行する予定のものも素材を残す
       if (keep.has(c.status) || (c.pendingPlatforms?.length && (c.publishRetries ?? 0) < 3)) continue;
-      if (inboxDir && existsSync(inboxDir)) {
-        for (const f of readdirSync(inboxDir)) {
-          if (f.startsWith(`${c.id}_`)) {
-            rmSync(join(inboxDir, f), { recursive: true, force: true });
-            removed++;
-          }
+      for (const f of inbox) {
+        if (f.startsWith(`${c.id}_`)) {
+          rmSync(join(inboxDir!, f), { recursive: true, force: true });
+          removed++;
         }
       }
       const dir = join(this.dir, 'assets', c.id);
       if (!existsSync(dir)) continue;
+      if (terminal.has(c.status) && c.updatedAt < old) {
+        rmSync(dir, { recursive: true, force: true });
+        removed++;
+        continue;
+      }
       for (const f of readdirSync(dir)) {
         // サムネイルと、オーガニック投稿に転用できるフィード画像（4:5）は残す
         if (f === 'thumb.jpg' || f.endsWith('_4x5.jpg')) continue;

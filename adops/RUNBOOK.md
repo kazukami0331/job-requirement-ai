@@ -86,6 +86,11 @@ Slack とレポートに理由が出ます（`failed`「媒体審査で不承認
 - 一部の媒体だけ失敗した場合は、自動で最大3回まで再試行します。
 - Meta のトークンはシステムユーザーの無期限トークンを推奨（個人トークンは約60日で切れます）。
 
+### 状態が壊れた・消えた
+毎回の保存の直前に、ひとつ前の状態を `adops-state-prev` ブランチに残しています。`state.json` が壊れて実行が止まった場合
+（`state.json.corrupt` に退避されます）や、誤った状態が保存された場合は、`adops-state-prev` の内容を `adops-state` に戻してください
+（`git push -f origin origin/adops-state-prev:adops-state`）。広告の記録が前回より減る保存は自動で中止します。
+
 ### 状態をやり直したい
 `adops-state` ブランチの `state.json` が全ての記録です。消すと初回からやり直しになります（媒体の広告は消えません）。
 特定のクリエイティブだけ扱いを変えたい場合は、`state.json` の該当 `creatives.<ID>.status` を書き換えてください。

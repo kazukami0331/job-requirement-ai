@@ -539,3 +539,19 @@ test('plan: 外国語ペルソナの企画は language と日本語訳を持ち�
     }
   }
 });
+
+test('windowFromCursor: 前回の通知位置から今までを対象にし、無い・古すぎる場合は時刻の窓', async () => {
+  const { windowFromCursor, leadWindow } = await import('../src/pipeline/leads.ts');
+  const { writeFileSync } = await import('node:fs');
+  const dir = mkdtempSync(join(tmpdir(), 'adops-leads-'));
+  const p = join(dir, 'cursor.json');
+  const now = new Date('2026-10-26T05:40:00Z');
+  assert.deepEqual(windowFromCursor(p, now), leadWindow(now));
+  const prev = Math.floor(new Date('2026-10-26T02:30:00Z').getTime() / 1000);
+  writeFileSync(p, JSON.stringify({ until: prev }));
+  const w = windowFromCursor(p, now);
+  assert.equal(w.since, prev);
+  assert.equal(w.until, Math.floor(now.getTime() / 1000) - 60);
+  writeFileSync(p, JSON.stringify({ until: prev - 3 * 86400 }));
+  assert.deepEqual(windowFromCursor(p, now), leadWindow(now));
+});

@@ -51,7 +51,9 @@ export async function request(url: string, opts: RequestOptions = {}): Promise<R
       const text = await res.text();
       if (res.status === 429 || res.status >= 500) {
         lastErr = new HttpError(res.status, text, url);
-        const wait = Number(res.headers.get('retry-after')) * 1000 || 2 ** i * 1500;
+        if (i === attempts - 1) break; // 最後の試行の後は待たずに失敗を返す
+        // Retry-After が極端に長くても最大60秒まで（実行時間の上限を食いつぶさないように）
+        const wait = Math.min(60_000, Number(res.headers.get('retry-after')) * 1000 || 2 ** i * 1500);
         log.warn(`retry ${i + 1}/${attempts} after ${wait}ms (${res.status}) ${redact(url)}`);
         await sleep(wait);
         continue;
