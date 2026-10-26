@@ -36,7 +36,7 @@ Slack の日次通知で次を見ます。
 |---|---|
 | 1日に作る本数を増やす/減らす | `policy.json` の `briefsPerCycle`、求人ごとは `jobs.json` の `dailyCreativeQuota` |
 | 動画を増やす | `policy.json` の `videoShare` |
-| 新しい訴求をもっと試す / 勝ち筋に寄せる | `policy.json` の `exploreShare`（上げると試す、下げると寄せる） |
+| 新しい訴求をもっと試す / 勝ち筋に寄せる | `policy.json` の `exploreShare`（上げると試す、下げると寄せる）。シミュレーション（30日・3通り）では 0.1 と 0.3 がほぼ同等、0.5 は応募が約2割減。市場の変化に追従するため既定は 0.3、0.5 以上は非推奨 |
 | 停止を厳しく/ゆるく | `policy.json` の `guardrails`（`targetCpa`、`ctrFloorPct`、`minImpressions` など） |
 | 予算の自動増額の上限 | `guardrails.maxDailyBudget`、間隔は `ADOPS_BUDGET_COOLDOWN_DAYS` |
 | 使ってほしくない言葉 | `brand.json` の `bannedPhrases`、`examples.json` の bad |
