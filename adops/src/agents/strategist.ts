@@ -28,6 +28,32 @@ export interface PlanningContext {
   losers: { angle: Angle; headline: string; overlayMain: string; ctr: number }[];
   /** 既に配信中のメインコピー（重複を避ける） */
   activeHooks: string[];
+  /** 媒体審査で不承認になった広告と理由（同じ表現を避ける） */
+  platformRejections?: { overlayMain: string; reason: string }[];
+  /** 社内レビューで最近よく出る指摘（最初から避ける） */
+  frequentIssues?: string[];
+  /** 季節・時期の文脈 */
+  season?: string;
+}
+
+/** 求職者の動きの季節要因（ブルーカラー求人の一般的な傾向）。 */
+export function seasonalContext(today: string): string {
+  const m = Number(today.slice(5, 7));
+  const notes: Record<number, string> = {
+    1: '年明けは転職活動が最も動く時期。「新しい年に仕事を変える」動機が強い。寒さ・帰省明けの心理にも触れられる',
+    2: '年度末に向けて転職を決めたい層が多い。4月入社に間に合う「今から応募」が刺さる',
+    3: '4月入社の駆け込み。引っ越し・新生活と仕事をセットで考える層（寮訴求が効きやすい）',
+    4: '新生活の時期。新卒・第二新卒の早期離職層が動き始める',
+    5: '大型連休明けに「このままでいいのか」と転職を考える層が増える',
+    6: '夏の賞与前。賞与をもらってから辞めたい層が情報収集を始める',
+    7: '夏の賞与支給後に転職が動く。暑さ対策（空調完備・休憩）も訴求になる',
+    8: 'お盆の帰省で地元・家族と仕事を見直す。短期で稼ぎたい層も多い',
+    9: '下期の採用が活発。秋入社を狙う層',
+    10: '年末に向けた短期・期間工の需要が増える。年内に生活を立て直したい層',
+    11: '冬の賞与前の情報収集。年末年始の短期で稼ぐ需要（日払い・寮訴求が効きやすい）',
+    12: '年末は応募が一時的に落ちるが、年明けに向けた準備層が情報を集めている。寒さ・帰省の文脈',
+  };
+  return `${today.slice(0, 7)}: ${notes[m] ?? ''}`;
 }
 
 export const STRATEGIST_SYSTEM = `あなたはブルーカラー（製造・物流・建設・ドライバー・警備・設備など）専門の人材紹介会社で、
@@ -113,6 +139,15 @@ ${ctx.winners.length ? ctx.winners.map((w) => `- [${ANGLE_LABELS[w.angle]}] 「$
 
 # 成果が悪かった広告（同じ方向は避ける）
 ${ctx.losers.length ? ctx.losers.map((w) => `- [${ANGLE_LABELS[w.angle]}] 「${w.overlayMain}」/ ${w.headline}（CTR ${w.ctr.toFixed(2)}%）`).join('\n') : '- なし'}
+
+# 時期
+${ctx.season ?? '-'}
+
+# 媒体審査で不承認になった広告（同じ表現・構成を避ける）
+${ctx.platformRejections?.length ? ctx.platformRejections.map((r) => `- 「${r.overlayMain}」→ ${r.reason}`).join('\n') : '- なし'}
+
+# 社内レビューで最近よく指摘される点（最初から避ける）
+${ctx.frequentIssues?.length ? ctx.frequentIssues.map((i) => `- ${i}`).join('\n') : '- なし'}
 
 # 配信中のフック（重複させない）
 ${ctx.activeHooks.length ? ctx.activeHooks.map((h) => `- ${h}`).join('\n') : '- なし'}

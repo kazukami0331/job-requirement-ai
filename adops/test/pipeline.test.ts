@@ -149,3 +149,24 @@ test('organic: 広告で反応の良い素材を優先し、DRY RUN では投稿
   assert.match(note, /proven\(feed, 未投稿: DRY RUN\)/);
   assert.equal(ctx.store.state.creatives.proven.organic, undefined);
 });
+
+test('frequentIssues: 繰り返し出る重大な指摘だけを回数順に返す', async () => {
+  const { frequentIssues } = await import('../src/pipeline/plan.ts');
+  const mk = (problem: string, severity: 'blocker' | 'major' | 'minor' = 'major') => ({
+    briefId: 'b', revision: 0, reviewer: 'ai' as const, score: 50, scores: {}, verdict: 'revise' as const, summary: '', createdAt: '',
+    issues: [{ severity, field: 'x', problem, suggestion: '' }],
+  });
+  const out = frequentIssues([
+    mk('年齢の上限を示しています（「35歳まで」）', 'blocker'),
+    mk('年齢の上限を示しています（「40歳以下」）', 'blocker'),
+    mk('フックが弱い'),
+    mk('細かい点', 'minor'),
+    mk('細かい点', 'minor'),
+  ]);
+  assert.deepEqual(out, ['年齢の上限を示しています（2回）']);
+});
+
+test('seasonalContext: 月ごとの文脈を返す', async () => {
+  const { seasonalContext } = await import('../src/agents/strategist.ts');
+  assert.match(seasonalContext('2026-03-10'), /^2026-03: .*4月入社/);
+});

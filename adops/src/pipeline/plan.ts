@@ -2,7 +2,7 @@
 import type { Ctx } from './context.ts';
 import type { Creative, CreativeBrief, Review } from '../types.ts';
 import { allocateSlots } from '../optimize/allocate.ts';
-import { planBriefs, reviseBrief, type PlanningContext } from '../agents/strategist.ts';
+import { planBriefs, reviseBrief, seasonalContext, type PlanningContext } from '../agents/strategist.ts';
 import { reviewBrief } from '../agents/reviewer.ts';
 import { lastNDays, totals } from '../optimize/stats.ts';
 import { newId } from '../util/id.ts';
@@ -29,7 +29,32 @@ export function planningContext(ctx: Ctx): PlanningContext {
       .creatives({ status: ['published', 'produced', 'planned', 'awaiting_images'] })
       .map((c) => store.state.briefs[c.briefId]?.overlay.main)
       .filter(Boolean),
+    platformRejections: store
+      .creatives({ status: 'failed' })
+      .filter((c) => c.statusReason?.startsWith('媒体審査で不承認'))
+      .slice(-8)
+      .map((c) => ({ overlayMain: store.state.briefs[c.briefId]?.overlay.main ?? '', reason: c.statusReason!.replace('媒体審査で不承認: ', '') })),
+    frequentIssues: frequentIssues(store.state.reviews.slice(-60)),
+    season: seasonalContext(today),
   };
+}
+
+/** 直近のレビューで重大な指摘（blocker / major）として繰り返し出た問題の上位。 */
+export function frequentIssues(reviews: Review[], top = 5): string[] {
+  const counts = new Map<string, number>();
+  for (const r of reviews) {
+    for (const i of r.issues) {
+      if (i.severity === 'minor') continue;
+      // 「（「…」）」の引用部分は事例ごとに違うので落として集計する
+      const key = i.problem.replace(/（「.*?」）/g, '').replace(/「.*?」/g, '「…」').trim();
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .filter(([, n]) => n >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, top)
+    .map(([k, n]) => `${k}（${n}回）`);
 }
 
 export interface PlanResult {
