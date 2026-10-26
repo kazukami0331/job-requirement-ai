@@ -95,6 +95,11 @@ export function sanitizeRsa(raw: z.infer<typeof RsaSchema>, job: Job, catalog: C
       if (googleWidth(out + ch) > 15) break;
       out += ch;
     }
+    // 表示 URL のパスも検索者に見えるので、法令チェックに通らなければ使わない
+    if (out && checkTexts([['path', out]], job, catalog.brand).some((i) => i.severity !== 'minor')) {
+      dropped.push(`パス（チェック不合格）: ${out}`);
+      return '';
+    }
     return out;
   };
   return {

@@ -35,10 +35,18 @@ export interface ReviewResult {
   issues: ReviewIssue[];
 }
 
-export function decideVerdict(score: number, issues: ReviewIssue[], passScore: number, revision: number, maxRevisions: number): Review['verdict'] {
+export function decideVerdict(
+  score: number,
+  issues: ReviewIssue[],
+  passScore: number,
+  revision: number,
+  maxRevisions: number,
+  ruleIssues: ReviewIssue[] = [],
+): Review['verdict'] {
   if (hasBlocker(issues)) return revision >= maxRevisions ? 'reject' : 'revise';
   if (score >= passScore && !issues.some((i) => i.severity === 'major')) return 'pass';
-  if (revision >= maxRevisions) return score >= passScore ? 'pass' : 'reject';
+  // 機械チェックの major（根拠のない No.1・NG表現・給与の単位違いなど）は、最後まで直らなければ出さない
+  if (revision >= maxRevisions) return score >= passScore && !ruleIssues.some((i) => i.severity === 'major') ? 'pass' : 'reject';
   return 'revise';
 }
 
@@ -92,7 +100,7 @@ ${ruleIssues.length ? ruleIssues.map((i) => `- [${i.severity}] ${i.field}: ${i.p
   const scores = Object.fromEntries(Object.entries(ai.scores).map(([k, v]) => [k, clamp(v)]));
   const score = Object.values(scores).reduce((a, b) => a + b, 0);
   const issues = [...ruleIssues, ...ai.issues];
-  const verdict = decideVerdict(score, issues, passScore, brief.revision, maxRevisions);
+  const verdict = decideVerdict(score, issues, passScore, brief.revision, maxRevisions, ruleIssues);
 
   return {
     issues,

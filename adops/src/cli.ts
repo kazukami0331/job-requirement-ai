@@ -39,7 +39,8 @@ import { emergencyStop } from './pipeline/emergency.ts';
 import { notifyLeads } from './pipeline/leads.ts';
 import { fetchPage } from './pipeline/landing.ts';
 import { notifySlack } from './notify/slack.ts';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 function parseArgs(argv: string[]) {
@@ -56,6 +57,17 @@ function parseArgs(argv: string[]) {
     } else flags[key] = true;
   }
   return { command, flags };
+}
+
+/**
+ * API キーが無いまま本番（DRY RUN でない）で動いた場合は、AI のレビュー・画像チェックを通らない広告を出さないよう、
+ * 実績の取り込み・停止判断・報告だけにする（オフラインのテンプレートは常に合格を返すため）。
+ */
+function safeSteps(ctx: Ctx, flags: Record<string, string | boolean>, steps: StepName[]): StepName[] {
+  if (flags.offline || ctx.dryRun || ctx.settings.anthropic.apiKey) return steps;
+  const safe = steps.filter((s) => ['collect', 'optimize', 'report'].includes(s));
+  console.error(`!! ANTHROPIC_API_KEY が無いため、企画・制作・入稿・投稿をしません（実行する段階: ${safe.join(',') || 'なし'}）`);
+  return safe;
 }
 
 function buildCtx(flags: Record<string, string | boolean>): Ctx {
@@ -96,7 +108,7 @@ async function main() {
   switch (command) {
     case 'cycle': {
       const ctx = buildCtx(flags);
-      const steps = typeof flags.steps === 'string' ? (flags.steps.split(',') as StepName[]) : ALL_STEPS;
+      const steps = safeSteps(ctx, flags, typeof flags.steps === 'string' ? (flags.steps.split(',') as StepName[]) : ALL_STEPS);
       const rec = await runCycle(ctx, steps);
       process.exitCode = rec.steps.every((s) => s.ok) ? 0 : 1;
       break;
@@ -108,7 +120,7 @@ async function main() {
     case 'optimize':
     case 'analyze': {
       const ctx = buildCtx(flags);
-      const rec = await runCycle(ctx, single[command]);
+      const rec = await runCycle(ctx, safeSteps(ctx, flags, single[command]));
       process.exitCode = rec.steps.every((s) => s.ok) ? 0 : 1;
       break;
     }
@@ -223,7 +235,13 @@ async function main() {
       break;
     }
     case 'simulate': {
+      // シミュレーションは本物の媒体・状態ファイルに触れない（一時フォルダ・DRY RUN・媒体なし）
+      process.env.ADOPS_DATA_DIR = mkdtempSync(join(tmpdir(), 'adops-sim-'));
       const ctx = buildCtx({ ...flags });
+      ctx.meta = null;
+      ctx.google = null;
+      ctx.dryRun = true;
+      ctx.checkPage = undefined;
       await simulate(ctx, { days: Number(flags.days ?? 14), seed: Number(flags.seed ?? 42) });
       break;
     }

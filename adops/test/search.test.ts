@@ -50,6 +50,10 @@ test('sanitizeRsa: 文字数超過・法令 NG・重複を落とす', () => {
   assert.equal(r.path1, '製造求人寮付き');
   assert.ok(r.path2.length <= 7);
   assert.equal(r.dropped.length, 3);
+  // 表示 URL のパスも法令チェックする
+  const r2 = sanitizeRsa({ headlines: [], descriptions: [], path1: '20代限定', path2: '寮付き' }, job(), catalog());
+  assert.equal(r2.path1, '');
+  assert.equal(r2.path2, '寮付き');
 });
 
 test('rotateSearchAds: DRY RUN では下書きを1日1本だけ作る', async () => {

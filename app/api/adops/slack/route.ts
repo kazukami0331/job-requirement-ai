@@ -179,7 +179,11 @@ export async function POST(req: Request) {
   // Slack には3秒以内に応答する必要があるので、媒体の操作は応答後に行い、結果でメッセージを書き換える
   after(async () => {
     const errors: string[] = [];
-    const blockedByState = approve ? await stateBlocksApproval(value.c) : null;
+    let blockedByState = approve ? await stateBlocksApproval(value.c) : null;
+    // Google の広告は adops が止めた印を付けられないので、状態を確認できないときは承認しない
+    if (approve && !blockedByState && value.g.length && !(process.env.ADOPS_GITHUB_REPO && process.env.ADOPS_GITHUB_TOKEN)) {
+      blockedByState = "Google の広告を承認するには ADOPS_GITHUB_REPO / ADOPS_GITHUB_TOKEN の設定が必要です（adops が止めた広告を誤って再開しないため）。管理画面で操作してください";
+    }
     if (blockedByState) {
       // ボタンは残したまま、押した人にだけ理由を返す
       await respond(payload.response_url, { response_type: "ephemeral", replace_original: false, text: blockedByState });

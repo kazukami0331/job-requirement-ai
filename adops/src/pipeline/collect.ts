@@ -14,7 +14,8 @@ const log = logger('collect');
  */
 export async function syncStatuses(ctx: Ctx): Promise<string> {
   const { store } = ctx;
-  const targets = store.creatives({ status: ['published', 'paused'] });
+  // 審査落ち（failed）も、媒体の広告が残っていれば見る（再審査で承認されて配信が始まることがある）
+  const targets = store.creatives({ status: ['published', 'paused', 'failed'] }).filter((c) => c.status !== 'failed' || c.platformRefs.meta?.adIds?.length || c.platformRefs.google?.linkedTo?.length);
   const metaIds = targets.flatMap((c) => c.platformRefs.meta?.adIds ?? []);
   const googleAds = targets.flatMap((c) => (c.platformRefs.google?.linkedTo ?? []).filter((rn) => rn.includes('/adGroupAds/')));
   const meta = ctx.meta && metaIds.length ? await ctx.meta.adStatuses(metaIds) : new Map<string, { status: string; review?: string }>();
@@ -31,7 +32,18 @@ export async function syncStatuses(ctx: Ctx): Promise<string> {
     if (c.platformRefs.meta && m.length) c.platformRefs.meta.status = [...new Set(m.map((x) => x.status))].join(',');
     if (c.platformRefs.google && g.length) c.platformRefs.google.status = [...new Set(g.map((x) => `${x.status}/${x.approval}`))].join(',');
     const hasPmax = (c.platformRefs.google?.linkedTo ?? []).some((rn) => rn.includes('/assetGroupAssets/'));
-    const allDisapproved = !hasPmax && m.every((x) => x.status === 'DISAPPROVED') && g.every((x) => x.approval === 'DISAPPROVED');
+    // 両媒体とも結果が取れたときだけ判断する（片方の API が未設定・取得失敗なら、その媒体が配信中かもしれない）
+    const metaRefs = c.platformRefs.meta?.adIds?.length ?? 0;
+    const googleRefs = (c.platformRefs.google?.linkedTo ?? []).filter((rn) => rn.includes('/adGroupAds/')).length;
+    const complete = m.length === metaRefs && g.length === googleRefs;
+    const allDisapproved = complete && !hasPmax && m.every((x) => x.status === 'DISAPPROVED') && g.every((x) => x.approval === 'DISAPPROVED');
+    if (c.status === 'failed') {
+      if (c.live) {
+        store.setStatus(c, 'published', '再審査で承認され配信が始まったため、配信中として扱います');
+        resumed++;
+      }
+      continue;
+    }
     if (allDisapproved) {
       const why = [...m.map((x) => x.review), ...g.map((x) => x.topics)].filter(Boolean).join(' / ');
       store.setStatus(c, 'failed', `媒体審査で不承認: ${why || '理由不明'}`);
@@ -54,7 +66,10 @@ export async function collectMetrics(ctx: Ctx, days = 14): Promise<string> {
   }
   const { store, today } = ctx;
   const since = addDays(today, -(days - 1));
-  const targets = store.creatives({ status: ['published', 'paused', 'retired'] }).filter((c) => !c.publishedAt || c.publishedAt.slice(0, 10) >= addDays(today, -60));
+  // 配信中の広告は期間に関係なく取り込む（止めた広告だけ、60日より古いものは省く）
+  const targets = store
+    .creatives({ status: ['published', 'paused', 'retired'] })
+    .filter((c) => c.status === 'published' || !c.publishedAt || c.publishedAt.slice(0, 10) >= addDays(today, -60));
   let metaRows = 0;
   let googleRows = 0;
 

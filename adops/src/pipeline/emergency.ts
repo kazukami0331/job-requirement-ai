@@ -12,7 +12,8 @@ export async function emergencyStop(ctx: Ctx, reason = '緊急停止'): Promise<
   const { store } = ctx;
   let paused = 0;
   const errors: string[] = [];
-  for (const c of store.creatives({ status: ['published', 'paused', 'retired'] })) {
+  // 審査落ち（failed）も、再審査で配信が始まっている可能性があるので止める
+  for (const c of store.creatives({ status: ['published', 'paused', 'retired', 'failed'] })) {
     const metaAds = c.platformRefs.meta?.adIds ?? [];
     const googleRefs = c.platformRefs.google?.linkedTo ?? [];
     let ok = true;

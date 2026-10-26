@@ -128,6 +128,17 @@ test('syncStatuses: 人が ON にしたら live、全媒体で不承認なら fa
   assert.equal(cs.ng.status, 'failed');
   assert.match(cs.ng.statusReason!, /差別的表現/);
   assert.equal(cs.resumed.status, 'published');
+
+  // 再審査で承認されて配信が始まったら、配信中として扱う
+  statuses.set('ad_ng', { status: 'ACTIVE' });
+  await syncStatuses(ctx);
+  assert.equal(cs.ng.status, 'published');
+
+  // Google の結果が取れないとき（API 未設定）は、Meta が全部不承認でも failed にしない
+  ctx.store.state.creatives.both = creative({ id: 'both', platformRefs: { meta: { adIds: ['ad_x'], creativeIds: [] }, google: { assetResourceNames: [], linkedTo: ['customers/1/adGroupAds/2~3'] } } });
+  statuses.set('ad_x', { status: 'DISAPPROVED' });
+  await syncStatuses(ctx);
+  assert.equal(cs.both.status, 'published');
 });
 
 test('organic: 広告で反応の良い素材を優先し、DRY RUN では投稿予定だけ出す', async () => {

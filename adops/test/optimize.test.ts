@@ -135,6 +135,13 @@ test('decide: 同時配信数の上限を超えたら効率の悪い順に止め
   assert.deepEqual(d.filter((x) => x.action === 'pause').map((x) => x.creativeId).sort(), ['b', 'c']);
 });
 
+test('decideVerdict: 機械チェックの major が改訂上限まで残れば却下（点数が高くても）', () => {
+  const major = [{ severity: 'major' as const, field: 'headline', problem: '根拠のない No.1', suggestion: '' }];
+  assert.equal(decideVerdict(90, major, 75, 2, 2, major), 'reject');
+  // AI の major だけなら、上限で点数が合格なら通す（従来どおり）
+  assert.equal(decideVerdict(90, major, 75, 2, 2, []), 'pass');
+});
+
 test('decideVerdict: blocker は改訂上限まで差し戻し、上限で却下', () => {
   const blocker = [{ severity: 'blocker' as const, field: 'x', problem: 'p', suggestion: 's' }];
   assert.equal(decideVerdict(95, blocker, 75, 0, 2), 'revise');
