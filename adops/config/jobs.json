@@ -1,0 +1,62 @@
+[
+  {
+    "id": "factory-aichi",
+    "active": true,
+    "title": "自動車部品の製造スタッフ（寮完備）",
+    "category": "製造",
+    "location": "愛知県豊田市",
+    "employmentType": "派遣社員（正社員登用あり）",
+    "salary": { "type": "月給", "min": 300000, "max": 380000, "note": "月収例 34万円（夜勤・残業20h含む）" },
+    "perks": ["寮費無料", "入社祝い金あり", "日払い・週払いOK", "未経験歓迎", "40代50代活躍中"],
+    "hours": "2交替 8:00〜17:00 / 20:00〜翌5:00",
+    "holidays": "土日休み（会社カレンダー）年間休日120日",
+    "requirements": "未経験歓迎・学歴不問",
+    "personas": ["young-switcher", "dekasegi"],
+    "landingUrl": "https://example.com/jobs/factory-aichi",
+    "dailyCreativeQuota": 2,
+    "placements": {
+      "meta": { "adsetIds": [] },
+      "google": { "assetGroupIds": [] }
+    }
+  },
+  {
+    "id": "driver-saitama",
+    "active": true,
+    "title": "中型トラックの配送ドライバー（ルート配送）",
+    "category": "物流・ドライバー",
+    "location": "埼玉県川口市",
+    "employmentType": "正社員",
+    "salary": { "type": "月給", "min": 280000, "max": 420000, "note": "経験・能力を考慮" },
+    "perks": ["中型免許取得支援", "ルート配送で道を覚えやすい", "賞与年2回", "マイカー通勤OK"],
+    "hours": "6:00〜15:00（実働8h）",
+    "holidays": "週休2日（シフト制）",
+    "requirements": "普通免許（AT限定不可）",
+    "personas": ["young-switcher", "experienced-driver"],
+    "landingUrl": "https://example.com/jobs/driver-saitama",
+    "dailyCreativeQuota": 2,
+    "placements": {
+      "meta": { "adsetIds": [] },
+      "google": { "assetGroupIds": [] }
+    }
+  },
+  {
+    "id": "construction-osaka",
+    "active": true,
+    "title": "建設現場の施工管理アシスタント",
+    "category": "建設",
+    "location": "大阪府大阪市",
+    "employmentType": "正社員",
+    "salary": { "type": "月給", "min": 260000, "max": 350000 },
+    "perks": ["資格取得費用全額支給", "未経験からキャリアアップ", "完全週休2日", "賞与年2回"],
+    "hours": "8:00〜17:00",
+    "holidays": "完全週休2日（土日）",
+    "requirements": "未経験歓迎・普通免許",
+    "personas": ["young-switcher", "skilled-worker"],
+    "landingUrl": "https://example.com/jobs/construction-osaka",
+    "dailyCreativeQuota": 1,
+    "placements": {
+      "meta": { "adsetIds": [] },
+      "google": { "assetGroupIds": [] }
+    }
+  }
+]

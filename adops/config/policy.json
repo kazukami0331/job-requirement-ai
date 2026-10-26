@@ -1,0 +1,20 @@
+{
+  "autonomy": "draft",
+  "briefsPerCycle": 6,
+  "videoShare": 0.4,
+  "exploreShare": 0.3,
+  "review": { "passScore": 75, "maxRevisions": 2 },
+  "imageCandidates": 4,
+  "guardrails": {
+    "minImpressions": 3000,
+    "ctrFloorPct": 0.4,
+    "ctrRelativeFloor": 0.5,
+    "targetCpa": 8000,
+    "zeroConversionSpendMultiple": 2,
+    "budgetStepPct": 20,
+    "maxDailyBudget": 30000,
+    "maxActivePerAdset": 6,
+    "fatigueDays": 14,
+    "fatigueCtrRatio": 0.6
+  }
+}
