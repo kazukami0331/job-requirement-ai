@@ -15,7 +15,7 @@ const log = logger('optimize');
  * adops の広告をすべて止めて入稿も凍結する（人が resume するまで）。設定や判断の誤りで費用が膨らむのを防ぐ最後の砦。
  */
 export async function enforceSpendCap(ctx: Ctx): Promise<string | null> {
-  const cap = Number(process.env.ADOPS_DAILY_SPEND_CAP ?? 0);
+  const cap = Number(process.env.ADOPS_DAILY_SPEND_CAP || 0);
   if (!(cap > 0) || ctx.store.state.halted) return null;
   // 上限超えで止まったあと、人が確認して同じ日に解除した場合は、その日はもう止めない（解除がすぐ打ち消されないように）
   if (ctx.store.state.spendCapWaivedOn === ctx.today) return null;
@@ -59,7 +59,7 @@ export async function optimize(ctx: Ctx): Promise<Decision[]> {
   }
 
   // 同じ広告セットの予算は数日に1回だけ上げる（1日3回の実行のたびに上がらないように。学習のリセットも避ける）
-  const cooldownDays = Number(process.env.ADOPS_BUDGET_COOLDOWN_DAYS ?? 3);
+  const cooldownDays = Number(process.env.ADOPS_BUDGET_COOLDOWN_DAYS || 3);
   const recentlyScaled = new Set(
     store.state.decisions
       .filter((d) => d.action === 'scale_budget' && d.applied && d.adsetId && daysBetween(d.date, today) < cooldownDays)

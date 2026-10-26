@@ -105,6 +105,15 @@ jobs:
           ADOPS_DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && 'true' || vars.ADOPS_DRY_RUN || 'true' }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ADOPS_MODEL: ${{ vars.ADOPS_MODEL }}
+          ADOPS_FAST_MODEL: ${{ vars.ADOPS_FAST_MODEL }}
+          ADOPS_EFFORT: ${{ vars.ADOPS_EFFORT }}
+          GEMINI_IMAGE_COUNT: ${{ vars.GEMINI_IMAGE_COUNT }}
+          GOOGLE_ADS_API_VERSION: ${{ vars.GOOGLE_ADS_API_VERSION }}
+          META_API_VERSION: ${{ vars.META_API_VERSION }}
+          META_USE_PLACEMENT_CUSTOMIZATION: ${{ vars.META_USE_PLACEMENT_CUSTOMIZATION }}
+          MJ_API_FLAVOR: ${{ vars.MJ_API_FLAVOR }}
+          MJ_PARAMS: ${{ vars.MJ_PARAMS }}
+          ADOPS_LOG_LEVEL: ${{ vars.ADOPS_LOG_LEVEL }}
           ADOPS_MAX_LLM_USD: ${{ vars.ADOPS_MAX_LLM_USD }}
           ADOPS_MAX_LLM_USD_DAILY: ${{ vars.ADOPS_MAX_LLM_USD_DAILY }}
           ADOPS_DAILY_SPEND_CAP: ${{ vars.ADOPS_DAILY_SPEND_CAP }}

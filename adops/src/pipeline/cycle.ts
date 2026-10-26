@@ -89,7 +89,7 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
   });
   await step('analyze', async () => {
     const prev = store.state.insights.at(-1);
-    const intervalDays = Number(process.env.ADOPS_ANALYZE_EVERY_DAYS ?? 1);
+    const intervalDays = Number(process.env.ADOPS_ANALYZE_EVERY_DAYS || 1);
     if (prev && daysBetween(prev.date, ctx.today) < intervalDays) return '前回分析から日が浅いためスキップ';
     const hasData = store.creatives().some((c) => totals(lastNDays(c.metrics, ctx.today, 7)).impressions > 0);
     if (!hasData) return '直近7日の配信データなし';
