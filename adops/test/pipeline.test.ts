@@ -102,3 +102,30 @@ test('runCycle: オフラインで企画→制作まで通り、レポートを�
   const reloaded = new StateStore(ctx.store.dir);
   assert.equal(Object.keys(reloaded.state.creatives).length, 2);
 });
+
+test('syncStatuses: 人が ON にしたら live、全媒体で不承認なら failed、止めた広告の再開は published に戻す', async () => {
+  const { syncStatuses } = await import('../src/pipeline/collect.ts');
+  const { creative } = await import('./fixtures.ts');
+  const statuses = new Map([
+    ['ad_on', { status: 'ACTIVE' }],
+    ['ad_off', { status: 'PAUSED' }],
+    ['ad_ng', { status: 'DISAPPROVED', review: 'EMPLOYMENT: 差別的表現' }],
+    ['ad_resumed', { status: 'ACTIVE' }],
+  ]);
+  const fakeMeta = { adStatuses: async () => statuses } as any;
+  const ctx = ctxWith(offlineLlm(catalog()), { meta: fakeMeta });
+  const mk = (id: string, adId: string, status: 'published' | 'paused' = 'published') =>
+    (ctx.store.state.creatives[id] = creative({ id, status, platformRefs: { meta: { adIds: [adId], creativeIds: [] } } }));
+  mk('on', 'ad_on');
+  mk('off', 'ad_off');
+  mk('ng', 'ad_ng');
+  mk('resumed', 'ad_resumed', 'paused');
+  await syncStatuses(ctx);
+  const cs = ctx.store.state.creatives;
+  assert.equal(cs.on.live, true);
+  assert.equal(cs.off.live, false);
+  assert.equal(cs.off.status, 'published');
+  assert.equal(cs.ng.status, 'failed');
+  assert.match(cs.ng.statusReason!, /差別的表現/);
+  assert.equal(cs.resumed.status, 'published');
+});

@@ -34,7 +34,8 @@ export function decide(input: DecideInput): Decision[] {
   const g = policy.guardrails;
   const lookback = input.lookbackDays ?? 7;
   const from = addDays(today, -(lookback - 1));
-  const live = input.creatives.filter((c) => c.status === 'published');
+  // live=false は「入稿済みだが媒体側で停止中」（下書き入稿で人がまだ ON にしていない等）なので判断しない
+  const live = input.creatives.filter((c) => c.status === 'published' && c.live !== false);
   const decisions: Decision[] = [];
   const paused = new Set<string>();
 

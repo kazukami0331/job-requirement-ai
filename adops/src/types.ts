@@ -228,6 +228,8 @@ export interface Creative {
   imageJobs: ImageJob[];
   assets: Asset[];
   qa?: { score: number; notes: string; selectedIndex: number };
+  /** 媒体側で実際に配信中か（collect で同期。下書き入稿で人がまだ ON にしていなければ false） */
+  live?: boolean;
   platformRefs: {
     meta?: { adIds: string[]; creativeIds: string[]; status?: string };
     google?: { assetResourceNames: string[]; linkedTo: string[]; youtubeVideoId?: string; status?: string };

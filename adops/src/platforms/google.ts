@@ -72,21 +72,21 @@ export class GoogleAdsClient {
 
   async createImageAsset(path: string, name: string): Promise<string> {
     const r = await this.call<{ results: { resourceName: string }[] }>(`${this.customer}/assets:mutate`, {
-      operations: [{ create: { name, type: 'IMAGE', imageAsset: { data: readFileSync(path).toString('base64') } } }],
+      operations: [{ create: { name, imageAsset: { data: readFileSync(path).toString('base64') } } }],
     });
     return r.results[0].resourceName;
   }
 
   async createYoutubeAsset(youtubeVideoId: string, name: string): Promise<string> {
     const r = await this.call<{ results: { resourceName: string }[] }>(`${this.customer}/assets:mutate`, {
-      operations: [{ create: { name, type: 'YOUTUBE_VIDEO', youtubeVideoAsset: { youtubeVideoId } } }],
+      operations: [{ create: { name, youtubeVideoAsset: { youtubeVideoId } } }],
     });
     return r.results[0].resourceName;
   }
 
   async createTextAssets(texts: string[]): Promise<string[]> {
     const r = await this.call<{ results: { resourceName: string }[] }>(`${this.customer}/assets:mutate`, {
-      operations: texts.map((text) => ({ create: { type: 'TEXT', textAsset: { text } } })),
+      operations: texts.map((text) => ({ create: { textAsset: { text } } })),
     });
     return r.results.map((x) => x.resourceName);
   }
@@ -115,6 +115,26 @@ export class GoogleAdsClient {
 
   async setAdGroupAdStatus(resourceName: string, status: 'ENABLED' | 'PAUSED'): Promise<void> {
     await this.call(`${this.customer}/adGroupAds:mutate`, { operations: [{ update: { resourceName, status }, updateMask: 'status' }] });
+  }
+
+  /** 広告の配信状態と審査状態（ENABLED/PAUSED と APPROVED/DISAPPROVED 等）。 */
+  async adStatuses(adResourceNames: string[]): Promise<Map<string, { status: string; approval: string; topics: string }>> {
+    const out = new Map<string, { status: string; approval: string; topics: string }>();
+    const ids = adResourceNames.map((rn) => rn.split('~').pop()).filter(Boolean);
+    for (let i = 0; i < ids.length; i += 200) {
+      const rows = await this.search<any>(
+        `SELECT ad_group_ad.resource_name, ad_group_ad.status, ad_group_ad.policy_summary.approval_status, ad_group_ad.policy_summary.policy_topic_entries FROM ad_group_ad WHERE ad_group_ad.ad.id IN (${ids.slice(i, i + 200).join(',')})`,
+      );
+      for (const r of rows) {
+        const a = r.adGroupAd;
+        out.set(a.resourceName, {
+          status: a.status,
+          approval: a.policySummary?.approvalStatus ?? 'UNKNOWN',
+          topics: (a.policySummary?.policyTopicEntries ?? []).map((t: any) => t.topic).join(', '),
+        });
+      }
+    }
+    return out;
   }
 
   /** 広告ごとの日次実績（デマンド ジェネレーション）。 */
@@ -263,8 +283,8 @@ export async function publishToGoogle(
             ...common,
             longHeadlines: [{ text: texts.longHeadline }],
             videos: [{ asset: videoAsset }],
+            // 動画広告の businessName は AdTextAsset。行動喚起ボタンはアセット参照が必要なので省略（自動選択）
             businessName: { text: businessName },
-            callToActions: [{ text: '応募する' }],
           },
         }
       : {

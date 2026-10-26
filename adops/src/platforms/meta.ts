@@ -213,6 +213,25 @@ export class MetaClient {
     await this.call('POST', adId, { status });
   }
 
+  /**
+   * 広告の配信状態と審査結果。effective_status は ACTIVE / PAUSED / DISAPPROVED / PENDING_REVIEW / WITH_ISSUES など。
+   */
+  async adStatuses(adIds: string[]): Promise<Map<string, { status: string; review?: string }>> {
+    const out = new Map<string, { status: string; review?: string }>();
+    for (let i = 0; i < adIds.length; i += 50) {
+      const chunk = adIds.slice(i, i + 50);
+      const r = await this.call<Record<string, { effective_status?: string; ad_review_feedback?: Record<string, Record<string, string>> }>>('GET', '', {
+        ids: chunk.join(','),
+        fields: 'effective_status,ad_review_feedback',
+      });
+      for (const [id, v] of Object.entries(r)) {
+        const fb = v.ad_review_feedback?.global ?? {};
+        out.set(id, { status: v.effective_status ?? 'UNKNOWN', review: Object.entries(fb).map(([k, m]) => `${k}: ${m}`).join(' / ') || undefined });
+      }
+    }
+    return out;
+  }
+
   async getAdset(adsetId: string): Promise<{ id: string; dailyBudget: number | null; status: string }> {
     const r = await this.call<{ id: string; daily_budget?: string; effective_status?: string }>('GET', adsetId, { fields: 'id,daily_budget,effective_status' });
     // JPY は補助通貨単位が無いので daily_budget はそのまま円
