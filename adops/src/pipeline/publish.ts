@@ -38,7 +38,9 @@ export async function publish(ctx: Ctx): Promise<PublishSummary> {
     // ペルソナ別の入稿先があればそちらへ（外国語の広告は専用の広告セットだけに入れる）
     const job = baseJob && { ...baseJob, placements: placementsFor(catalog, baseJob, c.personaId) };
     if (!job || !brief) {
-      summary.skipped.push({ creative: c, reason: '求人または企画が見つからない（jobs.json から削除された等）' });
+      // 求人ごと削除された完成品は今後も入稿されないので片付ける（停止中の求人のものは再開に備えて残す）
+      if (!retrying && !baseJob) store.setStatus(c, 'retired', '求人が jobs.json から削除されたため');
+      else summary.skipped.push({ creative: c, reason: '求人または企画が見つからない（jobs.json から削除された等）' });
       continue;
     }
     if (!job.active) {
