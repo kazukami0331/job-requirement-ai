@@ -555,3 +555,33 @@ test('windowFromCursor: 前回の通知位置から今までを対象にし、�
   writeFileSync(p, JSON.stringify({ until: prev - 3 * 86400 }));
   assert.deepEqual(windowFromCursor(p, now), leadWindow(now));
 });
+
+test('postLeads: 応募者情報を署名つきで連携先に送り、失敗したら例外', async () => {
+  const { postLeads } = await import('../src/pipeline/leads.ts');
+  const { createServer } = await import('node:http');
+  const { createHmac } = await import('node:crypto');
+  let got: { body: string; sig?: string } | null = null;
+  let status = 200;
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', (d) => (body += d));
+    req.on('end', () => {
+      got = { body, sig: req.headers['x-adops-signature'] as string | undefined };
+      res.statusCode = status;
+      res.end('ok');
+    });
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+  const url = `http://127.0.0.1:${(server.address() as any).port}/hook`;
+  process.env.ADOPS_LEADS_WEBHOOK_SECRET = 'sec';
+  try {
+    await postLeads(url, [{ leadId: 'l1', fields: { full_name: '山田 太郎' } }]);
+    assert.equal(JSON.parse(got!.body).leads[0].leadId, 'l1');
+    assert.equal(got!.sig, `sha256=${createHmac('sha256', 'sec').update(got!.body).digest('hex')}`);
+    status = 500;
+    await assert.rejects(postLeads(url, [{ leadId: 'l2' }]), /再送/);
+  } finally {
+    delete process.env.ADOPS_LEADS_WEBHOOK_SECRET;
+    server.close();
+  }
+});

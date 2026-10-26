@@ -2,6 +2,7 @@
  * インスタントフォーム（Meta リード獲得広告）に届いた応募を Slack に即知らせる。
  * 個人情報は Slack にも状態ファイルにも残さない（イニシャルと求人名だけ）。詳細は Meta のリードセンター/CRM で確認する。
  */
+import { createHmac } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import type { Ctx } from './context.ts';
 import { allPlacements } from '../config.ts';
@@ -58,6 +59,7 @@ export async function notifyLeads(ctx: Ctx, now = new Date(), cursorPath?: strin
   for (const c of ctx.store.creatives()) for (const id of c.platformRefs.meta?.adIds ?? []) adToCreative.set(id, c.id);
 
   const lines: string[] = [];
+  const forward: Record<string, unknown>[] = [];
   for (const formId of forms) {
     // API は「より後」の指定なので1秒手前から取り、範囲 [since, until) で絞る
     const leads = (await ctx.meta.leads(formId, since - 1)).filter((l) => l.createdTime >= since && l.createdTime < until);
@@ -66,11 +68,30 @@ export async function notifyLeads(ctx: Ctx, now = new Date(), cursorPath?: strin
       const c = l.adId ? ctx.store.state.creatives[adToCreative.get(l.adId) ?? ''] : undefined;
       const when = new Date(l.createdTime * 1000).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
       lines.push(`• ${when} ${maskName(l.fields)}｜${job?.title ?? formId}${c ? `｜広告: ${ANGLE_LABELS[c.angle]}「${ctx.store.state.briefs[c.briefId]?.overlay.main ?? ''}」` : ''}`);
+      forward.push({
+        leadId: l.id,
+        createdAt: new Date(l.createdTime * 1000).toISOString(),
+        formId,
+        jobId: job?.id ?? null,
+        jobTitle: job?.title ?? null,
+        adId: l.adId ?? null,
+        creativeId: c?.id ?? null,
+        angle: c?.angle ?? null,
+        fields: l.fields,
+      });
     }
   }
+  // 連携先（自社の CRM・ATS など）に応募者情報を送る。個人情報はここにだけ送り、adops には残さない。
+  // Slack より先に送り、失敗したら位置を進めずに失敗させる（次回また送る。受け手は leadId で重複を除く）
+  const hook = (process.env.ADOPS_LEADS_WEBHOOK_URL ?? '').trim();
+  if (hook && forward.length) await postLeads(hook, forward);
   if (lines.length) {
     const ok = await notifySlack(ctx.settings.slack.webhookUrl, {
-      text: [`:inbox_tray: *新しい応募（インスタントフォーム）${lines.length} 件*`, ...lines.slice(0, 30), '連絡先は Meta のリードセンター（または連携先の CRM）で確認してください。'].join('\n'),
+      text: [
+        `:inbox_tray: *新しい応募（インスタントフォーム）${lines.length} 件*`,
+        ...lines.slice(0, 30),
+        hook ? '連絡先は連携先の CRM に送りました。' : '連絡先は Meta のリードセンター（または連携先の CRM）で確認してください。',
+      ].join('\n'),
     });
     // 通知に失敗したら実行を失敗にして気づけるようにする（Actions の失敗通知）
     if (!ok) throw new Error(`応募 ${lines.length} 件の Slack 通知に失敗しました。リードセンターで確認してください`);
@@ -78,4 +99,14 @@ export async function notifyLeads(ctx: Ctx, now = new Date(), cursorPath?: strin
   if (cursorPath) writeFileSync(cursorPath, JSON.stringify({ until }));
   log.info(`リード ${lines.length} 件（${new Date(since * 1000).toISOString()}〜）`);
   return `新しい応募 ${lines.length} 件`;
+}
+
+/** 応募者情報を連携先に送る（HMAC-SHA256 の署名つき。ヘッダ x-adops-signature: sha256=<hex>）。 */
+export async function postLeads(url: string, leads: Record<string, unknown>[]): Promise<void> {
+  const body = JSON.stringify({ leads });
+  const secret = process.env.ADOPS_LEADS_WEBHOOK_SECRET ?? '';
+  const headers: Record<string, string> = { 'content-type': 'application/json' };
+  if (secret) headers['x-adops-signature'] = `sha256=${createHmac('sha256', secret).update(body).digest('hex')}`;
+  const res = await fetch(url, { method: 'POST', headers, body, signal: AbortSignal.timeout(30_000) });
+  if (!res.ok) throw new Error(`応募者情報の連携先への送信に失敗しました（HTTP ${res.status}）。次回の実行で再送します`);
 }
