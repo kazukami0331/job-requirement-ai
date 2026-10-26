@@ -119,6 +119,19 @@ export class GoogleAdsClient {
     await this.call(`${this.customer}/adGroupAds:mutate`, { operations: [{ update: { resourceName, status }, updateMask: 'status' }] });
   }
 
+  /** 広告グループで実際に検索された語句（直近30日、クリックの多い順）。 */
+  async searchTerms(adGroupId: string, limit = 20): Promise<{ term: string; clicks: number; conversions: number; impressions: number }[]> {
+    const rows = await this.search<any>(
+      `SELECT search_term_view.search_term, metrics.impressions, metrics.clicks, metrics.conversions FROM search_term_view WHERE ad_group.id = ${Number(adGroupId)} AND segments.date DURING LAST_30_DAYS ORDER BY metrics.clicks DESC LIMIT ${limit}`,
+    );
+    return rows.map((r) => ({
+      term: r.searchTermView.searchTerm,
+      impressions: Number(r.metrics.impressions ?? 0),
+      clicks: Number(r.metrics.clicks ?? 0),
+      conversions: Number(r.metrics.conversions ?? 0),
+    }));
+  }
+
   /** 広告の配信状態と審査状態（ENABLED/PAUSED と APPROVED/DISAPPROVED 等）。 */
   async adStatuses(adResourceNames: string[]): Promise<Map<string, { status: string; approval: string; topics: string }>> {
     const out = new Map<string, { status: string; approval: string; topics: string }>();

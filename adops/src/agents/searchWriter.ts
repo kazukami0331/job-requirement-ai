@@ -24,7 +24,20 @@ const SYSTEM = `あなたはブルーカラー求人に強い Google 検索広�
 - 給与・待遇は求人情報の事実だけ。年齢・性別の限定、成果保証、根拠のない No.1、閲覧者の状況を断定する表現は禁止
 - 記号の多用・！の連続は Google の審査で不承認になりやすいので避ける`;
 
-export async function writeRsa(llm: Llm, job: Job, catalog: Catalog, avoid: string[] = []): Promise<{ headlines: string[]; descriptions: string[]; path1: string; path2: string; dropped: string[] }> {
+export interface SearchTerm {
+  term: string;
+  clicks: number;
+  conversions: number;
+  impressions: number;
+}
+
+export async function writeRsa(
+  llm: Llm,
+  job: Job,
+  catalog: Catalog,
+  avoid: string[] = [],
+  terms: SearchTerm[] = [],
+): Promise<{ headlines: string[]; descriptions: string[]; path1: string; path2: string; dropped: string[] }> {
   const s = job.salary;
   const out = await llm.structured({
     agent: 'searchWriter',
@@ -40,7 +53,15 @@ ${job.hours ? `- 勤務時間: ${job.hours}` : ''}
 ${job.holidays ? `- 休日: ${job.holidays}` : ''}
 ${job.requirements ? `- 応募条件: ${job.requirements}` : ''}
 
-${avoid.length ? `# 既存の広告で使っている見出し（今回は別の言い回しで挑戦する）\n${avoid.map((h) => `- ${h}`).join('\n')}` : ''}`,
+${avoid.length ? `# 既存の広告で使っている見出し（今回は別の言い回しで挑戦する）\n${avoid.map((h) => `- ${h}`).join('\n')}` : ''}
+
+${
+  terms.length
+    ? `# 実際に検索された語句（直近30日・クリックの多い順）。応募につながった語句の言い回しを見出しに取り入れる（求人情報の事実に合うものだけ）\n${terms
+        .map((t) => `- 「${t.term}」 クリック ${t.clicks}${t.conversions ? ` / 応募 ${t.conversions}` : ''}`)
+        .join('\n')}`
+    : ''
+}`,
     schema: RsaSchema,
   });
   return sanitizeRsa(out, job, catalog);

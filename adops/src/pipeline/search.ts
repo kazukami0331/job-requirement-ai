@@ -104,7 +104,10 @@ export async function rotateSearchAds(ctx: Ctx): Promise<string> {
       // 同じ日に何度も作らない
       if (Object.values(ads).some((a) => a.adGroupId === adGroupId && a.status === 'live' && a.createdOn === today)) continue;
       try {
-        const rsa = await writeRsa(ctx.llm, job, catalog, inGroup.flatMap((a) => a.headlines));
+        // 実際の検索語句があれば、それに答える見出しを作る（取得できなくても続行）
+        const google = ctx.google;
+        const terms = google ? await Promise.resolve().then(() => google.searchTerms(adGroupId)).catch(() => []) : [];
+        const rsa = await writeRsa(ctx.llm, job, catalog, inGroup.flatMap((a) => a.headlines), terms);
         if (rsa.headlines.length < 8 || rsa.descriptions.length < 2) {
           notes.push(`${job.id}: 使える見出し・説明文が足りないため見送り（見出し ${rsa.headlines.length} / 説明文 ${rsa.descriptions.length}）`);
           continue;
