@@ -117,6 +117,7 @@ jobs:
           GOOGLE_ADS_BUSINESS_NAME: ${{ vars.GOOGLE_ADS_BUSINESS_NAME }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           ADOPS_SLACK_APPROVALS: ${{ vars.ADOPS_SLACK_APPROVALS }}
+          ADOPS_REPORT_URL: ${{ vars.ADOPS_REPORT_URL }}
           ADOPS_APPROVAL_SECRET: ${{ secrets.ADOPS_APPROVAL_SECRET }}
           ADOPS_TTS: ${{ vars.ADOPS_TTS }}
           ADOPS_TTS_VOICE: ${{ vars.ADOPS_TTS_VOICE }}

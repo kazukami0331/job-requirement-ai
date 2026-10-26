@@ -174,6 +174,7 @@ Next.js アプリを Vercel にデプロイしていれば、`https://<Vercel �
 （`adops-state` ブランチの最新のレポートと画像を GitHub から取って表示します。状態ファイル自体は公開しません）。
 Vercel の環境変数に `ADOPS_REPORT_PASSWORD`（ユーザー名は `adops`）、`ADOPS_GITHUB_REPO`（例: `kazukami0331/job-requirement-ai`）、
 `ADOPS_GITHUB_TOKEN`（このリポジトリの Contents: Read-only の fine-grained トークン）を設定してください。
+GitHub の Variables に `ADOPS_REPORT_URL=https://<Vercel のドメイン>/adops` を入れると、毎日の Slack 通知にリンクが付きます。
 
 ### 4. GitHub Actions で毎日動かす
 

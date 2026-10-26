@@ -192,7 +192,7 @@ function summaryMessage(
   if (skippedReasons.length) lines.push(`• 保留 ${r.published.skipped.length} 本: ${skippedReasons.join(' / ')}`);
   if (r.searchNote) lines.push(`*Google 検索広告* ${r.searchNote}`);
   if (r.organicNote) lines.push(`*Instagram 投稿* ${r.organicNote}`);
-  lines.push('', `AI費用 $${record.llmCostUsd}`);
+  lines.push('', `AI費用 $${record.llmCostUsd}${process.env.ADOPS_REPORT_URL ? `｜<${process.env.ADOPS_REPORT_URL}|レポートを開く>` : ''}`);
   const text = lines.join('\n');
   return { text, blocks: sections(text) };
 }
