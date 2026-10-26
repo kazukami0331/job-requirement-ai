@@ -48,6 +48,7 @@ async function ensureImages(ctx: Ctx, c: Creative, brief: CreativeBrief): Promis
       job.jobId = r.jobId ?? job.jobId;
     } else {
       job.jobId = r.jobId;
+      if (r.note.startsWith('置き場所')) job.note = r.note;
       log.info(`${c.id} ${ratio}: 生成待ち（${r.note}）`);
     }
   }
@@ -65,6 +66,8 @@ async function selectImages(ctx: Ctx, c: Creative, brief: CreativeBrief): Promis
     log.info(`${c.id} ${job.ratio}: 候補${job.paths.length}枚から #${pick.selectedIndex} を選択（${pick.score}点）${pick.reason}`);
     if (pick.selectedIndex < 0) {
       // 全候補が使えない → 次回サイクルで作り直す
+      const imageId = `${c.id}_${job.ratio.replace(':', 'x').replace('.', '')}`;
+      await ctx.images.discard?.(imageId);
       job.paths = undefined;
       job.jobId = undefined;
       job.selected = undefined;

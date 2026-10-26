@@ -50,6 +50,9 @@ export interface Settings {
     };
     /** 手渡しモードで人が画像を置くフォルダ */
     inboxDir: string;
+    /** 手渡しの置き場所: local（data/inbox）か drive（Google ドライブ） */
+    inbox: 'local' | 'drive';
+    drive: { serviceAccountJson: string; folderId: string };
   };
   meta: {
     accessToken: string;
@@ -96,6 +99,8 @@ export function loadSettings(): Settings {
         videoEnabled: envBool('MJ_VIDEO_ENABLED', false),
       },
       inboxDir: resolve(ROOT, env('MJ_INBOX_DIR', 'data/inbox')),
+      inbox: env('MJ_INBOX', 'local') as 'local' | 'drive',
+      drive: { serviceAccountJson: env('GOOGLE_SERVICE_ACCOUNT_JSON'), folderId: env('DRIVE_INBOX_FOLDER_ID') },
     },
     meta: {
       accessToken: env('META_ACCESS_TOKEN'),

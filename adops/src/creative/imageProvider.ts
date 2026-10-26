@@ -8,8 +8,9 @@
  *               人の作業は「コピペして生成し、気に入った4枚を保存する」だけ。規約上もっとも安全。
  * - mock:       プレースホルダー画像を作る（API キーなしでの動作確認・テスト用）。
  */
-import { existsSync, mkdirSync, readdirSync, renameSync, writeFileSync } from 'node:fs';
-import { extname, join } from 'node:path';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { DriveInbox, LocalInbox, type Inbox } from './inbox.ts';
 import sharp from 'sharp';
 import type { Settings } from '../config.ts';
 import type { Ratio } from '../types.ts';
@@ -35,6 +36,8 @@ export interface ImageProvider {
   /** 生成を依頼する。すぐ終わらない方式は pending を返し、次回 poll で回収する */
   generate(req: GenerateRequest): Promise<GenerateResult>;
   poll(req: GenerateRequest, jobId: string): Promise<GenerateResult>;
+  /** 生成済みの画像を破棄して作り直せるようにする（手渡しモードで画像審査が全滅したとき） */
+  discard?(creativeId: string): Promise<void>;
   /** 画像から短い動画を作る（対応していなければ null） */
   animate?(req: GenerateRequest & { imagePath: string; motionPrompt: string }): Promise<string | null>;
 }
@@ -214,47 +217,46 @@ async function splitGrid(path: string, req: GenerateRequest): Promise<string[]> 
 // handoff（人が midjourney.com で生成して inbox に置く）
 // ---------------------------------------------------------------------------
 
-const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp']);
-
 export class HandoffProvider implements ImageProvider {
   readonly name = 'handoff';
-  private inbox: string;
-  constructor(inboxDir: string) {
-    this.inbox = inboxDir;
-    mkdirSync(inboxDir, { recursive: true });
-  }
+  readonly inbox: Inbox;
+  private params: string;
+  /** 人に伝える置き場所（Slack 通知で使う） */
+  readonly locations = new Map<string, string>();
 
-  /** 人が画像を置くフォルダ: inbox/<creativeId>/ に 1〜4 枚 */
-  folder(creativeId: string): string {
-    return join(this.inbox, creativeId);
+  constructor(inbox: Inbox, params = '--v 7 --style raw') {
+    this.inbox = inbox;
+    this.params = params;
   }
 
   async generate(req: GenerateRequest): Promise<GenerateResult> {
-    const dir = this.folder(req.creativeId);
-    mkdirSync(dir, { recursive: true });
-    const prompt = buildMjPrompt(req.prompt, req.ratio, '--v 7 --style raw');
-    writeFileSync(join(dir, 'PROMPT.txt'), `${prompt}\n\n# midjourney.com で上のプロンプトを生成し、良い画像を1〜4枚このフォルダに保存してください。\n`);
-    return this.poll(req, req.creativeId).then((r) =>
-      r.status === 'done' ? r : { status: 'pending', jobId: req.creativeId, note: `プロンプト: ${prompt}` },
+    const prompt = buildMjPrompt(req.prompt, req.ratio, this.params);
+    const where = await this.inbox.prepare(
+      req.creativeId,
+      `${prompt}\n\n# midjourney.com で上のプロンプトを生成し、良い画像を1〜4枚このフォルダに保存してください。\n`,
     );
+    this.locations.set(req.creativeId, where);
+    const r = await this.poll(req, req.creativeId);
+    return r.status === 'done' ? r : { status: 'pending', jobId: req.creativeId, note: `置き場所: ${where}` };
   }
 
   async poll(req: GenerateRequest, jobId: string): Promise<GenerateResult> {
-    // 取り込み済み（.imported）も見る: 実行環境が変わって制作し直すときに同じ画像を使うため
-    const dir = [this.folder(jobId), `${this.folder(jobId)}.imported`].find((d) => existsSync(d));
-    if (!dir) return { status: 'pending', jobId, note: 'フォルダなし' };
-    const files = readdirSync(dir).filter((f) => IMAGE_EXT.has(extname(f).toLowerCase()));
-    if (files.length === 0) return { status: 'pending', jobId, note: '画像待ち' };
+    const images = await this.inbox.fetch(jobId);
+    if (!images) return { status: 'pending', jobId, note: '画像待ち' };
     mkdirSync(req.outDir, { recursive: true });
     const paths: string[] = [];
-    for (const [i, f] of files.slice(0, 4).entries()) {
+    for (const [i, buf] of images.entries()) {
       const p = join(req.outDir, `${req.creativeId}_mj_${i}.png`);
-      await sharp(join(dir, f)).png().toFile(p);
+      await sharp(buf).png().toFile(p);
       paths.push(p);
     }
     // 取り込んだら印を付ける（二重取り込み防止）
-    if (!dir.endsWith('.imported')) renameSync(dir, `${dir}.imported`);
+    await this.inbox.markImported(jobId);
     return { status: 'done', paths, jobId };
+  }
+
+  async discard(creativeId: string): Promise<void> {
+    await this.inbox.discard(creativeId);
   }
 }
 
@@ -263,7 +265,10 @@ export function createImageProvider(s: Settings): ImageProvider {
     case 'midjourney':
       return new MidjourneyProxyProvider(s.image.midjourney);
     case 'handoff':
-      return new HandoffProvider(s.image.inboxDir);
+      return new HandoffProvider(
+        s.image.inbox === 'drive' ? new DriveInbox(s.image.drive.serviceAccountJson, s.image.drive.folderId) : new LocalInbox(s.image.inboxDir),
+        s.image.midjourney.params,
+      );
     case 'mock':
       return new MockProvider();
     default:

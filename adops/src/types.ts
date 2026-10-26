@@ -209,6 +209,8 @@ export interface ImageJob {
   paths?: string[];
   /** 画像審査で選ばれた候補 */
   selected?: number;
+  /** 生成待ちの状況（手渡しモードでは画像の置き場所） */
+  note?: string;
   /** Midjourney Video などで作った動画クリップ */
   clip?: string | null;
 }

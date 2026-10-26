@@ -81,6 +81,9 @@ jobs:
           MJ_API_BASE_URL: ${{ vars.MJ_API_BASE_URL }}
           MJ_API_KEY: ${{ secrets.MJ_API_KEY }}
           MJ_VIDEO_ENABLED: ${{ vars.MJ_VIDEO_ENABLED }}
+          MJ_INBOX: ${{ vars.MJ_INBOX }}
+          DRIVE_INBOX_FOLDER_ID: ${{ vars.DRIVE_INBOX_FOLDER_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           META_AD_ACCOUNT_ID: ${{ vars.META_AD_ACCOUNT_ID }}

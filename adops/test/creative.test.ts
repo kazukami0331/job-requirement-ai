@@ -6,6 +6,8 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import { composeImage, fitFont, textUnits, wrapJa } from '../src/creative/compose.ts';
 import { buildMjPrompt, MockProvider, HandoffProvider } from '../src/creative/imageProvider.ts';
+import { LocalInbox, signJwt } from '../src/creative/inbox.ts';
+import { generateKeyPairSync, createVerify } from 'node:crypto';
 import { brand, brief, job } from './fixtures.ts';
 import { googleTexts, fitGoogle } from '../src/platforms/google.ts';
 import { withUtm } from '../src/platforms/meta.ts';
@@ -57,7 +59,7 @@ test('composeImage: 全比率を正しいサイズで書き出す', async () => 
 test('HandoffProvider: 画像が置かれるまで pending、置かれたら取り込む', async () => {
   const inbox = mkdtempSync(join(tmpdir(), 'inbox-'));
   const out = mkdtempSync(join(tmpdir(), 'out-'));
-  const p = new HandoffProvider(inbox);
+  const p = new HandoffProvider(new LocalInbox(inbox));
   const req = { creativeId: 'cr_x_4x5', prompt: 'worker, no text', ratio: '4:5' as const, outDir: out };
   const first = await p.generate(req);
   assert.equal(first.status, 'pending');
@@ -67,6 +69,21 @@ test('HandoffProvider: 画像が置かれるまで pending、置かれたら取�
   const second = await p.poll(req, 'cr_x_4x5');
   assert.equal(second.status, 'done');
   assert.ok(existsSync(join(inbox, 'cr_x_4x5.imported')));
+  // 素材が消えた後の再制作では、取り込み済みの画像をもう一度使える
+  assert.equal((await p.poll(req, 'cr_x_4x5')).status, 'done');
+  // 画像審査で全滅したら破棄して、新しい画像を待つ（同じ画像を再び取り込まない）
+  await p.discard(req.creativeId);
+  assert.equal((await p.generate(req)).status, 'pending');
+  writeFileSync(join(inbox, 'cr_x_4x5', 'b.png'), await sharp({ create: { width: 64, height: 80, channels: 3, background: '#444' } }).png().toBuffer());
+  assert.equal((await p.poll(req, 'cr_x_4x5')).status, 'done');
+});
+
+test('signJwt: サービスアカウント鍵で検証できる RS256 署名を作る', () => {
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const jwt = signJwt({ client_email: 'a@b.iam.gserviceaccount.com', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString() }, 'scope-x', 1000);
+  const [h, c, sig] = jwt.split('.');
+  assert.equal(JSON.parse(Buffer.from(c, 'base64url').toString()).scope, 'scope-x');
+  assert.ok(createVerify('RSA-SHA256').update(`${h}.${c}`).verify(publicKey, Buffer.from(sig, 'base64url')));
 });
 
 test('googleTexts: 見出し・説明文が Google の上限内', () => {

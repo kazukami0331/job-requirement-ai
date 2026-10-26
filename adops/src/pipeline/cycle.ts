@@ -144,9 +144,13 @@ function summaryMessage(
   lines.push(`*制作* 完成 ${r.produced.produced} / 画像待ち ${r.produced.waiting} / 失敗 ${r.produced.failed}`);
   const waiting = store.creatives({ status: 'awaiting_images' });
   if (waiting.length && ctx.images.name === 'handoff') {
-    lines.push('', `*:art: Midjourney で生成してください（${waiting.length} 本）*`, '生成した画像を `data/inbox/<ID>/` に保存すると次回取り込みます。');
+    lines.push('', `*:art: Midjourney で生成してください（${waiting.length} 本）*`, '各プロンプトを midjourney.com で生成し、良い画像を1〜4枚、示したフォルダに保存すると次回の実行で取り込みます。');
     for (const c of waiting.slice(0, 10)) {
-      for (const j of c.imageJobs.filter((j) => !j.paths?.length)) lines.push(`• \`${c.id}_${j.ratio.replace(':', 'x').replace('.', '')}\`\n\`\`\`${j.prompt} --ar ${j.ratio === '1.91:1' ? '191:100' : j.ratio}\`\`\``);
+      for (const j of c.imageJobs.filter((j) => !j.paths?.length)) {
+        const id = `${c.id}_${j.ratio.replace(':', 'x').replace('.', '')}`;
+        const where = j.note?.replace(/^置き場所: /, '') ?? `inbox/${id}/`;
+        lines.push(`• \`${id}\` → ${where.startsWith('http') ? `<${where}|フォルダを開く>` : `\`${where}\``}\n\`\`\`${j.prompt} --ar ${j.ratio === '1.91:1' ? '191:100' : j.ratio}\`\`\``);
+      }
     }
   }
   lines.push(`*入稿* ${r.published.published.length} 本${ctx.catalog.policy.autonomy === 'draft' && r.published.published.length ? '（停止状態。管理画面で確認して ON にしてください）' : ''}`);

@@ -50,9 +50,17 @@ Midjourney には**公式 API がありません**（2026年10月時点）。ま
 | `midjourney` | なし | **あり**（中継 API 経由。アカウント停止の可能性） | 規約を確認した上で自己責任で |
 | `mock` | なし | なし | 動作確認・テスト |
 
-`handoff` のときの inbox は `adops-state` ブランチの `inbox/` です。GitHub の画面で
-`adops-state` ブランチ → `inbox/` → 「Add file → Upload files」で `inbox/cr_xxx_4x5/` のようなフォルダに画像を置けば、
-次の実行（6:00）で自動で取り込まれ、選定・合成・入稿まで進みます。
+`handoff` の画像の置き場所は2通りです。
+
+- **Google ドライブ（おすすめ）** `MJ_INBOX=drive`: 共有フォルダの中に、AI が企画ごとのフォルダ（`cr_xxx_4x5` など）と
+  `PROMPT.txt` を自動で作ります。Slack にフォルダへのリンクとプロンプトが届くので、midjourney.com（スマホ可）で生成して
+  そのフォルダに画像を保存するだけ。次の実行で取り込まれ、選定・合成・入稿まで進みます。
+  設定: Google Cloud でサービスアカウントを作り（Drive API を有効化）、鍵 JSON を `GOOGLE_SERVICE_ACCOUNT_JSON`、
+  ドライブのフォルダをサービスアカウントのメールアドレスに「編集者」で共有し、そのフォルダ ID を `DRIVE_INBOX_FOLDER_ID` に。
+- **GitHub** `MJ_INBOX=local`（既定）: `adops-state` ブランチの `inbox/cr_xxx_4x5/` に「Add file → Upload files」で置く。
+
+取り込んだフォルダは `.imported` に、画像審査で全て使えなかったフォルダは（ドライブでは）`.rejected-…` に名前が変わり、
+新しいフォルダとプロンプトがもう一度届きます。
 
 > Midjourney 以外の公式 API を持つ画像モデルに切り替えたい場合は、`src/creative/imageProvider.ts` に
 > `ImageProvider` を1つ実装すれば差し替えられます。
@@ -133,8 +141,8 @@ Node.js 22.18 以上（TypeScript をそのまま実行します）、`ffmpeg`�
 
 | 種類 | 名前 |
 |---|---|
-| Secrets | `ADOPS_OUTCOMES_CSV_URL` `ANTHROPIC_API_KEY` `META_ACCESS_TOKEN` `META_APP_SECRET` `GOOGLE_ADS_DEVELOPER_TOKEN` `GOOGLE_ADS_CLIENT_ID` `GOOGLE_ADS_CLIENT_SECRET` `GOOGLE_ADS_REFRESH_TOKEN` `YOUTUBE_REFRESH_TOKEN` `MJ_API_KEY` `SLACK_WEBHOOK_URL` |
-| Variables | `ADOPS_DRY_RUN`（`false` で本番）`IMAGE_PROVIDER` `META_AD_ACCOUNT_ID` `META_PAGE_ID` `META_INSTAGRAM_USER_ID` `META_CONVERSION_ACTION_TYPES` `GOOGLE_ADS_CUSTOMER_ID` `GOOGLE_ADS_LOGIN_CUSTOMER_ID` `GOOGLE_ADS_CONVERSION_ACTION` `GOOGLE_ADS_LOGO_ASSET` `GOOGLE_ADS_BUSINESS_NAME` `ADOPS_MODEL` `MJ_API_BASE_URL` `MJ_VIDEO_ENABLED` |
+| Secrets | `GOOGLE_SERVICE_ACCOUNT_JSON` `ADOPS_OUTCOMES_CSV_URL` `ANTHROPIC_API_KEY` `META_ACCESS_TOKEN` `META_APP_SECRET` `GOOGLE_ADS_DEVELOPER_TOKEN` `GOOGLE_ADS_CLIENT_ID` `GOOGLE_ADS_CLIENT_SECRET` `GOOGLE_ADS_REFRESH_TOKEN` `YOUTUBE_REFRESH_TOKEN` `MJ_API_KEY` `SLACK_WEBHOOK_URL` |
+| Variables | `ADOPS_DRY_RUN`（`false` で本番）`IMAGE_PROVIDER` `META_AD_ACCOUNT_ID` `META_PAGE_ID` `META_INSTAGRAM_USER_ID` `META_CONVERSION_ACTION_TYPES` `GOOGLE_ADS_CUSTOMER_ID` `GOOGLE_ADS_LOGIN_CUSTOMER_ID` `GOOGLE_ADS_CONVERSION_ACTION` `GOOGLE_ADS_LOGO_ASSET` `GOOGLE_ADS_BUSINESS_NAME` `ADOPS_MODEL` `MJ_API_BASE_URL` `MJ_VIDEO_ENABLED` `MJ_INBOX` `DRIVE_INBOX_FOLDER_ID` `ADOPS_MAX_LLM_USD` |
 
 `ADOPS_DRY_RUN` を `false` にするまでは媒体に何も書き込みません。最初は DRY RUN のまま数日動かし、
 Slack とレポートで企画と素材の質を確認してから本番にしてください。
