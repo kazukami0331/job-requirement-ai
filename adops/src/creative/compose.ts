@@ -5,6 +5,7 @@
 import sharp, { type OverlayOptions, type Sharp } from 'sharp';
 import type { Brand, CreativeBrief, Job, Ratio } from '../types.ts';
 import { formatYen } from '../compliance/rules.ts';
+import { ctaText, salaryLine } from './i18n.ts';
 
 export const RATIO_PX: Record<Ratio, [number, number]> = {
   '1:1': [1080, 1080],
@@ -323,11 +324,14 @@ ${textBlock(f.lines, W / 2, top + f.size * 0.85, f.size, c.text, { anchor: 'midd
 export async function endCardPng(brief: CreativeBrief, job: Job, brand: Brand, W: number, H: number): Promise<Buffer> {
   const c = brand.colors;
   const pad = Math.round(W * 0.08);
-  const title = fitFont(job.title, W - pad * 2, 3, Math.round(W * 0.07), Math.round(W * 0.045));
+  const lang = brief.language ?? 'ja';
+  const foreign = lang !== 'ja';
+  // 外国語の広告では、職種名と待遇の代わりにその言語で書かれた見出し・バッジを出す
+  const title = fitFont(foreign ? brief.headline : job.title, W - pad * 2, 3, Math.round(W * 0.07), Math.round(W * 0.045));
   const s = job.salary;
-  const salary = `${s.type} ${formatYen(s.min)}${s.max ? `〜${formatYen(s.max)}` : '〜'}`;
+  const salary = salaryLine(job, lang);
   const salaryF = fitFont(salary, W - pad * 3, 1, Math.round(W * 0.09), Math.round(W * 0.05));
-  const perks = job.perks.slice(0, 4);
+  const perks = (foreign ? brief.overlay.badges : job.perks).slice(0, 4);
   let y = H * 0.22;
   const parts: string[] = [];
   parts.push(textBlock([brand.name], W / 2, y, Math.round(W * 0.04), c.accent, { anchor: 'middle', weight: 700 }));
@@ -337,7 +341,7 @@ export async function endCardPng(brief: CreativeBrief, job: Job, brand: Brand, W
   parts.push(`<rect x="${pad}" y="${y - salaryF.size}" width="${W - pad * 2}" height="${salaryF.size * 1.5}" rx="${salaryF.size * 0.3}" fill="${c.accent}"/>`);
   parts.push(textBlock(salaryF.lines, W / 2, y + salaryF.size * 0.25, salaryF.size, c.background, { anchor: 'middle' }));
   y += salaryF.size * 1.6;
-  if (s.note) {
+  if (s.note && !foreign) {
     parts.push(textBlock(wrapJa(s.note, Math.floor((W - pad * 2) / (W * 0.035)), 2), W / 2, y, Math.round(W * 0.035), c.text, { anchor: 'middle', weight: 500 }));
     y += W * 0.1;
   }
@@ -347,7 +351,7 @@ export async function endCardPng(brief: CreativeBrief, job: Job, brand: Brand, W
     y += perkSize * 1.6;
   }
   parts.push(textBlock([job.location], W / 2, H * 0.84, Math.round(W * 0.04), c.text, { anchor: 'middle', weight: 500 }));
-  parts.push(textBlock(['▼ 詳しい条件・応募はこちら'], W / 2, H * 0.9, Math.round(W * 0.05), c.accent, { anchor: 'middle' }));
+  parts.push(textBlock([`▼ ${ctaText(lang)}`], W / 2, H * 0.9, Math.round(W * (foreign ? 0.04 : 0.05)), c.accent, { anchor: 'middle' }));
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
 <rect width="100%" height="100%" fill="${c.background}"/>
 ${parts.join('\n')}

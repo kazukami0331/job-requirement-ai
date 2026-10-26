@@ -170,3 +170,11 @@ test('FallbackProvider: 手渡しの画像が期限内に届かなければ代�
   assert.equal(late.status, 'done');
   assert.deepEqual(discarded, ['x']);
 });
+
+test('i18n: 外国語のエンドカードは給与の種類を訳し、金額は「300,000円」の形にする', async () => {
+  const { salaryLine, ctaText } = await import('../src/creative/i18n.ts');
+  const { job } = await import('./fixtures.ts');
+  assert.equal(salaryLine(job(), 'vi'), 'Lương tháng 300,000円 - 380,000円');
+  assert.match(salaryLine(job(), 'ja'), /^月給 30万円〜38万円$/);
+  assert.equal(ctaText('xx'), ctaText('en'));
+});

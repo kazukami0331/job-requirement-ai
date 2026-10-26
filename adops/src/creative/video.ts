@@ -13,6 +13,7 @@ import type { Brand, CreativeBrief, Job } from '../types.ts';
 import { captionPng, endCardPng } from './compose.ts';
 import { formatYen } from '../compliance/rules.ts';
 import type { Tts } from './tts.ts';
+import { ctaText } from './i18n.ts';
 
 const run = promisify(execFile);
 const W = 1080;
@@ -135,7 +136,9 @@ export async function buildVideo(input: VideoInput): Promise<{ path: string; dur
   const endVoicePath = join(workDir, 'narr_end.mp3');
   const endVoiceSec = await narrate(
     input.tts,
-    `${job.title}。${sal.type}${formatYen(sal.min)}${sal.max ? `から${formatYen(sal.max)}` : 'から'}。詳しい条件は、画面の下から見られます。`,
+    brief.language && brief.language !== 'ja'
+      ? `${brief.headline}. ${ctaText(brief.language)}.`
+      : `${job.title}。${sal.type}${formatYen(sal.min)}${sal.max ? `から${formatYen(sal.max)}` : 'から'}。詳しい条件は、画面の下から見られます。`,
     endVoicePath,
   );
   if (endVoiceSec > 0) voices.push({ path: endVoicePath, part: scenes.length });
