@@ -48,7 +48,7 @@ Slack の日次通知で次を見ます。
 ## トラブル時
 
 ### すぐ全部止めたい
-GitHub の Actions → **adops** → Run workflow → `control` に **stop** を選んで実行。
+Slack で **`/adops stop`**（設定済みの場合）、または GitHub の Actions → **adops** → Run workflow → `control` に **stop** を選んで実行。
 adops が入稿した広告（Meta・Google・検索広告）をすべて停止し、解除するまで企画・入稿・投稿をしません（実績の取り込みと報告は続けます）。
 手元からなら `node src/cli.ts emergency-stop`。解除は `control: resume` か `node src/cli.ts resume`
 （止めた広告は自動では再開しないので、必要なものを管理画面で ON にしてください）。

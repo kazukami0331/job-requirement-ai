@@ -172,6 +172,10 @@ draft モードでは、入稿した広告ごとに Slack へ「プレビュー�
    `META_ACCESS_TOKEN`（と `META_APP_SECRET`）、Google の広告も承認するなら `GOOGLE_ADS_*` を設定。
 5. GitHub の Variables に `ADOPS_SLACK_APPROVALS=true`。
 
+**Slack から緊急停止**: Slack アプリに Slash Command `/adops`（Request URL は同じ `https://<Vercel のドメイン>/api/adops/slack`）を追加し、
+Vercel に `ADOPS_GITHUB_REPO` と `ADOPS_GITHUB_TOKEN`（このリポジトリの Actions: Read and write 権限）を設定すると、
+承認者が `/adops stop` で緊急停止、`/adops resume` で解除できます。
+
 ボタンの有効期限は48時間です。adops が停止判断や緊急停止で止めた広告（広告名の末尾に `[adops停止]`）は、古いボタンを押しても再開しません。
 
 ボタンが押されると媒体の広告が ON（却下なら停止のまま）になり、メッセージが「◯◯さんが配信を開始しました」に書き換わります。
@@ -232,7 +236,7 @@ node src/cli.ts emergency-stop / resume  # 緊急停止 / 解除
 > 導入から本番化の進め方、毎日・毎週の確認、トラブル時の対応は [RUNBOOK.md](RUNBOOK.md) にまとめています。
 
 - **1日の広告費の上限**: `ADOPS_DAILY_SPEND_CAP`（円）を設定すると、日中の実績取り込みで当日の消化額が上限を超えた時点で自動的に緊急停止します（自動モードでは必ず設定してください）。
-- **緊急停止**: Actions → adops → Run workflow → `control: stop`（または `node src/cli.ts emergency-stop`）で、adops が入稿した広告をすべて停止し、解除（`resume`）まで新しい入稿もしない。
+- **緊急停止**: Slack で `/adops stop`、または Actions → adops → Run workflow → `control: stop`（手元なら `node src/cli.ts emergency-stop`）で、adops が入稿した広告をすべて停止し、解除（`resume`）まで新しい入稿もしない。
 
 - 既定は DRY RUN（媒体への入稿・停止・予算変更・Instagram 投稿をしない。企画・画像生成・制作は行うので Claude と Midjourney の費用はかかる）。
   `draft` モードでは停止状態で入稿し、予算は増やさない（提案のみ）。

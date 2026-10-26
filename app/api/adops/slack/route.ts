@@ -121,7 +121,10 @@ export async function POST(req: Request) {
   if (!verifySlack(body, req.headers.get("x-slack-request-timestamp"), req.headers.get("x-slack-signature"))) {
     return new NextResponse("invalid signature", { status: 401 });
   }
-  const payload = JSON.parse(new URLSearchParams(body).get("payload") ?? "{}");
+  const form = new URLSearchParams(body);
+  // スラッシュコマンド（/adops stop | resume）
+  if (form.get("command")) return slashCommand(form);
+  const payload = JSON.parse(form.get("payload") ?? "{}");
   const action = payload.actions?.[0];
   if (payload.type !== "block_actions" || !action?.action_id?.startsWith("adops_")) return new NextResponse("", { status: 200 });
 
@@ -176,4 +179,39 @@ export async function POST(req: Request) {
   });
 
   return new NextResponse("", { status: 200 });
+}
+
+/**
+ * /adops stop | resume — GitHub Actions の adops ワークフローを緊急操作として起動する。
+ * 必要な環境変数: ADOPS_GITHUB_REPO、ADOPS_GITHUB_TOKEN（Actions: Read and write 権限）、ADOPS_SLACK_APPROVERS。
+ */
+async function slashCommand(form: URLSearchParams): Promise<Response> {
+  const reply = (text: string) => NextResponse.json({ response_type: "ephemeral", text });
+  const userId = form.get("user_id") ?? "";
+  const approvers = (process.env.ADOPS_SLACK_APPROVERS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (!approvers.includes(userId)) return reply("この操作をする権限がありません（ADOPS_SLACK_APPROVERS）。");
+  const sub = (form.get("text") ?? "").trim().toLowerCase();
+  if (sub !== "stop" && sub !== "resume") {
+    return reply("使い方: `/adops stop`（adops の広告をすべて停止し、新しい入稿も止める） / `/adops resume`（解除）");
+  }
+  const repo = process.env.ADOPS_GITHUB_REPO;
+  const token = process.env.ADOPS_GITHUB_TOKEN;
+  if (!repo || !token) return reply("ADOPS_GITHUB_REPO / ADOPS_GITHUB_TOKEN が未設定です。");
+  const res = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/adops.yml/dispatches`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28", "content-type": "application/json" },
+    body: JSON.stringify({ ref: process.env.ADOPS_GITHUB_REF || "main", inputs: { control: sub } }),
+  });
+  if (!res.ok) return reply(`ワークフローを起動できませんでした（GitHub ${res.status}）。Actions の画面から実行してください。`);
+  after(() =>
+    fetch(form.get("response_url") ?? "", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        response_type: "in_channel",
+        text: sub === "stop" ? `:octagonal_sign: <@${userId}> が adops の緊急停止を実行しました（数分で全広告が止まります）` : `:arrow_forward: <@${userId}> が adops の緊急停止を解除しました`,
+      }),
+    }).then(() => undefined, () => undefined),
+  );
+  return reply(sub === "stop" ? "緊急停止を開始しました。数分後に Slack に結果が届きます。" : "解除を開始しました。");
 }
