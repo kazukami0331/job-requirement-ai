@@ -21,7 +21,11 @@ async function token(a: YoutubeAuth): Promise<string> {
   return ((await res.json()) as { access_token: string }).access_token;
 }
 
-export async function uploadToYoutube(a: YoutubeAuth, path: string, meta: { title: string; description: string }): Promise<string> {
+export async function uploadToYoutube(
+  a: YoutubeAuth,
+  path: string,
+  meta: { title: string; description: string; privacy?: 'unlisted' | 'public' },
+): Promise<string> {
   const access = await token(a);
   const size = statSync(path).size;
   // 1) 再開可能アップロードのセッションを作る
@@ -36,8 +40,8 @@ export async function uploadToYoutube(a: YoutubeAuth, path: string, meta: { titl
       },
       json: {
         snippet: { title: meta.title.slice(0, 100), description: meta.description.slice(0, 4900), categoryId: '22' },
-        // 広告専用。検索やチャンネルには出さない
-        status: { privacyStatus: 'unlisted', selfDeclaredMadeForKids: false },
+        // 既定は限定公開（広告用。検索やチャンネルには出さない）。オーガニックのショートは public で呼ぶ
+        status: { privacyStatus: meta.privacy ?? 'unlisted', selfDeclaredMadeForKids: false },
       },
     });
   } catch (e) {
@@ -52,6 +56,7 @@ export async function uploadToYoutube(a: YoutubeAuth, path: string, meta: { titl
     headers: { authorization: `Bearer ${access}`, 'content-type': 'video/mp4', 'content-length': String(size) },
     body: readFileSync(path),
     timeoutMs: 600_000,
+    attempts: 1, // 再送で同じ動画が二重に公開されないように
   });
   const body = (await res.json()) as { id?: string };
   if (!body.id) throw new Error('YouTube: 動画 ID が返りませんでした');

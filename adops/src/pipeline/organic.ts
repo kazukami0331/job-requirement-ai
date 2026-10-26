@@ -7,6 +7,8 @@ import { existsSync } from 'node:fs';
 import type { Ctx } from './context.ts';
 import type { Creative } from '../types.ts';
 import { InstagramClient } from '../platforms/instagram.ts';
+import { FacebookPageClient } from '../platforms/facebookPage.ts';
+import { uploadToYoutube } from '../platforms/youtube.ts';
 import { writeCaption } from '../agents/socialWriter.ts';
 import { checkTexts, hasBlocker } from '../compliance/rules.ts';
 import { lastNDays, totals } from '../optimize/stats.ts';
@@ -52,7 +54,15 @@ export async function postOrganic(ctx: Ctx): Promise<string> {
   if (quota === 0) return '本日の投稿数の上限に達しています';
   const candidates = organicCandidates(ctx);
   if (candidates.length === 0) return '投稿できる素材がありません';
-  const ig = !ctx.dryRun && ctx.settings.meta.instagramUserId && ctx.settings.meta.accessToken ? new InstagramClient(ctx.settings.meta) : null;
+  const channels = o.channels?.length ? o.channels : ['instagram'];
+  const meta = ctx.settings.meta;
+  const g = ctx.settings.google;
+  const ig = !ctx.dryRun && channels.includes('instagram') && meta.instagramUserId && meta.accessToken ? new InstagramClient(meta) : null;
+  const fb = !ctx.dryRun && channels.includes('facebook') && meta.pageId && meta.accessToken ? new FacebookPageClient(meta) : null;
+  const ytAuth =
+    !ctx.dryRun && channels.includes('youtube') && g.clientId && (process.env.YOUTUBE_REFRESH_TOKEN || g.refreshToken)
+      ? { clientId: g.clientId, clientSecret: g.clientSecret, refreshToken: process.env.YOUTUBE_REFRESH_TOKEN || g.refreshToken }
+      : null;
 
   const done: string[] = [];
   let posted = 0;
@@ -69,24 +79,60 @@ export async function postOrganic(ctx: Ctx): Promise<string> {
         log.warn(`${c.id}: キャプションが機械チェックで不合格のため投稿しません: ${issues.filter((i) => i.severity === 'blocker').map((i) => i.problem).join(' / ')}`);
         continue;
       }
-      if (!ig) {
+      const video = c.assets.find((a) => a.kind === 'video' && a.ratio === '9:16' && existsSync(a.path));
+      if (!ig && !fb && !(ytAuth && video)) {
         posted++;
-        done.push(`${c.id}(${kind}, 未投稿: ${ctx.dryRun ? 'DRY RUN' : 'Instagram 未設定'})`);
+        done.push(`${c.id}(${kind}, 未投稿: ${ctx.dryRun ? 'DRY RUN' : '投稿先が未設定'})`);
         log.info(`[投稿予定] ${c.id} ${kind}\n${caption}`);
         continue;
       }
-      const r =
-        kind === 'reels' ? await ig.postReel(path, caption) : kind === 'carousel' ? await ig.postCarousel(paths!, caption) : await ig.postImage(path, caption);
-      // 公開できたらすぐ記録して保存（次回同じ素材を二重投稿しない）
-      c.organic = { kind, mediaId: r.id, permalink: r.permalink, postedAt: new Date().toISOString(), caption, insights: [] };
-      ctx.store.save();
-      posted++;
-      done.push(`${c.id}(${kind}) ${r.permalink}`);
-      log.info(`Instagram に投稿 ${c.id} ${r.permalink}`);
-      ctx.store.save();
+      // 投稿先ごとに独立して試す（1つ失敗しても他は投稿する）。公開できたものはすぐ記録して二重投稿を防ぐ
+      const record = (patch: Partial<NonNullable<Creative['organic']>>) => {
+        c.organic = { kind, mediaId: '', permalink: '', postedAt: new Date().toISOString(), caption, insights: [], ...c.organic, ...patch };
+        ctx.store.save();
+      };
+      const results: string[] = [];
+      if (ig) {
+        try {
+          const r = kind === 'reels' ? await ig.postReel(path, caption) : kind === 'carousel' ? await ig.postCarousel(paths!, caption) : await ig.postImage(path, caption);
+          record({ mediaId: r.id, permalink: r.permalink });
+          results.push(`Instagram ${r.permalink}`);
+        } catch (e) {
+          log.error(`${c.id}: Instagram 投稿に失敗 ${(e as Error).message}`);
+        }
+      }
+      if (fb) {
+        try {
+          const id = video && kind === 'reels' ? await fb.postVideo(video.path, caption) : kind === 'carousel' ? await fb.postPhotos(paths!, caption) : await fb.postPhoto(path, caption);
+          record({ facebookPostId: id });
+          results.push(`Facebook ${id}`);
+        } catch (e) {
+          log.error(`${c.id}: Facebook ページ投稿に失敗 ${(e as Error).message}`);
+        }
+      }
+      if (ytAuth && video) {
+        try {
+          const id = await uploadToYoutube(ytAuth, video.path, {
+            title: `${brief.overlay.main}｜${job.title} #shorts`,
+            description: `${caption}\n\n${job.landingUrl}`,
+            privacy: 'public',
+          });
+          record({ youtubeVideoId: id });
+          results.push(`YouTube https://youtube.com/shorts/${id}`);
+        } catch (e) {
+          log.error(`${c.id}: YouTube ショート投稿に失敗 ${(e as Error).message}`);
+        }
+      }
+      if (results.length) {
+        posted++;
+        done.push(`${c.id}(${kind}) ${results.join(' / ')}`);
+        log.info(`オーガニック投稿 ${c.id}: ${results.join(' / ')}`);
+      } else {
+        c.organicFailures = (c.organicFailures ?? 0) + 1;
+      }
     } catch (e) {
       c.organicFailures = (c.organicFailures ?? 0) + 1;
-      log.error(`${c.id}: Instagram 投稿に失敗 ${(e as Error).message}`);
+      log.error(`${c.id}: オーガニック投稿の準備に失敗 ${(e as Error).message}`);
     }
   }
   return done.length ? done.join(' / ') : '投稿なし';
@@ -96,7 +142,8 @@ export async function postOrganic(ctx: Ctx): Promise<string> {
 export async function collectOrganic(ctx: Ctx): Promise<string> {
   if (!ctx.catalog.policy.organic?.enabled || !ctx.settings.meta.instagramUserId || !ctx.settings.meta.accessToken) return '対象外';
   const ig = new InstagramClient(ctx.settings.meta);
-  const recent = ctx.store.creatives().filter((c) => c.organic && Date.now() - Date.parse(c.organic.postedAt) < 14 * 86_400_000);
+  // Instagram に投稿したものだけ（mediaId が空なのは Facebook / YouTube のみの投稿）
+  const recent = ctx.store.creatives().filter((c) => c.organic?.mediaId && Date.now() - Date.parse(c.organic.postedAt) < 14 * 86_400_000);
   for (const c of recent) {
     try {
       const snap = await ig.insights(c.organic!.mediaId, ctx.today);

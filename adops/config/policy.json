@@ -19,7 +19,10 @@
       "#工場勤務",
       "#ドライバー求人"
     ],
-    "minAdCtrForRepost": 1.0
+    "minAdCtrForRepost": 1.0,
+    "channels": [
+      "instagram"
+    ]
   },
   "imageCandidates": 4,
   "guardrails": {

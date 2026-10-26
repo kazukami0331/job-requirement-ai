@@ -39,7 +39,7 @@ GitHub の Secrets に `ANTHROPIC_API_KEY` と `SLACK_WEBHOOK_URL` を入れて 
 | 入稿 | コード | Meta: 配置ごとに 4:5（フィード）と 9:16（ストーリーズ・リール）を出し分ける1広告。Google: デマンド ジェネレーション広告（動画は YouTube 限定公開経由）/ P-MAX アセット |
 | 停止・入替・予算 | コード（ルール） | 応募ゼロのまま目標単価の2倍消化 / 応募単価が目標の1.5倍超 / CTR が基準未満 / 広告疲れ / 同時配信数の上限 → 停止。勝ち広告のある広告セットは日予算を段階的に増額（上限あり） |
 | Google 検索広告 | Claude + コード | 求人ごとにレスポンシブ検索広告（見出し15・説明文4）を作り、広告グループ内で「現行＋挑戦者」の2本を回す。十分な表示の後、CTR（応募があれば応募率）が7割未満の方を止め、別の言い回しで次の挑戦者を作る |
-| Instagram 投稿 | Claude + コード | 広告で反応の良かった素材（無ければ当日の新作）を、共感型のキャプションに書き直してフィード/リールに1日1本投稿。キャプションも同じ機械チェックを通す |
+| オーガニック投稿 | Claude + コード | 広告で反応の良かった素材（無ければ当日の新作）を、共感型のキャプションに書き直してフィード/リールに1日1本投稿。キャプションも同じ機械チェックを通す |
 | コメント監視 | Claude + コード | 広告の Facebook・Instagram 両方の投稿のコメントを1日3回確認し、質問（＝応募見込み、返信案つき）とネガティブを Slack に通知。スパムは自動で非表示（`ADOPS_WATCH_COMMENTS=true`） |
 | 分析 | Claude | 訴求軸・形式・ペルソナ・求人・媒体別の集計から「何が効いたか」を言語化し、次の企画に渡す |
 | 報告 | コード | Slack に日次サマリ、`data/report.html` にクリエイティブ一覧つきレポート |
@@ -137,7 +137,9 @@ Node.js 22.18 以上（TypeScript をそのまま実行します）、`ffmpeg`�
 **Instagram（オーガニック投稿を使う場合）**
 - プロフェッショナルアカウントを Facebook ページに接続し、`META_INSTAGRAM_USER_ID` を設定。
 - トークンに `instagram_basic` `instagram_content_publish` `instagram_manage_insights` 権限を追加。
-- `policy.json` の `organic`（`enabled` / `postsPerDay` / `baseHashtags` / `minAdCtrForRepost`）で調整。
+- `policy.json` の `organic`（`enabled` / `postsPerDay` / `baseHashtags` / `minAdCtrForRepost` / `channels`）で調整。
+- `channels` に `"facebook"` を足すと Facebook ページにも（画像・複数画像・動画）、`"youtube"` を足すと縦動画を**公開の YouTube ショート**としても投稿します
+  （Facebook はトークンに `pages_manage_posts`、YouTube は `youtube.upload` スコープが必要）。広告費をかけずにリーチを増やせます。
 
 **Google 広告**
 1. 開発者トークン、OAuth クライアント、リフレッシュトークン（`adwords` と、動画を使うなら `youtube.upload` スコープ）。

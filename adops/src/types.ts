@@ -117,6 +117,8 @@ export interface Policy {
     baseHashtags: string[];
     /** 広告で成果が出た素材を優先して投稿する（CTR の下限 %） */
     minAdCtrForRepost: number;
+    /** 投稿先（既定は instagram だけ）。facebook はページ投稿、youtube は縦動画を公開ショートとして投稿 */
+    channels?: ('instagram' | 'facebook' | 'youtube')[];
   };
   /** 画像1枚あたりの Midjourney 生成候補の中から選ぶ枚数 */
   imageCandidates: number;
@@ -279,6 +281,9 @@ export interface OrganicPost {
   permalink: string;
   postedAt: string;
   caption: string;
+  /** Instagram 以外の投稿先 */
+  facebookPostId?: string;
+  youtubeVideoId?: string;
   insights: { date: string; reach: number; views: number; likes: number; comments: number; saved: number; shares: number }[];
 }
 
