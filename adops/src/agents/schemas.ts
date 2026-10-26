@@ -27,6 +27,7 @@ export const BriefDraftSchema = z.object({
       main: z.string(),
       sub: z.string(),
       badges: z.array(z.string()),
+      storyboard: z.array(z.string()).describe('storyboard の各 text の訳（同じ順・同じ数）'),
     })
     .optional()
     .describe('外国語で書いた場合の、各項目の正確な日本語訳（意訳や誇張をしない）。日本語の広告なら全項目を空文字・空配列に'),

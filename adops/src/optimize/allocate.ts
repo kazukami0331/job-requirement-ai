@@ -6,7 +6,7 @@
  *
  * 報酬は「1000インプレッションあたりの応募」を主に使い、応募が少ない間はクリック率で代用する。
  */
-import type { Catalog } from '../config.ts';
+import { allPlacements, placementsFor, type Catalog } from '../config.ts';
 import { ANGLES, type Angle, type Creative, type Format, type Job, type SearchAd } from '../types.ts';
 import type { Slot } from '../agents/strategist.ts';
 import type { Totals } from './stats.ts';
@@ -260,8 +260,13 @@ export function allocateSlots(input: AllocationInput): Slot[] {
     }
   }
   // カルーセルは Meta・Instagram 専用なので、Meta の入稿先がある求人だけ
-  const hasMeta = new Set(catalog.jobs.filter((j) => j.placements.meta?.adsetIds?.length).map((j) => j.id));
-  const imageSlots = slots.filter((s) => s.format === 'image' && !s.iterateOf && (hasMeta.size === 0 || hasMeta.has(s.jobId)));
+  // （ペルソナ別の入稿先があればそれで判断する）
+  const anyMeta = catalog.jobs.some((j) => allPlacements(j).some((p) => p.meta?.adsetIds?.length));
+  const slotHasMeta = (s: Slot) => {
+    const job = catalog.jobs.find((j) => j.id === s.jobId);
+    return Boolean(job && placementsFor(catalog, job, s.personaId).meta?.adsetIds?.length);
+  };
+  const imageSlots = slots.filter((s) => s.format === 'image' && !s.iterateOf && (!anyMeta || slotHasMeta(s)));
   if (carouselTarget > 0 && imageSlots.length > 0) {
     const step = imageSlots.length / carouselTarget;
     for (let k = 0; k < Math.min(carouselTarget, imageSlots.length); k++) imageSlots[Math.min(imageSlots.length - 1, Math.floor(k * step + step / 2))].format = 'carousel';

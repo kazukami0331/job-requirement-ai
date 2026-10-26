@@ -94,7 +94,19 @@ test('外国語の広告: 金額は原文の数字で検査し、日本語訳に
   assert.equal(checkForeignMoney('headline', 'Lương 500,000円 mỗi tháng', j)[0].severity, 'blocker');
   // 現地通貨や円以外の書き方は major
   assert.equal(checkForeignMoney('primaryText', 'Salary ¥300,000 per month', j)[0].severity, 'major');
-  assert.equal(checkForeignMoney('primaryText', 'Lương 50.000.000 VND', j)[0].severity, 'major');
+  assert.equal(checkForeignMoney('primaryText', 'Lương 50.000.000 VND', j)[0].severity, 'blocker');
+  // 万・全角・円の別表記でも上限と照合する
+  const sev = (t: string) => checkForeignMoney('x', t, j).map((i) => i.severity);
+  assert.ok(sev('Lương 1000万円').includes('blocker'));
+  assert.ok(sev('Lương 1,000万円').includes('blocker'));
+  assert.ok(sev('Lương ９００，０００円').includes('blocker'));
+  assert.ok(sev('Salary 900,000 yen').includes('blocker'));
+  assert.ok(sev('Salary ¥900,000').includes('blocker'));
+  assert.ok(sev('Lương 90 vạn yên').includes('blocker'));
+  assert.ok(sev('Salary 500k円').includes('blocker'));
+  // 時給の求人でも、求人情報にある「寮費3万円」は 30,000円 と書いてよい
+  const hourly = job({ salary: { type: '時給', min: 1300, max: 1500 }, perks: ['寮費3万円'] });
+  assert.deepEqual(checkForeignMoney('x', 'Ký túc xá 30,000円/tháng', hourly), []);
   // 年号は金額とみなさない
   assert.deepEqual(checkForeignMoney('primaryText', 'Bắt đầu từ năm 2026', j), []);
 
@@ -108,7 +120,7 @@ test('外国語の広告: 金額は原文の数字で検査し、日本語訳に
   const issues = checkBrief(vi, j, brand());
   // 日本語訳の「20代の男性限定」で年齢・性別の規則に当たる
   assert.ok(issues.some((i) => i.field.startsWith('translationJa') && i.severity === 'blocker'));
-  // 訳がなければ major
+  // 訳がなければ blocker
   const noTr = checkBrief(brief({ language: 'vi', translationJa: undefined }), j, brand());
   assert.ok(noTr.some((i) => i.field === 'translationJa'));
   // 日本語の広告には追加チェックをしない

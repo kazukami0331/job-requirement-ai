@@ -69,6 +69,7 @@ export function offlineLlm(catalog: Catalog): ScriptedLlm {
                   main: main.slice(0, 16),
                   sub: sub.slice(0, 28),
                   badges: [],
+                  storyboard: (isCarousel || isVideo ? [main.slice(0, 16), '', ''] : []),
                 },
               }
             : {}),

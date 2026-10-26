@@ -274,3 +274,15 @@ test('allocateSlots: 学習は言語ごとに分かれ、外国語ペルソナ�
   assert.ok((picks.p1.pay ?? 0) > (picks.p1.housing ?? 0) + 10, JSON.stringify(picks));
   assert.ok((picks.vi.housing ?? 0) > (picks.vi.pay ?? 0) + 10, JSON.stringify(picks));
 });
+
+test('decide: 予算増はその広告セットに入るペルソナの勝ち広告だけで判断する', () => {
+  const winner = creative({
+    id: 'w', personaId: 'vi', publishedAt: '2026-10-01T00:00:00Z',
+    metrics: daily('2026-10-01', 14, { impressions: 3000, clicks: 30, spend: 3000, conversions: 1 }),
+  });
+  const d = decide({
+    creatives: [winner], policy: policy(), today: '2026-10-14',
+    adsetsByJob: new Map([['factory', [{ id: 'ja_set', dailyBudget: 10000, personaIds: ['p1'] }, { id: 'vi_set', dailyBudget: 10000, personaIds: ['vi'] }]]]),
+  });
+  assert.deepEqual(d.filter((x) => x.action === 'scale_budget').map((x) => x.adsetId), ['vi_set']);
+});

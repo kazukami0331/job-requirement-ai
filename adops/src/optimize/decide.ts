@@ -11,6 +11,8 @@ import { lastNDays, median, totals, windowed } from './stats.ts';
 export interface AdsetInfo {
   id: string;
   dailyBudget: number | null;
+  /** この広告セットに入るペルソナ（ペルソナ別の入稿先があるとき）。未指定なら求人の全ペルソナ */
+  personaIds?: string[];
 }
 
 export interface DecideInput {
@@ -113,12 +115,14 @@ export function decide(input: DecideInput): Decision[] {
   // 6. 勝ちクリエイティブがある求人の広告セット予算を段階的に増やす
   for (const [jobId, adsets] of input.adsetsByJob) {
     // Meta の広告セットの予算なので、Meta での実績だけで判断する
-    const winners = live
+    const jobWinners = live
       .filter((c) => c.jobId === jobId && !paused.has(c.id))
       .map((c) => ({ c, t: totals(windowed(c.metrics, from, today, 'meta')) }))
       .filter(({ t }) => t.conversions >= 3 && t.cpa !== null && t.cpa <= g.targetCpa * 0.8);
-    if (winners.length === 0) continue;
     for (const adset of adsets) {
+      // その広告セットに入っているペルソナの勝ち広告だけで判断する（外国人向けの成果で日本人向けの予算を上げない）
+      const winners = adset.personaIds ? jobWinners.filter((w) => adset.personaIds!.includes(w.c.personaId)) : jobWinners;
+      if (winners.length === 0) continue;
       if (adset.dailyBudget === null) continue; // キャンペーン予算（CBO）の場合は触らない
       if (input.recentlyScaled?.has(adset.id)) continue;
       const next = Math.min(g.maxDailyBudget, Math.round(adset.dailyBudget * (1 + g.budgetStepPct / 100)));

@@ -131,7 +131,8 @@ export async function plan(ctx: Ctx): Promise<PlanResult> {
         }
         const revised = await reviseBrief(llm, brief, review.issues, review.summary, catalog);
         brief = { ...brief, ...revised, storyboard: brief.format === 'image' ? [] : revised.storyboard, revision: brief.revision + 1 };
-        if (!brief.language) delete brief.translationJa;
+        // 修正版に訳がなければ古い訳は捨てる（原文と食い違った訳でチェックしないように）
+        if (!brief.language || !revised.translationJa) delete brief.translationJa;
       }
       const now = new Date().toISOString();
       const creative: Creative = {

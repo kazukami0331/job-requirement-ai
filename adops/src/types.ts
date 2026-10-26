@@ -114,6 +114,8 @@ export interface TranslationJa {
   main: string;
   sub: string;
   badges: string[];
+  /** 動画のカット・カルーセルのカードの文字の訳（storyboard と同じ順） */
+  storyboard?: string[];
 }
 
 export interface Brand {

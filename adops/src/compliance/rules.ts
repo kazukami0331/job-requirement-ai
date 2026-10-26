@@ -214,7 +214,7 @@ export function checkForeignBrief(brief: CreativeBrief, fields: [string, string]
   const issues: ReviewIssue[] = [];
   const t = brief.translationJa;
   if (!t || !t.headline || !t.primaryText || !t.main) {
-    issues.push({ severity: 'major', field: 'translationJa', problem: '外国語の広告に日本語訳がありません', suggestion: 'translationJa に各項目の正確な日本語訳を入れてください' });
+    issues.push({ severity: 'blocker', field: 'translationJa', problem: '外国語の広告に日本語訳がありません（法令チェックができません）', suggestion: 'translationJa に各項目の正確な日本語訳を入れてください' });
   } else {
     const ja: [string, string][] = [
       ['translationJa.hook', t.hook],
@@ -224,32 +224,50 @@ export function checkForeignBrief(brief: CreativeBrief, fields: [string, string]
       ['translationJa.main', t.main],
       ['translationJa.sub', t.sub],
       ...t.badges.map((b, i) => [`translationJa.badges[${i}]`, b] as [string, string]),
+      ...(t.storyboard ?? []).map((x, i) => [`translationJa.storyboard[${i}]`, x] as [string, string]),
     ];
+    if (brief.storyboard.length && (t.storyboard?.length ?? 0) !== brief.storyboard.length) {
+      issues.push({ severity: 'blocker', field: 'translationJa.storyboard', problem: '動画・カルーセルの各カットの日本語訳がありません', suggestion: 'translationJa.storyboard に各カットの文字の日本語訳を同じ順で入れてください' });
+    }
     issues.push(...checkTexts(ja, job, brand));
   }
   for (const [field, text] of fields) issues.push(...checkForeignMoney(field, text, job));
   return issues;
 }
 
-/** 原文中の金額（1,000以上の数字）を検査する。円以外の書き方は不可、求人の上限を超える金額も不可。 */
+/** 原文中の金額を検査する。円以外の通貨は不可、円の別表記（¥・yen）は書き直しを求め、求人の上限を超える金額は不可。 */
 export function checkForeignMoney(field: string, text: string, job: Job): ReviewIssue[] {
   const issues: ReviewIssue[] = [];
   if (!text) return issues;
   const cap = job.salary.max ?? job.salary.min;
-  // 求人情報に出てくる数字（祝い金・寮費など）は書いてよい
-  const known = new Set([...JSON.stringify(job).matchAll(/\d[\d,]*/g)].map((m) => Number(m[0].replace(/,/g, ''))));
-  const normalized = text.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
-  const re = /([¥￥$€]|USD|VND|JPY)?\s*(\d{1,3}(?:[.,\s]\d{3})+|\d{4,}|\d+(?:\.\d+)?\s*万)\s*(円|yen|yên|JPY|VND|USD|đồng|dong|reais?|R\$)?/gi;
+  // 求人情報に出てくる金額（祝い金・寮費など。「3万円」は 30000 として）は書いてよい
+  const known = new Set(
+    [...JSON.stringify(job).matchAll(/(\d[\d,]*(?:\.\d+)?)\s*(万)?/g)].map((m) => Number(m[1].replace(/,/g, '')) * (m[2] ? 10_000 : 1)),
+  );
+  const normalized = text
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/，/g, ',')
+    .replace(/．/g, '.')
+    .replace(/　/g, ' ');
+  const re =
+    /([¥￥$€]|USD|VND|JPY|R\$)?\s*(\d{1,3}(?:[.,\s]\d{3})+|\d+(?:\.\d+)?)\s*(万|vạn|triệu|nghìn|ngàn|mil|k)?\s*(円|yen|yên|JPY|VND|USD|đồng|dong|reais?|R\$|peso|rupiah)?/gi;
+  const MULT: Record<string, number> = { 万: 10_000, vạn: 10_000, triệu: 1_000_000, nghìn: 1_000, ngàn: 1_000, mil: 1_000, k: 1_000 };
   for (const m of normalized.matchAll(re)) {
-    const [raw, pre, num, post] = m;
-    let yen = num.includes('万') ? Number(num.replace(/\s*万/, '')) * 10_000 : Number(num.replace(/[.,\s]/g, ''));
+    const [raw, pre, num, mult, post] = m;
+    const base = /^\d{1,3}([.,\s]\d{3})+$/.test(num) ? Number(num.replace(/[.,\s]/g, '')) : Number(num);
+    const yen = base * (mult ? MULT[mult.toLowerCase()] ?? MULT[mult] ?? 1 : 1);
     if (!(yen >= 1000)) continue;
-    if (/^(19|20)\d\d$/.test(num)) continue; // 年号
-    if (post !== '円') {
+    const marked = Boolean(pre || mult || post);
+    if (!marked) continue; // 通貨も単位もない数字（年号・電話番号など）は金額とみなさない
+    const yenLike = post === '円' || /^(¥|￥|JPY)$/i.test(pre ?? '') || /^(yen|yên|JPY)$/i.test(post ?? '') || (!pre && !post && mult === '万');
+    if (!yenLike) {
       if (pre || post) {
-        issues.push({ severity: 'major', field, problem: `金額「${raw.trim()}」が円の書き方ではありません`, suggestion: '金額は「300,000円」のように数字＋「円」で書いてください（現地通貨に換算しない）' });
+        issues.push({ severity: 'blocker', field, problem: `金額「${raw.trim()}」が円以外の通貨です`, suggestion: '現地通貨に換算せず「300,000円」のように円で書いてください' });
       }
       continue;
+    }
+    if (post !== '円' || mult) {
+      issues.push({ severity: 'major', field, problem: `金額「${raw.trim()}」は「300,000円」の形で書いてください`, suggestion: '数字（3桁区切り）＋「円」で書いてください' });
     }
     if (yen > cap && !known.has(yen)) {
       issues.push({ severity: 'blocker', field, problem: `金額 ${yen.toLocaleString()}円 が求人の上限（${cap.toLocaleString()}円）を超えています`, suggestion: '求人情報にある金額だけを書いてください' });

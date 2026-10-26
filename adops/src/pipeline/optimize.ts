@@ -3,6 +3,7 @@ import type { Ctx } from './context.ts';
 import type { Decision } from '../types.ts';
 import { decide, type AdsetInfo } from '../optimize/decide.ts';
 import { logger } from '../util/log.ts';
+import { placementsFor } from '../config.ts';
 import { emergencyStop } from './emergency.ts';
 import { notifySlack } from '../notify/slack.ts';
 import { daysBetween } from '../util/id.ts';
@@ -40,10 +41,15 @@ export async function optimize(ctx: Ctx): Promise<Decision[]> {
   if (ctx.meta) {
     for (const job of catalog.jobs.filter((j) => j.active)) {
       const infos: AdsetInfo[] = [];
-      for (const id of job.placements.meta?.adsetIds ?? []) {
+      // 共通の広告セットにはペルソナ別の入稿先がないペルソナ、ペルソナ別の広告セットにはそのペルソナだけ
+      const targets = new Map<string, Set<string>>();
+      for (const pid of job.personas) {
+        for (const id of placementsFor(catalog, job, pid).meta?.adsetIds ?? []) targets.set(id, (targets.get(id) ?? new Set()).add(pid));
+      }
+      for (const [id, personas] of targets) {
         try {
           const a = await ctx.meta.getAdset(id);
-          infos.push({ id: a.id, dailyBudget: a.dailyBudget });
+          infos.push({ id: a.id, dailyBudget: a.dailyBudget, personaIds: [...personas] });
         } catch (e) {
           log.warn(`広告セット ${id} の取得に失敗: ${(e as Error).message}`);
         }
