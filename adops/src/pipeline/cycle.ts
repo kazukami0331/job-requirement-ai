@@ -19,6 +19,7 @@ import { lastNDays, totals } from '../optimize/stats.ts';
 import { notifySlack, sections } from '../notify/slack.ts';
 import { approvalBlocks } from '../notify/approval.ts';
 import { writeReport } from '../report/html.ts';
+import { exportToSheets } from '../report/sheets.ts';
 import { ANGLE_LABELS, FORMAT_LABEL } from '../types.ts';
 import { daysBetween } from '../util/id.ts';
 import { logger } from '../util/log.ts';
@@ -142,6 +143,9 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
 
   await step('report', async () => {
     const path = writeReport(store.state, ctx.catalog, store.dir, ctx.today);
+    // スプレッドシートへの書き出し（設定時のみ。失敗しても報告は続ける）
+    const sheet = await exportToSheets(store.state, ctx.catalog, ctx.today).catch((e) => `スプレッドシートへの書き出しに失敗: ${(e as Error).message.slice(0, 200)}`);
+    if (!sheet.includes('未設定')) log.info(sheet);
     await notifySlack(ctx.settings.slack.webhookUrl, summaryMessage(ctx, record, { decisions, planned, produced, published, analyzed, organicNote, searchNote }));
     return path;
   });

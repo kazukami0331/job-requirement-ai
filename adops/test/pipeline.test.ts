@@ -418,3 +418,17 @@ test('publish: サンプル設定（example.com・社名未記入）のままで
   assert.match(r.skipped[0].reason, /サンプル設定/);
   assert.equal(ctx.store.state.creatives.c.status, 'produced');
 });
+
+test('sheets: 日次と広告一覧の行を作る（新しい日付が上）', async () => {
+  const { dailyRows, creativeRows } = await import('../src/report/sheets.ts');
+  const { creative, daily, brief } = await import('./fixtures.ts');
+  const ctx = ctxWith(offlineLlm(catalog()));
+  ctx.store.state.briefs.br_1 = brief();
+  ctx.store.state.creatives.c = creative({ id: 'c', metrics: daily('2026-10-01', 3, { impressions: 1000, clicks: 10, spend: 500, conversions: 1 }) });
+  const d = dailyRows(ctx.store.state, '2026-10-03');
+  assert.equal(d.length, 4);
+  assert.equal(d[1][0], '2026-10-03');
+  assert.equal(d[1][10], 1);
+  const l = creativeRows(ctx.store.state, ctx.catalog);
+  assert.equal(l[1][8], brief().overlay.main);
+});

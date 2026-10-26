@@ -124,6 +124,7 @@ jobs:
           ADOPS_TTS: ${{ vars.ADOPS_TTS }}
           ADOPS_TTS_VOICE: ${{ vars.ADOPS_TTS_VOICE }}
           ADOPS_OUTCOMES_CSV_URL: ${{ secrets.ADOPS_OUTCOMES_CSV_URL }}
+          ADOPS_SHEET_ID: ${{ vars.ADOPS_SHEET_ID }}
         run: |
           if [ "${{ github.event.inputs.control }}" = "stop" ]; then
             node src/cli.ts emergency-stop --reason "緊急停止（GitHub Actions から手動実行）"
