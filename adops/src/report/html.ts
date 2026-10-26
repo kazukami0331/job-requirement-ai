@@ -137,6 +137,12 @@ ${(() => {
     const h = state.landing?.[j.id];
     if (h?.ok === false) alerts.push(`応募ページに問題: ${escapeXml(j.title)}（${escapeXml(h.note)}）— 新規入稿を保留中`);
   }
+  for (const a of state.credentials?.alerts ?? []) alerts.push(escapeXml(a));
+  for (const [id, a] of Object.entries(state.audience ?? {})) {
+    if (a.date !== today) continue;
+    if (a.frequency >= Number(process.env.ADOPS_MAX_FREQUENCY || 4)) alerts.push(`広告セット ${escapeXml(id)} のフリークエンシーが ${a.frequency}（7日）— 同じ人に出しすぎ。予算は増やしません`);
+    if (a.learning === 'FAIL') alerts.push(`広告セット ${escapeXml(id)} の学習が制限されています — まとめるか最適化イベントを見直す`);
+  }
   return alerts.length ? `<ul class="alerts">${alerts.map((a) => `<li class="reason">${a}</li>`).join('')}</ul>` : '';
 })()}
 ${
