@@ -684,3 +684,30 @@ test('checkCredentials: Meta のトークンが14日以内に切れるなら「�
   assert.equal(await checkCredentials(ctx, now), '');
   assert.deepEqual(ctx.store.state.credentials!.alerts, []);
 });
+
+test('optimize: 広告セットのフリークエンシーと学習の状態を記録し、出しすぎ・学習制限を Slack の警告に出す', async () => {
+  const { optimize } = await import('../src/pipeline/optimize.ts');
+  const { creative, daily } = await import('./fixtures.ts');
+  let freq: { frequency: number; reach: number } | null = { frequency: 5.2, reach: 12000 };
+  let freqCalls = 0;
+  const meta = {
+    getAdset: async () => ({ id: '111', dailyBudget: 10000, status: 'ACTIVE', learning: 'FAIL' }),
+    adsetFrequency: async () => (freqCalls++, freq),
+    setAdsetDailyBudget: async () => {},
+  } as any;
+  const ctx = ctxWith(offlineLlm(catalog()), { dryRun: false, meta });
+  ctx.store.state.creatives.a = creative({ id: 'a', metrics: daily('2026-10-04', 7, { impressions: 10000, clicks: 200, spend: 3000, conversions: 3 }) });
+  ctx.store.state.audience = { old: { date: '2026-09-01', frequency: 1 } };
+  const d = await optimize(ctx);
+  assert.equal(d.filter((x) => x.action === 'scale_budget').length, 0, '出しすぎの広告セットは予算を増やさない');
+  assert.deepEqual(ctx.store.state.audience['111'], { date: '2026-10-10', learning: 'FAIL', frequency: 5.2, reach: 12000 });
+  assert.equal(ctx.store.state.audience.old, undefined, '古い記録は消す');
+  // 同じ日の2回目は取り直さない
+  await optimize(ctx);
+  assert.equal(freqCalls, 1);
+  // フリークエンシーが取れない日でも学習の状態は記録する
+  ctx.today = '2026-10-11';
+  freq = null;
+  await optimize(ctx);
+  assert.deepEqual(ctx.store.state.audience['111'], { date: '2026-10-11', learning: 'FAIL' });
+});

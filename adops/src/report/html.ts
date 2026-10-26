@@ -9,6 +9,7 @@ import type { State } from '../types.ts';
 import { ANGLE_LABELS, FORMAT_LABEL, LANGUAGE_LABEL, type Angle } from '../types.ts';
 import { groupBy, totals, windowed } from '../optimize/stats.ts';
 import { addDays } from '../util/id.ts';
+import { maxFrequency } from '../optimize/decide.ts';
 import { escapeXml } from '../creative/compose.ts';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -140,7 +141,7 @@ ${(() => {
   for (const a of state.credentials?.alerts ?? []) alerts.push(escapeXml(a));
   for (const [id, a] of Object.entries(state.audience ?? {})) {
     if (a.date !== today) continue;
-    if (a.frequency >= Number(process.env.ADOPS_MAX_FREQUENCY || 4)) alerts.push(`広告セット ${escapeXml(id)} のフリークエンシーが ${a.frequency}（7日）— 同じ人に出しすぎ。予算は増やしません`);
+    if (a.frequency !== undefined && a.frequency >= maxFrequency()) alerts.push(`広告セット ${escapeXml(id)} のフリークエンシーが ${a.frequency}（7日）— 同じ人に出しすぎ。予算は増やしません`);
     if (a.learning === 'FAIL') alerts.push(`広告セット ${escapeXml(id)} の学習が制限されています — まとめるか最適化イベントを見直す`);
   }
   return alerts.length ? `<ul class="alerts">${alerts.map((a) => `<li class="reason">${a}</li>`).join('')}</ul>` : '';

@@ -34,6 +34,12 @@ export interface DecideInput {
   maxFrequency?: number;
 }
 
+/** これ以上のフリークエンシー（直近7日）の広告セットは予算を増やさない（ADOPS_MAX_FREQUENCY、既定 4）。 */
+export function maxFrequency(): number {
+  const v = Number(process.env.ADOPS_MAX_FREQUENCY);
+  return v > 0 ? v : 4;
+}
+
 /** 応募効率のスコア（大きいほど良い）。停止候補の並べ替えに使う。 */
 export function efficiencyScore(c: Creative, today: string, lookbackDays = 7): number {
   const t = totals(lastNDays(c.metrics, today, lookbackDays));

@@ -1,7 +1,8 @@
 /** 段階2: 停止・入れ替え・予算調整の判断を出し、許可された範囲で媒体に反映する。 */
 import type { Ctx } from './context.ts';
 import type { Decision } from '../types.ts';
-import { decide, type AdsetInfo } from '../optimize/decide.ts';
+import { decide, maxFrequency, type AdsetInfo } from '../optimize/decide.ts';
+export { maxFrequency };
 import { logger } from '../util/log.ts';
 import { placementsFor } from '../config.ts';
 import { emergencyStop } from './emergency.ts';
@@ -53,24 +54,32 @@ export async function enforceSpendCap(ctx: Ctx): Promise<string | null> {
   return reason;
 }
 
-export function maxFrequency(): number {
-  return Number(process.env.ADOPS_MAX_FREQUENCY || 4);
-}
-
-/** 広告セットの直近7日のフリークエンシーを取り、状態に記録する（1日1回。取れなければ前回の値）。 */
-async function adsetFrequency(ctx: Ctx, adsetId: string): Promise<number | null> {
+/**
+ * 広告セットの今日の様子（直近7日のフリークエンシー・リーチと、学習の状態）を状態に記録する。
+ * フリークエンシーは1日1回だけ取り、取れなければ判断には前回の値を使う（警告には今日取れた値だけを使う）。
+ */
+async function observeAdset(ctx: Ctx, adsetId: string, learning: string | undefined): Promise<number | null> {
   const audience = (ctx.store.state.audience ??= {});
+  // 消えた広告セットの記録がたまらないよう、2週間見ていないものは消す
+  for (const [id, a] of Object.entries(audience)) if (a.date < addDays(ctx.today, -14)) delete audience[id];
   const prev = audience[adsetId];
-  if (prev?.date === ctx.today) return prev.frequency;
-  try {
-    const r = await ctx.meta!.adsetFrequency(adsetId, addDays(ctx.today, -6), ctx.today);
-    if (!r) return null;
-    audience[adsetId] = { date: ctx.today, frequency: Math.round(r.frequency * 100) / 100, reach: r.reach };
-    return audience[adsetId].frequency;
-  } catch (e) {
-    log.warn(`広告セット ${adsetId} のフリークエンシー取得に失敗: ${(e as Error).message.slice(0, 200)}`);
-    return prev?.frequency ?? null;
+  const entry: NonNullable<typeof prev> = { date: ctx.today, learning };
+  if (prev?.date === ctx.today && prev.frequency !== undefined) {
+    entry.frequency = prev.frequency;
+    entry.reach = prev.reach;
+  } else {
+    try {
+      const r = await ctx.meta!.adsetFrequency(adsetId, addDays(ctx.today, -6), ctx.today);
+      if (r) {
+        entry.frequency = Math.round(r.frequency * 100) / 100;
+        entry.reach = r.reach;
+      }
+    } catch (e) {
+      log.warn(`広告セット ${adsetId} のフリークエンシー取得に失敗: ${(e as Error).message.slice(0, 200)}`);
+    }
   }
+  audience[adsetId] = entry;
+  return entry.frequency ?? prev?.frequency ?? null;
 }
 
 export async function optimize(ctx: Ctx): Promise<Decision[]> {
@@ -89,10 +98,8 @@ export async function optimize(ctx: Ctx): Promise<Decision[]> {
       for (const [id, personas] of targets) {
         try {
           const a = await ctx.meta.getAdset(id);
-          const freq = await adsetFrequency(ctx, id);
-          // 学習が制限されている（最適化イベントが週50件に届かない）広告セットを記録して知らせる
-          const aud = ctx.store.state.audience?.[id];
-          if (aud && a.learning) aud.learning = a.learning;
+          // フリークエンシーと学習の状態（FAIL＝最適化イベントが週50件に届かず学習が制限されている）を記録して知らせる
+          const freq = await observeAdset(ctx, id, a.learning);
           infos.push({ id: a.id, dailyBudget: a.dailyBudget, personaIds: [...personas], frequency: freq ?? undefined });
         } catch (e) {
           log.warn(`広告セット ${id} の取得に失敗: ${(e as Error).message}`);

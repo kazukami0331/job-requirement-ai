@@ -217,10 +217,10 @@ function summaryMessage(
   if (month) lines.push(`今月の広告費 ${Math.round(month.spent).toLocaleString()}円 / 上限 ${month.cap.toLocaleString()}円（${Math.round((month.spent / month.cap) * 100)}%）${month.spent >= month.cap * 0.9 ? ' :warning: 9割を超えたため予算増を止めています' : ''}`);
   const atTarget = jobsAtTarget(ctx.catalog.jobs, store.creatives(), Object.values(store.state.searchAds ?? {}), today);
   if (atTarget.length) lines.push(`:tada: 今月の応募目標に到達: ${atTarget.map((x) => `${x.job.title}（${x.count}/${x.job.monthlyApplicationTarget} 件）`).join(' / ')}。新しい広告は作らず、配信中の広告はそのままです`);
-  const saturated = Object.entries(store.state.audience ?? {}).filter(([, a]) => a.date === today && a.frequency >= maxFrequency());
+  const saturated = Object.entries(store.state.audience ?? {}).filter(([, a]) => a.date === today && a.frequency !== undefined && a.frequency >= maxFrequency());
   if (saturated.length) {
     lines.push(
-      `:repeat: 同じ人に出しすぎている広告セット: ${saturated.map(([id, a]) => `${id}（7日のフリークエンシー ${a.frequency} / リーチ ${a.reach.toLocaleString()}人）`).join(' / ')}。予算は増やしません。配信地域・年齢を広げると単価が下がりやすいです`,
+      `:repeat: 同じ人に出しすぎている広告セット: ${saturated.map(([id, a]) => `${id}（7日のフリークエンシー ${a.frequency} / リーチ ${(a.reach ?? 0).toLocaleString()}人）`).join(' / ')}。予算は増やしません。配信地域・年齢を広げると単価が下がりやすいです`,
     );
   }
   const limited = Object.entries(store.state.audience ?? {}).filter(([, a]) => a.date === today && a.learning === 'FAIL');
