@@ -6,7 +6,7 @@ import { logger } from '../util/log.ts';
 import { placementsFor } from '../config.ts';
 import { emergencyStop } from './emergency.ts';
 import { notifySlack } from '../notify/slack.ts';
-import { daysBetween } from '../util/id.ts';
+import { addDays, daysBetween } from '../util/id.ts';
 
 const log = logger('optimize');
 
@@ -53,6 +53,26 @@ export async function enforceSpendCap(ctx: Ctx): Promise<string | null> {
   return reason;
 }
 
+export function maxFrequency(): number {
+  return Number(process.env.ADOPS_MAX_FREQUENCY || 4);
+}
+
+/** 広告セットの直近7日のフリークエンシーを取り、状態に記録する（1日1回。取れなければ前回の値）。 */
+async function adsetFrequency(ctx: Ctx, adsetId: string): Promise<number | null> {
+  const audience = (ctx.store.state.audience ??= {});
+  const prev = audience[adsetId];
+  if (prev?.date === ctx.today) return prev.frequency;
+  try {
+    const r = await ctx.meta!.adsetFrequency(adsetId, addDays(ctx.today, -6), ctx.today);
+    if (!r) return null;
+    audience[adsetId] = { date: ctx.today, frequency: Math.round(r.frequency * 100) / 100, reach: r.reach };
+    return audience[adsetId].frequency;
+  } catch (e) {
+    log.warn(`広告セット ${adsetId} のフリークエンシー取得に失敗: ${(e as Error).message.slice(0, 200)}`);
+    return prev?.frequency ?? null;
+  }
+}
+
 export async function optimize(ctx: Ctx): Promise<Decision[]> {
   const { store, catalog, today } = ctx;
   const capped = await enforceSpendCap(ctx);
@@ -69,7 +89,8 @@ export async function optimize(ctx: Ctx): Promise<Decision[]> {
       for (const [id, personas] of targets) {
         try {
           const a = await ctx.meta.getAdset(id);
-          infos.push({ id: a.id, dailyBudget: a.dailyBudget, personaIds: [...personas] });
+          const freq = await adsetFrequency(ctx, id);
+          infos.push({ id: a.id, dailyBudget: a.dailyBudget, personaIds: [...personas], frequency: freq ?? undefined });
         } catch (e) {
           log.warn(`広告セット ${id} の取得に失敗: ${(e as Error).message}`);
         }
@@ -93,6 +114,7 @@ export async function optimize(ctx: Ctx): Promise<Decision[]> {
     recentlyScaled,
     activeJobIds: new Set(catalog.jobs.filter((j) => j.active).map((j) => j.id)),
     targetCpaByJob: new Map(catalog.jobs.filter((j) => j.targetCpa).map((j) => [j.id, j.targetCpa!])),
+    maxFrequency: maxFrequency(),
   });
   const auto = catalog.policy.autonomy === 'auto';
   // 今月の上限の9割を超えたら予算は増やさない（月末に上限で全停止になるのを避ける）

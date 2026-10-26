@@ -396,6 +396,8 @@ export interface State {
   spendCapWaivedOn?: string;
   /** 月の広告費の上限による停止を人が解除した月（YYYY-MM）。その月は月の上限で止めない */
   monthlyCapWaivedFor?: string;
+  /** Meta 広告セットの直近7日のフリークエンシーとリーチ（広告セット ID → 確認した日の値） */
+  audience?: Record<string, { date: string; frequency: number; reach: number }>;
   /** 認証情報の確認結果（期限切れが近いなど、人が対応すべきもの） */
   credentials?: { checkedOn: string; alerts: string[] };
   /** 応募ページの死活監視（求人 ID → 直近の確認結果） */

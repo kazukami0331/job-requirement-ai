@@ -118,6 +118,7 @@ jobs:
           ADOPS_MAX_LLM_USD_DAILY: ${{ vars.ADOPS_MAX_LLM_USD_DAILY }}
           ADOPS_DAILY_SPEND_CAP: ${{ vars.ADOPS_DAILY_SPEND_CAP }}
           ADOPS_MONTHLY_SPEND_CAP: ${{ vars.ADOPS_MONTHLY_SPEND_CAP }}
+          ADOPS_MAX_FREQUENCY: ${{ vars.ADOPS_MAX_FREQUENCY }}
           IMAGE_PROVIDER: ${{ vars.IMAGE_PROVIDER || 'handoff' }}
           MJ_API_BASE_URL: ${{ vars.MJ_API_BASE_URL }}
           MJ_API_KEY: ${{ secrets.MJ_API_KEY }}

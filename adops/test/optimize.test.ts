@@ -127,6 +127,15 @@ test('decide: 勝ち広告がある求人の予算を上限まで段階的に増
   assert.deepEqual(scale[0].detail, { from: 28000, to: 30000 });
 });
 
+test('decide: 同じ人に出しすぎている（フリークエンシーが高い）広告セットは予算を増やさない', () => {
+  const c = creative({ metrics: daily('2026-10-01', 7, { impressions: 3000, clicks: 60, spend: 3000, conversions: 1 }) });
+  const sets = [{ id: 'hot', dailyBudget: 10000, frequency: 4.6 }, { id: 'ok', dailyBudget: 10000, frequency: 2.1 }];
+  const d = decide({ creatives: [c], policy: policy(), today: '2026-10-07', adsetsByJob: new Map([['factory', sets]]) });
+  assert.deepEqual(d.filter((x) => x.action === 'scale_budget').map((x) => x.adsetId), ['ok']);
+  const loose = decide({ creatives: [c], policy: policy(), today: '2026-10-07', adsetsByJob: new Map([['factory', sets]]), maxFrequency: 5 });
+  assert.equal(loose.filter((x) => x.action === 'scale_budget').length, 2);
+});
+
 test('decide: 同時配信数の上限を超えたら効率の悪い順に止める（新しい広告は守る）', () => {
   const p = policy({ guardrails: { ...policy().guardrails, maxActivePerAdset: 2 } });
   const mk = (id: string, clicks: number, publishedAt = '2026-10-01T00:00:00Z') =>

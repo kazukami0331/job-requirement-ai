@@ -13,6 +13,8 @@ export interface AdsetInfo {
   dailyBudget: number | null;
   /** この広告セットに入るペルソナ（ペルソナ別の入稿先があるとき）。未指定なら求人の全ペルソナ */
   personaIds?: string[];
+  /** 直近7日のフリークエンシー（分かれば）。高すぎる広告セットは予算を増やさない */
+  frequency?: number;
 }
 
 export interface DecideInput {
@@ -28,6 +30,8 @@ export interface DecideInput {
   activeJobIds?: Set<string>;
   /** 求人ごとの目標応募単価（jobs.json の targetCpa）。無ければ policy の値 */
   targetCpaByJob?: Map<string, number>;
+  /** これ以上のフリークエンシーの広告セットは予算を増やさない（同じ人に出しすぎると単価が上がる）。既定 4 */
+  maxFrequency?: number;
 }
 
 /** 応募効率のスコア（大きいほど良い）。停止候補の並べ替えに使う。 */
@@ -129,6 +133,7 @@ export function decide(input: DecideInput): Decision[] {
       if (winners.length === 0) continue;
       if (adset.dailyBudget === null) continue; // キャンペーン予算（CBO）の場合は触らない
       if (input.recentlyScaled?.has(adset.id)) continue;
+      if (adset.frequency !== undefined && adset.frequency >= (input.maxFrequency ?? 4)) continue; // 対象者が飽和している
       const next = Math.min(g.maxDailyBudget, Math.round(adset.dailyBudget * (1 + g.budgetStepPct / 100)));
       if (next <= adset.dailyBudget) continue;
       decisions.push({

@@ -440,6 +440,16 @@ export class MetaClient {
     return { id: r.id, dailyBudget: r.daily_budget ? Number(r.daily_budget) : null, status: r.effective_status ?? '' };
   }
 
+  /** 広告セットの期間中のフリークエンシー（1人あたりの平均表示回数）とリーチ。同じ人に出しすぎていないかの確認に使う。 */
+  async adsetFrequency(adsetId: string, since: string, until: string): Promise<{ frequency: number; reach: number } | null> {
+    const r = await this.call<{ data?: { frequency?: string; reach?: string }[] }>('GET', `${adsetId}/insights`, {
+      fields: 'frequency,reach',
+      time_range: { since, until },
+    });
+    const d = r.data?.[0];
+    return d?.frequency ? { frequency: Number(d.frequency), reach: Number(d.reach ?? 0) } : null;
+  }
+
   async setAdsetDailyBudget(adsetId: string, yen: number): Promise<void> {
     await this.call('POST', adsetId, { daily_budget: String(Math.round(yen)) });
   }
