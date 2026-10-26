@@ -284,3 +284,26 @@ test('emergencyStop: 入稿済みの広告をすべて止め、解除まで企�
   assert.ok(!rec.steps.some((s) => ['plan', 'produce', 'publish', 'search', 'organic'].includes(s.name)));
   assert.equal(ctx.store.state.creatives.b.status, 'produced');
 });
+
+test('notifyLeads: 新しい応募だけを数え、氏名はイニシャルにして通知し、取得位置を進める', async () => {
+  const { notifyLeads, maskName } = await import('../src/pipeline/leads.ts');
+  const { creative, job } = await import('./fixtures.ts');
+  assert.equal(maskName({ full_name: '山田 太郎' }), '山…様');
+  assert.equal(maskName({}), '（氏名なし）');
+  const now = Math.floor(Date.now() / 1000);
+  const calls: number[] = [];
+  const fakeMeta = {
+    leads: async (_form: string, since: number) => {
+      calls.push(since);
+      return since < now - 10 ? [{ id: 'l1', createdTime: now - 5, adId: 'ad1', fields: { full_name: '山田 太郎', phone_number: '090-0000-0000' } }] : [];
+    },
+  } as any;
+  const ctx = ctxWith(offlineLlm(catalog()), { meta: fakeMeta });
+  ctx.catalog.jobs = [job({ placements: { meta: { adsetIds: ['1'], leadFormId: 'form1' } } })];
+  ctx.store.state.creatives.c = creative({ id: 'c' });
+  assert.match(await notifyLeads(ctx), /1 件/);
+  assert.equal(ctx.store.state.leadCursor!.form1, now - 5);
+  assert.match(await notifyLeads(ctx), /0 件/);
+  // 個人情報（電話番号）を状態に残さない
+  assert.ok(!JSON.stringify(ctx.store.state).includes('090-0000-0000'));
+});

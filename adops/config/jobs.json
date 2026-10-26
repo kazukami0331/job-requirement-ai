@@ -15,7 +15,7 @@
     "landingUrl": "https://example.com/jobs/factory-aichi",
     "dailyCreativeQuota": 2,
     "placements": {
-      "meta": { "adsetIds": [] },
+      "meta": { "adsetIds": [], "leadFormId": "" },
       "google": { "adGroupIds": [], "assetGroupIds": [], "searchAdGroupIds": [] }
     }
   },

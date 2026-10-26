@@ -122,10 +122,14 @@ export class MetaClient {
     const vertical = assets.find((a) => a.ratio === '9:16');
     if (!feed && !vertical) throw new Error('Meta: 入稿できる比率（4:5 / 1:1 / 9:16）の素材がありません');
     const link = withUtm(job.landingUrl, 'meta', brief.id);
+    // インスタントフォーム（リード獲得）の場合は、ボタンの遷移先をフォームにする（link は審査・フォールバック用）
+    const leadFormId = job.placements.meta?.leadFormId;
+    const ctaValue = leadFormId ? { link, lead_gen_form_id: leadFormId } : { link };
     const isVideo = (feed ?? vertical)!.kind === 'video';
     const ig = this.s.instagramUserId ? { instagram_user_id: this.s.instagramUserId } : {};
 
-    const usePac = process.env.META_USE_PLACEMENT_CUSTOMIZATION !== 'false' && feed && vertical;
+    // 配置カスタマイズはフォーム型の広告では使わない（object_story_spec の単一素材で入稿する）
+    const usePac = process.env.META_USE_PLACEMENT_CUSTOMIZATION !== 'false' && feed && vertical && !leadFormId;
     if (!usePac) {
       const a = (feed ?? vertical)!;
       const story = isVideo
@@ -138,7 +142,7 @@ export class MetaClient {
               message: brief.primaryText,
               title: brief.headline,
               link_description: brief.description,
-              call_to_action: { type: brief.cta, value: { link } },
+              call_to_action: { type: brief.cta, value: ctaValue },
             },
           }
         : {
@@ -150,7 +154,7 @@ export class MetaClient {
               message: brief.primaryText,
               name: brief.headline,
               description: brief.description,
-              call_to_action: { type: brief.cta, value: { link } },
+              call_to_action: { type: brief.cta, value: ctaValue },
             },
           };
       const res = await this.call<{ id: string }>('POST', `${this.account}/adcreatives`, { name, object_story_spec: story });
@@ -239,6 +243,32 @@ export class MetaClient {
         const fb = v.ad_review_feedback?.global ?? {};
         out.set(id, { status: v.effective_status ?? 'UNKNOWN', review: Object.entries(fb).map(([k, m]) => `${k}: ${m}`).join(' / ') || undefined });
       }
+    }
+    return out;
+  }
+
+  /**
+   * インスタントフォームに届いたリード（応募）。since（UNIX 秒）より新しいものだけ。
+   * 個人情報は呼び出し側で保存しないこと（状態ファイルは Git に保存されるため）。
+   */
+  async leads(formId: string, since: number): Promise<{ id: string; createdTime: number; adId?: string; fields: Record<string, string> }[]> {
+    const out: { id: string; createdTime: number; adId?: string; fields: Record<string, string> }[] = [];
+    let url: string | null = this.url(`${formId}/leads`, {
+      fields: 'id,created_time,ad_id,field_data',
+      filtering: JSON.stringify([{ field: 'time_created', operator: 'GREATER_THAN', value: since }]),
+      limit: '100',
+    });
+    while (url) {
+      const page: any = await requestJson(url);
+      for (const l of page.data ?? []) {
+        out.push({
+          id: l.id,
+          createdTime: Math.floor(Date.parse(l.created_time) / 1000),
+          adId: l.ad_id,
+          fields: Object.fromEntries((l.field_data ?? []).map((f: { name: string; values: string[] }) => [f.name, (f.values ?? []).join(', ')])),
+        });
+      }
+      url = page.paging?.next ?? null;
     }
     return out;
   }

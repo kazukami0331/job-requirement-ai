@@ -6,6 +6,7 @@ on:
   schedule:
     - cron: '0 21 * * *' # 06:00 JST
     - cron: '0 3,9 * * *' # 12:00 / 18:00 JST
+    - cron: '30 0-12 * * *' # 9:30〜21:30 JST 毎時: インスタントフォームの応募通知だけ
   workflow_dispatch:
     inputs:
       steps:
@@ -55,6 +56,8 @@ jobs:
           fi
 
       - name: ffmpeg と日本語フォント
+        # 毎時の応募通知では制作しないので入れない
+        if: github.event.schedule != '30 0-12 * * *'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-noto-cjk fonts-noto-cjk-extra >/dev/null
 
       - uses: actions/setup-node@v4
@@ -70,6 +73,8 @@ jobs:
         run: |
           if [ -n "${{ github.event.inputs.steps }}" ]; then
             echo "steps=${{ github.event.inputs.steps }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "30 0-12 * * *" ]; then
+            echo "steps=leads" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event.schedule }}" = "0 3,9 * * *" ]; then
             echo "steps=collect,optimize,report" >> "$GITHUB_OUTPUT"
           else
@@ -118,6 +123,8 @@ jobs:
             node src/cli.ts emergency-stop --reason "緊急停止（GitHub Actions から手動実行）"
           elif [ "${{ github.event.inputs.control }}" = "resume" ]; then
             node src/cli.ts resume
+          elif [ "${{ steps.steps.outputs.steps }}" = "leads" ]; then
+            node src/cli.ts leads
           else
             node src/cli.ts cycle --steps "${{ steps.steps.outputs.steps }}"
           fi

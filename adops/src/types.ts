@@ -62,7 +62,8 @@ export interface Job {
   dailyCreativeQuota?: number;
   /** 媒体ごとの入稿先。キャンペーン・広告セットは人が作り、AIは広告（素材）を回す。 */
   placements: {
-    meta?: { adsetIds: string[] };
+    /** leadFormId を指定すると、LP ではなく Meta のインスタントフォーム（リード獲得）で応募を受ける */
+    meta?: { adsetIds: string[]; leadFormId?: string };
     google?: { assetGroupIds?: string[]; adGroupIds?: string[]; searchAdGroupIds?: string[] };
   };
 }
@@ -327,6 +328,8 @@ export interface SearchAd {
 export interface State {
   version: 1;
   searchAds?: Record<string, SearchAd>;
+  /** リード（インスタントフォームの応募）の取得位置（フォーム ID → 最後に取得した作成時刻 UNIX 秒） */
+  leadCursor?: Record<string, number>;
   /** 緊急停止中（解除するまで企画・制作・入稿・投稿をしない） */
   halted?: { at: string; reason: string };
   /** 週次の戦略メモ */

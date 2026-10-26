@@ -16,6 +16,7 @@
  *   node src/cli.ts add-job --file 求人票.txt [--write]  求人票から jobs.json に1件追加
  *   node src/cli.ts emergency-stop [--reason ...]  adops が入稿した広告をすべて停止し、以後の入稿も止める
  *   node src/cli.ts resume                緊急停止を解除
+ *   node src/cli.ts leads                 インスタントフォームの新しい応募を Slack に通知
  *
  * 共通オプション: --offline（Claude を呼ばずテンプレートで動かす） --today YYYY-MM-DD
  */
@@ -35,6 +36,7 @@ import { simulate } from './sim/simulate.ts';
 import { liveChecks } from './doctor.ts';
 import { importJob } from './agents/jobImporter.ts';
 import { emergencyStop } from './pipeline/emergency.ts';
+import { notifyLeads } from './pipeline/leads.ts';
 import { notifySlack } from './notify/slack.ts';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -172,6 +174,12 @@ async function main() {
       process.exitCode = r.errors.length ? 1 : 0;
       break;
     }
+    case 'leads': {
+      // インスタントフォームの新しい応募を Slack に通知するだけ（1時間おきの軽い定期実行用）
+      const ctx = buildCtx({ ...flags, offline: true });
+      console.log(await notifyLeads(ctx));
+      break;
+    }
     case 'resume': {
       const ctx = buildCtx({ ...flags, offline: true });
       const was = ctx.store.state.halted;
@@ -209,7 +217,7 @@ async function main() {
       break;
     }
     default:
-      console.log(`使い方: node src/cli.ts <cycle|plan|produce|publish|collect|optimize|analyze|report|status|check|simulate|add-job|emergency-stop|resume> [--offline] [--steps a,b] [--today YYYY-MM-DD]`);
+      console.log(`使い方: node src/cli.ts <cycle|plan|produce|publish|collect|optimize|analyze|report|status|check|simulate|add-job|emergency-stop|resume|leads> [--offline] [--steps a,b] [--today YYYY-MM-DD]`);
   }
 }
 

@@ -120,6 +120,13 @@ Node.js 22.18 以上（TypeScript をそのまま実行します）、`ffmpeg`�
 4. 応募の計測（ピクセル/CAPI の Lead・SubmitApplication、またはリード獲得フォーム）。
    応募として数える action_type が既定と違う場合は `META_CONVERSION_ACTION_TYPES` で指定。
 
+**インスタントフォーム（任意・おすすめ）**
+- LP に飛ばすより、Meta のアプリ内フォームで応募を完結させた方が応募率が高いことが多いです。
+  広告マネージャでフォーム（質問項目・プライバシーポリシー）を作り、その ID を `jobs.json` の `placements.meta.leadFormId` に書くと、
+  その求人の広告はフォーム型で入稿されます（キャンペーン目的はリード獲得に）。
+- 新しい応募は日本時間 9:30〜21:30 に毎時確認し、Slack に「時刻・イニシャル・求人・どの広告から」を通知します。
+  電話番号などの個人情報は Slack にも状態ファイルにも残しません（リードセンターや CRM で確認）。トークンに `leads_retrieval` 権限が必要です。
+
 **Instagram（オーガニック投稿を使う場合）**
 - プロフェッショナルアカウントを Facebook ページに接続し、`META_INSTAGRAM_USER_ID` を設定。
 - トークンに `instagram_basic` `instagram_content_publish` `instagram_manage_insights` 権限を追加。
