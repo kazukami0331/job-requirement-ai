@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import type { Llm } from '../llm/llm.ts';
 import type { Catalog } from '../config.ts';
-import type { State } from '../types.ts';
+import { LANGUAGE_LABEL, type State } from '../types.ts';
 import { buildReport } from './analyst.ts';
 import { totals, windowed } from '../optimize/stats.ts';
 import { addDays } from '../util/id.ts';
@@ -93,7 +93,17 @@ ${
     .join('\n') || '- なし'
 }
 
-## 直近の AI 分析の学び
+${(() => {
+  const langOf = (c: (typeof creatives)[number]) => state.briefs[c.briefId]?.language ?? 'ja';
+  const langs = [...new Set(creatives.map(langOf))];
+  if (langs.length < 2) return '';
+  return `## 言語別（4週間。外国人材向けの広告）\n${langs
+    .map((l) => {
+      const t = totals(creatives.filter((c) => langOf(c) === l).flatMap((c) => windowed(c.metrics, from, today)));
+      return `- ${LANGUAGE_LABEL[l] ?? l}: 費用 ${Math.round(t.spend).toLocaleString()}円 / 表示 ${t.impressions.toLocaleString()} / 応募 ${t.conversions} / 単価 ${t.cpa ? Math.round(t.cpa).toLocaleString() + '円' : '-'}`;
+    })
+    .join('\n')}\n\n`;
+})()}## 直近の AI 分析の学び
 ${(state.insights.at(-1)?.learnings ?? []).map((l) => `- ${l}`).join('\n') || '- なし'}
 
 今週の戦略メモを書いてください。`,
