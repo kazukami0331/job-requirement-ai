@@ -3,7 +3,7 @@ import type { Ctx } from './context.ts';
 import type { Creative, CreativeBrief, Review } from '../types.ts';
 import { allocateSlots, jobsAtTarget } from '../optimize/allocate.ts';
 import { landingBroken } from './landing.ts';
-import { personaPublishable } from '../config.ts';
+import { allPlacements, personaPublishable } from '../config.ts';
 import { planBriefs, reviseBrief, seasonalContext, type PlanningContext, type Slot } from '../agents/strategist.ts';
 import { reviewBrief } from '../agents/reviewer.ts';
 import { lastNDays, totals } from '../optimize/stats.ts';
@@ -78,7 +78,11 @@ export async function plan(ctx: Ctx): Promise<PlanResult> {
   // 制作待ちが溜まっている（手渡しモードで人の作業が追いついていない等）ときは新規企画を控える
   const backlog = store.creatives({ status: ['planned', 'awaiting_images'] }).length;
   // 完成したのに入稿されないもの（DRY RUN の試運転中・入稿先の未設定など）も、溜まりすぎたら作るのを止める（AI 費用と人の画像作業を無駄にしない）
-  const unpublished = store.creatives({ status: 'produced' }).length;
+  // 入稿先のある稼働中の求人のものだけ数える（停止・削除した求人の完成品で企画が止まり続けないように）
+  const publishable = new Set(
+    catalog.jobs.filter((j) => j.active && allPlacements(j).some((p) => p.meta?.adsetIds?.length || p.google?.adGroupIds?.length || p.google?.assetGroupIds?.length)).map((j) => j.id),
+  );
+  const unpublished = store.creatives({ status: 'produced' }).filter((c) => publishable.has(c.jobId)).length;
   if (unpublished >= catalog.policy.briefsPerCycle * 4) {
     log.info(`入稿されていない完成品が ${unpublished} 本あるため新規企画はスキップ（入稿されれば再開）`);
     return { created: [], rejected: [] };

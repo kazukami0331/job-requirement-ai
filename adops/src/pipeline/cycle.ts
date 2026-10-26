@@ -271,10 +271,16 @@ function summaryMessage(
   const sb = store.state.searchBudget;
   if (sb?.date === today) {
     const st = totals(Object.values(store.state.searchAds ?? {}).flatMap((a) => lastNDays(a.metrics, today, 7)));
-    const good = st.cpa !== null && st.cpa <= ctx.catalog.policy.guardrails.targetCpa;
+    const target = ctx.catalog.policy.guardrails.targetCpa;
     for (const c of sb.campaigns.filter((x) => x.lostToBudget >= 0.2)) {
       lines.push(
-        `• :moneybag: 検索キャンペーン「${c.name}」は予算不足で表示の ${Math.round(c.lostToBudget * 100)}% を逃しています（表示シェア ${Math.round(c.impressionShare * 100)}%）。${good ? `応募単価 ${Math.round(st.cpa!).toLocaleString()}円 は目標以内なので、日予算を上げると応募が増えやすいです` : '応募単価が目標を超えているので、予算より先に除外キーワードと広告文の見直しを'}`,
+        `• :moneybag: 検索キャンペーン「${c.name}」は予算不足で表示の ${Math.round(c.lostToBudget * 100)}% を逃しています（表示シェア ${Math.round(c.impressionShare * 100)}%）。${
+          st.cpa === null
+            ? '直近7日の応募がまだ無いので、予算より先に検索語句と応募ページを確認してください'
+            : st.cpa <= target
+              ? `応募単価 ${Math.round(st.cpa).toLocaleString()}円 は目標以内なので、日予算を上げると応募が増えやすいです`
+              : `応募単価 ${Math.round(st.cpa).toLocaleString()}円 が目標を超えているので、予算より先に除外キーワードと広告文の見直しを`
+        }`,
       );
     }
   }

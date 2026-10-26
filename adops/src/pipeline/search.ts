@@ -59,21 +59,24 @@ export function pickSearchLosers(ads: SearchAd[], today: string): SearchDecision
 
 /** 検索広告の直近14日の実績を取り込む（収集の段階と、入れ替えの前に呼ぶ）。 */
 export async function collectSearchMetrics(ctx: Ctx): Promise<string> {
-  const ads = Object.values(ctx.store.state.searchAds ?? {});
-  const live = ads.filter((a) => a.resourceName && a.status !== 'failed');
-  if (!ctx.google || live.length === 0) return '';
-  const byRn = await ctx.google.adMetrics(live.map((a) => a.resourceName!), addDays(ctx.today, -13), ctx.today);
-  for (const a of live) a.metrics = mergeMetrics(a.metrics, byRn.get(a.resourceName!) ?? []);
+  if (!ctx.google) return '';
   // 予算不足での取りこぼし（1日1回）。応募単価が目標以内なら予算を上げる提案を出す
   if (ctx.store.state.searchBudget?.date !== ctx.today) {
     const groups = ctx.catalog.jobs.filter((j) => j.active).flatMap((j) => j.placements.google?.searchAdGroupIds ?? []);
-    try {
-      const rows = await ctx.google.searchBudgetLoss(groups);
-      ctx.store.state.searchBudget = { date: ctx.today, campaigns: rows };
-    } catch (e) {
-      log.warn(`検索キャンペーンの予算状況の取得に失敗: ${(e as Error).message.slice(0, 200)}`);
+    if (groups.length) {
+      try {
+        const rows = await ctx.google.searchBudgetLoss(groups);
+        ctx.store.state.searchBudget = { date: ctx.today, campaigns: rows };
+      } catch (e) {
+        log.warn(`検索キャンペーンの予算状況の取得に失敗: ${(e as Error).message.slice(0, 200)}`);
+      }
     }
   }
+  const ads = Object.values(ctx.store.state.searchAds ?? {});
+  const live = ads.filter((a) => a.resourceName && a.status !== 'failed');
+  if (live.length === 0) return '';
+  const byRn = await ctx.google.adMetrics(live.map((a) => a.resourceName!), addDays(ctx.today, -13), ctx.today);
+  for (const a of live) a.metrics = mergeMetrics(a.metrics, byRn.get(a.resourceName!) ?? []);
   return `検索広告 ${live.length} 本の実績を取り込み`;
 }
 

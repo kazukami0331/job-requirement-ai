@@ -721,4 +721,8 @@ test('plan: 入稿されない完成品が溜まりすぎたら新規企画を�
   assert.equal((await plan(ctx)).created.length, 0);
   delete ctx.store.state.creatives.p0;
   assert.ok((await plan(ctx)).created.length > 0);
+  // 停止・削除した求人の完成品は数えない（企画が止まり続けないように）
+  const ctx2 = ctxWith(offlineLlm(catalog()));
+  for (let i = 0; i < n; i++) ctx2.store.state.creatives[`q${i}`] = creative({ id: `q${i}`, status: 'produced', jobId: 'deleted-job' });
+  assert.ok((await plan(ctx2)).created.length > 0);
 });
