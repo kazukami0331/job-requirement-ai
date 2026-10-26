@@ -145,6 +145,25 @@ function findJapaneseFont(): string {
   return candidates.find((p) => existsSync(p)) ?? '';
 }
 
+/**
+ * サンプル設定のまま本番入稿しないための確認（LP がサンプルの URL、社名が未記入など）。
+ * 問題があれば理由の一覧を返す。
+ */
+export function placeholderProblems(c: Catalog, jobId?: string): string[] {
+  const out: string[] = [];
+  if (!c.brand.name || /ここに|社名|sample|example/i.test(c.brand.name)) out.push(`brand.json の name が未記入です（${c.brand.name}）`);
+  for (const j of c.jobs.filter((x) => x.active && (!jobId || x.id === jobId))) {
+    let host = '';
+    try {
+      host = new URL(j.landingUrl).hostname;
+    } catch {
+      /* validateCatalog で検出済み */
+    }
+    if (/(^|\.)example\.(com|org|net)$/.test(host) || host === 'localhost') out.push(`${j.id}: landingUrl がサンプルのままです（${j.landingUrl}）`);
+  }
+  return out;
+}
+
 export function isMetaConfigured(s: Settings): boolean {
   return Boolean(s.meta.accessToken && s.meta.adAccountId && s.meta.pageId);
 }

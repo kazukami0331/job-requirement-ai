@@ -400,3 +400,21 @@ test('watchComments: Instagram 側のコメントも仕分ける', async () => {
     delete process.env.ADOPS_WATCH_COMMENTS;
   }
 });
+
+test('publish: サンプル設定（example.com・社名未記入）のままでは入稿しない', async () => {
+  const { publish } = await import('../src/pipeline/publish.ts');
+  const { creative, brief, job, brand } = await import('./fixtures.ts');
+  const { writeFileSync } = await import('node:fs');
+  let created = 0;
+  const ctx = ctxWith(offlineLlm(catalog()), { dryRun: false, meta: { createCreative: async () => (created++, 'c'), createAd: async () => 'a' } as any });
+  ctx.catalog.jobs = [job({ landingUrl: 'https://example.com/jobs/x' })];
+  ctx.catalog.brand = brand({ name: '（社名をここに）' });
+  const img = join(ctx.store.dir, 'x.jpg');
+  writeFileSync(img, 'x');
+  ctx.store.state.briefs.br_1 = brief();
+  ctx.store.state.creatives.c = creative({ id: 'c', status: 'produced', platformRefs: {}, assets: [{ ratio: '4:5', kind: 'image', path: img, width: 1, height: 1 }] });
+  const r = await publish(ctx);
+  assert.equal(created, 0);
+  assert.match(r.skipped[0].reason, /サンプル設定/);
+  assert.equal(ctx.store.state.creatives.c.status, 'produced');
+});

@@ -14,7 +14,7 @@ export function job(over: Partial<Job> = {}): Job {
     hours: '8:00〜17:00',
     holidays: '土日休み',
     personas: ['p1'],
-    landingUrl: 'https://example.com/jobs/factory',
+    landingUrl: 'https://recruit.test-company.jp/jobs/factory',
     dailyCreativeQuota: 2,
     placements: { meta: { adsetIds: ['111'] } },
     ...over,

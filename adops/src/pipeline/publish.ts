@@ -3,6 +3,7 @@
  * draft モードでは「停止状態」で入れ、人が媒体の管理画面で ON にする。
  */
 import { existsSync } from 'node:fs';
+import { placeholderProblems } from '../config.ts';
 import type { Ctx } from './context.ts';
 import type { Creative, Platform } from '../types.ts';
 import { publishToMeta } from '../platforms/meta.ts';
@@ -68,6 +69,11 @@ export async function publish(ctx: Ctx): Promise<PublishSummary> {
     }
     if (ctx.dryRun) {
       summary.skipped.push({ creative: c, reason: 'DRY RUN（ADOPS_DRY_RUN=false で入稿）' });
+      continue;
+    }
+    const placeholders = placeholderProblems(catalog, job.id);
+    if (placeholders.length) {
+      summary.skipped.push({ creative: c, reason: `サンプル設定のままのため入稿しません: ${placeholders.join(' / ')}` });
       continue;
     }
     const errors: string[] = [];

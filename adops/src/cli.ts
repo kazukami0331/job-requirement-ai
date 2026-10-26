@@ -20,7 +20,7 @@
  *
  * 共通オプション: --offline（Claude を呼ばずテンプレートで動かす） --today YYYY-MM-DD
  */
-import { loadCatalog, loadDotEnv, loadSettings, isGoogleConfigured, isMetaConfigured } from './config.ts';
+import { loadCatalog, loadDotEnv, loadSettings, isGoogleConfigured, isMetaConfigured, placeholderProblems } from './config.ts';
 import { ClaudeLlm, type Llm } from './llm/llm.ts';
 import { offlineLlm } from './llm/offline.ts';
 import { createImageProvider } from './creative/imageProvider.ts';
@@ -143,6 +143,7 @@ async function main() {
       try {
         const c = loadCatalog(s.configDir);
         console.log(`${ok(true)}設定ファイル: 求人 ${c.jobs.length} / ペルソナ ${c.personas.length} / モード ${c.policy.autonomy}`);
+        for (const p of placeholderProblems(c)) console.log(`NG サンプル設定: ${p}（このままでは入稿しません）`);
         for (const j of c.jobs.filter((j) => j.active)) {
           const m = j.placements.meta?.adsetIds?.length ?? 0;
           const g = (j.placements.google?.adGroupIds?.length ?? 0) + (j.placements.google?.assetGroupIds?.length ?? 0);
