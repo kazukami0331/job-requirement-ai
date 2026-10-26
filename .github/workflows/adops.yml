@@ -139,6 +139,17 @@ jobs:
             node src/cli.ts cycle --steps "${{ steps.steps.outputs.steps }}"
           fi
 
+      - name: 実行の失敗を Slack に知らせる
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -n "$SLACK_WEBHOOK_URL" ] || exit 0
+          url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -sS -X POST -H 'content-type: application/json' \
+            --data "{\"text\":\":x: adops の実行が失敗しました（${{ steps.steps.outputs.steps || 'cycle' }}）。ログ: ${url}\"}" \
+            "$SLACK_WEBHOOK_URL" >/dev/null || true
+
       - name: 素材とレポートを保存（14日）
         if: always() && steps.steps.outputs.steps != 'leads'
         uses: actions/upload-artifact@v4
