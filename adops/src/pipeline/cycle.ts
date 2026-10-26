@@ -26,8 +26,14 @@ const log = logger('cycle');
 export type StepName = 'collect' | 'optimize' | 'analyze' | 'plan' | 'produce' | 'publish' | 'search' | 'organic' | 'report';
 export const ALL_STEPS: StepName[] = ['collect', 'optimize', 'analyze', 'plan', 'produce', 'publish', 'search', 'organic', 'report'];
 
-export async function runCycle(ctx: Ctx, steps: StepName[] = ALL_STEPS): Promise<CycleRecord> {
+/** 緊急停止中でも動かしてよい段階（実績の取り込み・停止判断・分析・報告だけ） */
+const SAFE_WHEN_HALTED: StepName[] = ['collect', 'optimize', 'analyze', 'report'];
+
+export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Promise<CycleRecord> {
   const { store } = ctx;
+  const halted = store.state.halted;
+  const steps = halted ? requested.filter((s) => SAFE_WHEN_HALTED.includes(s)) : requested;
+  if (halted) log.warn(`緊急停止中（${halted.at} ${halted.reason}）のため、企画・制作・入稿・投稿はしません。解除: node src/cli.ts resume`);
   const record: CycleRecord = { id: ctx.cycleId, startedAt: new Date().toISOString(), dryRun: ctx.dryRun, steps: [], llmCostUsd: 0 };
   const usageBefore = ctx.llm.usage.length;
   let decisions: Decision[] = [];
@@ -138,6 +144,7 @@ function summaryMessage(
   const t7 = totals(store.creatives().flatMap((c) => lastNDays(c.metrics, today, 7)));
   const lines: string[] = [];
   lines.push(`*広告自動運用 ${today}*${ctx.dryRun ? '（DRY RUN）' : ''}`);
+  if (store.state.halted) lines.push(`:octagonal_sign: 緊急停止中（${store.state.halted.reason}）。企画・入稿は止めています。解除は \`resume\``);
   lines.push(`直近7日: 表示 ${t7.impressions.toLocaleString()} / CTR ${t7.ctr.toFixed(2)}% / 費用 ${Math.round(t7.spend).toLocaleString()}円 / 応募 ${t7.conversions}${t7.cpa ? ` / 単価 ${Math.round(t7.cpa).toLocaleString()}円` : ''}`);
   const failedSteps = record.steps.filter((s) => !s.ok);
   if (failedSteps.length) lines.push(`:warning: 失敗した段階: ${failedSteps.map((s) => `${s.name}（${s.note.slice(0, 120)}）`).join(' / ')}`);

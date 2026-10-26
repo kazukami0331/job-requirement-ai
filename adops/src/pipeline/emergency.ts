@@ -1,0 +1,61 @@
+/**
+ * 緊急停止: adops が入稿した広告（Meta / Google デマンドジェネレーション / 検索広告）を媒体側ですべて停止する。
+ * DRY RUN の設定に関係なく実行する（止める方向の操作なので）。P-MAX のアセットは外す。
+ */
+import type { Ctx } from './context.ts';
+import { logger } from '../util/log.ts';
+
+const log = logger('emergency');
+
+export async function emergencyStop(ctx: Ctx, reason = '緊急停止'): Promise<{ paused: number; errors: string[] }> {
+  const { store } = ctx;
+  let paused = 0;
+  const errors: string[] = [];
+  for (const c of store.creatives({ status: ['published', 'paused', 'retired'] })) {
+    const metaAds = c.platformRefs.meta?.adIds ?? [];
+    const googleRefs = c.platformRefs.google?.linkedTo ?? [];
+    let ok = true;
+    for (const id of metaAds) {
+      try {
+        if (!ctx.meta) throw new Error('Meta の API が未設定');
+        await ctx.meta.setAdStatus(id, 'PAUSED');
+      } catch (e) {
+        ok = false;
+        errors.push(`${c.id} Meta ${id}: ${(e as Error).message}`);
+      }
+    }
+    for (const rn of googleRefs) {
+      try {
+        if (!ctx.google) throw new Error('Google 広告の API が未設定');
+        if (rn.includes('/adGroupAds/')) await ctx.google.setAdGroupAdStatus(rn, 'PAUSED');
+        else if (rn.includes('/assetGroupAssets/')) await ctx.google.removeAssetGroupAssets([rn]);
+      } catch (e) {
+        ok = false;
+        errors.push(`${c.id} Google ${rn}: ${(e as Error).message}`);
+      }
+    }
+    if (ok && (metaAds.length || googleRefs.length) && c.status === 'published') {
+      store.setStatus(c, 'paused', reason);
+      c.live = false;
+      paused++;
+    }
+  }
+  for (const a of Object.values(store.state.searchAds ?? {})) {
+    if (a.status !== 'live' || !a.resourceName) continue;
+    try {
+      if (!ctx.google) throw new Error('Google 広告の API が未設定');
+      await ctx.google.setAdGroupAdStatus(a.resourceName, 'PAUSED');
+      a.status = 'paused';
+      a.statusReason = reason;
+      paused++;
+    } catch (e) {
+      errors.push(`${a.id}: ${(e as Error).message}`);
+    }
+  }
+  store.state.decisions.push({ date: ctx.today, action: 'pause', reason: `${reason}（${paused} 件）`, applied: errors.length === 0 });
+  // 解除（resume）するまで、定期実行でも新しい広告を作らない・出さない
+  store.state.halted = { at: new Date().toISOString(), reason };
+  store.save();
+  log.warn(`緊急停止: ${paused} 件を停止 / 失敗 ${errors.length} 件`);
+  return { paused, errors };
+}

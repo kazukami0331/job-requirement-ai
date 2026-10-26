@@ -325,6 +325,8 @@ export interface SearchAd {
 export interface State {
   version: 1;
   searchAds?: Record<string, SearchAd>;
+  /** 緊急停止中（解除するまで企画・制作・入稿・投稿をしない） */
+  halted?: { at: string; reason: string };
   /** 週次の戦略メモ */
   memos?: { date: string; headline: string; findings: string[]; decisions: { topic: string; recommendation: string; why: string }[]; experiments: string[] }[];
   briefs: Record<string, CreativeBrief>;

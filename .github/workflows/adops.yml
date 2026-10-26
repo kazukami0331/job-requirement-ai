@@ -16,6 +16,11 @@ on:
         description: 'DRY RUN（媒体に書き込まない）'
         type: boolean
         default: false
+      control:
+        description: '緊急操作（stop: adops の広告をすべて停止し以後の入稿も止める / resume: 解除）'
+        type: choice
+        options: ['', 'stop', 'resume']
+        default: ''
 
 concurrency:
   group: adops
@@ -102,7 +107,14 @@ jobs:
           GOOGLE_ADS_BUSINESS_NAME: ${{ vars.GOOGLE_ADS_BUSINESS_NAME }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           ADOPS_OUTCOMES_CSV_URL: ${{ secrets.ADOPS_OUTCOMES_CSV_URL }}
-        run: node src/cli.ts cycle --steps "${{ steps.steps.outputs.steps }}"
+        run: |
+          if [ "${{ github.event.inputs.control }}" = "stop" ]; then
+            node src/cli.ts emergency-stop --reason "緊急停止（GitHub Actions から手動実行）"
+          elif [ "${{ github.event.inputs.control }}" = "resume" ]; then
+            node src/cli.ts resume
+          else
+            node src/cli.ts cycle --steps "${{ steps.steps.outputs.steps }}"
+          fi
 
       - name: 素材とレポートを保存（14日）
         if: always()

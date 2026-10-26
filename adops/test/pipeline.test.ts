@@ -258,3 +258,20 @@ test('shouldWriteMemo: 月曜（日本時間の日付）に週1回だけ', async
   assert.equal(shouldWriteMemo(s, '2026-10-26'), false);
   assert.equal(shouldWriteMemo(s, '2026-11-02'), true);
 });
+
+test('emergencyStop: 入稿済みの広告をすべて止め、解除まで企画・入稿しない', async () => {
+  const { emergencyStop } = await import('../src/pipeline/emergency.ts');
+  const { creative } = await import('./fixtures.ts');
+  const paused: string[] = [];
+  const ctx = ctxWith(offlineLlm(catalog()), { dryRun: false, meta: { setAdStatus: async (id: string) => void paused.push(id) } as any });
+  ctx.store.state.creatives.a = creative({ id: 'a' });
+  ctx.store.state.creatives.b = creative({ id: 'b', status: 'produced', platformRefs: {} });
+  const r = await emergencyStop(ctx);
+  assert.equal(r.paused, 1);
+  assert.deepEqual(paused, ['ad1']);
+  assert.equal(ctx.store.state.creatives.a.status, 'paused');
+  assert.ok(ctx.store.state.halted);
+  const rec = await runCycle(ctx);
+  assert.ok(!rec.steps.some((s) => ['plan', 'produce', 'publish', 'search', 'organic'].includes(s.name)));
+  assert.equal(ctx.store.state.creatives.b.status, 'produced');
+});

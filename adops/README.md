@@ -173,6 +173,10 @@ node src/cli.ts add-job --file 求人票.txt [--write]   # 求人票から jobs.
 
 ## 安全装置
 
+> 導入から本番化の進め方、毎日・毎週の確認、トラブル時の対応は [RUNBOOK.md](RUNBOOK.md) にまとめています。
+
+- **緊急停止**: Actions → adops → Run workflow → `control: stop`（または `node src/cli.ts emergency-stop`）で、adops が入稿した広告をすべて停止し、解除（`resume`）まで新しい入稿もしない。
+
 - 既定は DRY RUN（媒体への入稿・停止・予算変更・Instagram 投稿をしない。企画・画像生成・制作は行うので Claude と Midjourney の費用はかかる）。
   `draft` モードでは停止状態で入稿し、予算は増やさない（提案のみ）。
 - 予算増は同じ広告セットにつき3日に1回まで（`ADOPS_BUDGET_COOLDOWN_DAYS`）。Meta の予算は Meta での実績だけで判断。

@@ -14,6 +14,8 @@
  *   node src/cli.ts check [--live]        設定の確認（--live で各サービスに読み取りの接続テスト）
  *   node src/cli.ts simulate --days 14    架空の配信データで改善ループを試す（媒体・API キー不要）
  *   node src/cli.ts add-job --file 求人票.txt [--write]  求人票から jobs.json に1件追加
+ *   node src/cli.ts emergency-stop [--reason ...]  adops が入稿した広告をすべて停止し、以後の入稿も止める
+ *   node src/cli.ts resume                緊急停止を解除
  *
  * 共通オプション: --offline（Claude を呼ばずテンプレートで動かす） --today YYYY-MM-DD
  */
@@ -32,6 +34,8 @@ import { newId } from './util/id.ts';
 import { simulate } from './sim/simulate.ts';
 import { liveChecks } from './doctor.ts';
 import { importJob } from './agents/jobImporter.ts';
+import { emergencyStop } from './pipeline/emergency.ts';
+import { notifySlack } from './notify/slack.ts';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -158,6 +162,25 @@ async function main() {
       if (!catalogOk) process.exitCode = 1;
       break;
     }
+    case 'emergency-stop': {
+      const ctx = buildCtx({ ...flags, offline: true });
+      const r = await emergencyStop(ctx, typeof flags.reason === 'string' ? flags.reason : '緊急停止（手動）');
+      console.log(`停止 ${r.paused} 件${r.errors.length ? ` / 失敗 ${r.errors.length} 件:\n${r.errors.join('\n')}` : ''}`);
+      await notifySlack(ctx.settings.slack.webhookUrl, {
+        text: `:octagonal_sign: *adops 緊急停止* ${r.paused} 件の広告を停止しました${r.errors.length ? `（失敗 ${r.errors.length} 件。管理画面で確認してください）` : ''}`,
+      });
+      process.exitCode = r.errors.length ? 1 : 0;
+      break;
+    }
+    case 'resume': {
+      const ctx = buildCtx({ ...flags, offline: true });
+      const was = ctx.store.state.halted;
+      delete ctx.store.state.halted;
+      ctx.store.save();
+      console.log(was ? `緊急停止を解除しました（${was.at} ${was.reason}）。止めた広告は自動では再開しません。必要なものを管理画面で ON にしてください。` : '緊急停止中ではありません');
+      if (was) await notifySlack(ctx.settings.slack.webhookUrl, { text: ':arrow_forward: *adops 緊急停止を解除* 次回の実行から企画・入稿を再開します（止めた広告は管理画面で個別に再開してください）' });
+      break;
+    }
     case 'add-job': {
       // 求人票テキストから jobs.json に1件追加（active=false で追加し、人が確認して true にする）
       loadDotEnv();
@@ -186,7 +209,7 @@ async function main() {
       break;
     }
     default:
-      console.log(`使い方: node src/cli.ts <cycle|plan|produce|publish|collect|optimize|analyze|report|status|check|simulate|add-job> [--offline] [--steps a,b] [--today YYYY-MM-DD]`);
+      console.log(`使い方: node src/cli.ts <cycle|plan|produce|publish|collect|optimize|analyze|report|status|check|simulate|add-job|emergency-stop|resume> [--offline] [--steps a,b] [--today YYYY-MM-DD]`);
   }
 }
 
