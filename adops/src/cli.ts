@@ -38,6 +38,7 @@ import { liveChecks } from './doctor.ts';
 import { importJob } from './agents/jobImporter.ts';
 import { emergencyStop } from './pipeline/emergency.ts';
 import { notifyLeads } from './pipeline/leads.ts';
+import { monthlySpend } from './pipeline/optimize.ts';
 import { fetchPage } from './pipeline/landing.ts';
 import { notifySlack } from './notify/slack.ts';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -146,6 +147,9 @@ async function main() {
       console.log(`クリエイティブ ${cs.length} 本: ${[...by].map(([k, v]) => `${k}=${v}`).join(' ')}`);
       const rsa = Object.values(ctx.store.state.searchAds ?? {});
       if (rsa.length) console.log(`検索広告 ${rsa.length} 本: ${['live', 'draft', 'paused', 'failed'].map((st) => `${st}=${rsa.filter((a) => a.status === st).length}`).join(' ')}`);
+      const spend = monthlySpend(ctx);
+      if (spend) console.log(`今月の広告費 ${Math.round(spend.spent).toLocaleString()}円 / 上限 ${spend.cap.toLocaleString()}円（${Math.round((spend.spent / spend.cap) * 100)}%）`);
+      for (const a of ctx.store.state.credentials?.alerts ?? []) console.log(`!! ${a}`);
       // 求人ごと: 応募ページの状態と今月の応募目標の進み具合
       for (const j of ctx.catalog.jobs.filter((x) => x.active)) {
         const lp = ctx.store.state.landing?.[j.id];
