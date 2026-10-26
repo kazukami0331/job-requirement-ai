@@ -251,6 +251,9 @@ export interface Creative {
   publishedAt?: string;
   updatedAt: string;
   organic?: OrganicPost;
+  /** 一部の媒体だけ入稿に失敗したとき、再試行する媒体と回数 */
+  pendingPlatforms?: Platform[];
+  publishRetries?: number;
   /** 選考結果（ATS / スプレッドシートから取り込み）。広告経由の応募者がどこまで進んだか */
   funnel?: { applied: number; interview: number; offer: number; hired: number; updatedAt: string };
 }

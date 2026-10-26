@@ -131,7 +131,10 @@ jobs:
                 [ -d "$d" ] || continue
                 name=$(basename "$d")
                 case "$name" in *.imported) continue ;; esac
-                [ -e "inbox/$name" ] || [ -e "inbox/$name.imported" ] || cp -r "$d" "inbox/$name"
+                # 今回の実行で取り込み済み（.imported）なら不要。それ以外はファイル単位で足す（PROMPT.txt だけのフォルダにも追加される）
+                [ -e "inbox/$name.imported" ] && continue
+                mkdir -p "inbox/$name"
+                cp -rn "$d". "inbox/$name/"
               done
             fi
             rm -rf "$tmp"

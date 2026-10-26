@@ -20,6 +20,8 @@ export interface DecideInput {
   /** Meta の広告セット（予算を持つ単位）。クリエイティブ→広告セットの対応は jobs.json から引く */
   adsetsByJob: Map<string, AdsetInfo[]>;
   lookbackDays?: number;
+  /** 最近予算を上げた広告セット（今回は上げない） */
+  recentlyScaled?: Set<string>;
 }
 
 /** 応募効率のスコア（大きいほど良い）。停止候補の並べ替えに使う。 */
@@ -100,12 +102,15 @@ export function decide(input: DecideInput): Decision[] {
 
   // 6. 勝ちクリエイティブがある求人の広告セット予算を段階的に増やす
   for (const [jobId, adsets] of input.adsetsByJob) {
-    const winners = withData.filter(
-      ({ c, t }) => c.jobId === jobId && !paused.has(c.id) && t.conversions >= 3 && t.cpa !== null && t.cpa <= g.targetCpa * 0.8,
-    );
+    // Meta の広告セットの予算なので、Meta での実績だけで判断する
+    const winners = live
+      .filter((c) => c.jobId === jobId && !paused.has(c.id))
+      .map((c) => ({ c, t: totals(windowed(c.metrics, from, today, 'meta')) }))
+      .filter(({ t }) => t.conversions >= 3 && t.cpa !== null && t.cpa <= g.targetCpa * 0.8);
     if (winners.length === 0) continue;
     for (const adset of adsets) {
       if (adset.dailyBudget === null) continue; // キャンペーン予算（CBO）の場合は触らない
+      if (input.recentlyScaled?.has(adset.id)) continue;
       const next = Math.min(g.maxDailyBudget, Math.round(adset.dailyBudget * (1 + g.budgetStepPct / 100)));
       if (next <= adset.dailyBudget) continue;
       decisions.push({

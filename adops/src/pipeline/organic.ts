@@ -61,7 +61,9 @@ export async function postOrganic(ctx: Ctx): Promise<string> {
         continue;
       }
       const r = kind === 'reels' ? await ig.postReel(path, caption) : await ig.postImage(path, caption);
+      // 公開できたらすぐ記録して保存（次回同じ素材を二重投稿しない）
       c.organic = { kind, mediaId: r.id, permalink: r.permalink, postedAt: new Date().toISOString(), caption, insights: [] };
+      ctx.store.save();
       done.push(`${c.id}(${kind}) ${r.permalink}`);
       log.info(`Instagram に投稿 ${c.id} ${r.permalink}`);
       ctx.store.save();

@@ -77,7 +77,8 @@ export async function plan(ctx: Ctx): Promise<PlanResult> {
 
   const result: PlanResult = { created: [], rejected: [] };
   // ブリーフごとのレビュー→修正は互いに独立なので並列に回す
-  await Promise.all(
+  // 1本の失敗（API エラーや費用上限）で他の企画まで捨てないよう allSettled で待つ
+  const settled = await Promise.allSettled(
     drafts.map(async (draft) => {
       const slot = slots.find((s) => s.slot === draft.slot)!;
       const { slot: _slot, ...rest } = draft;
@@ -128,5 +129,8 @@ export async function plan(ctx: Ctx): Promise<PlanResult> {
       result.created.push(creative);
     }),
   );
+  const errors = settled.flatMap((r) => (r.status === 'rejected' ? [(r.reason as Error).message] : []));
+  for (const e of errors) log.error(`企画・レビューに失敗: ${e}`);
+  if (errors.length && result.created.length === 0 && result.rejected.length === 0) throw new Error(errors[0]);
   return result;
 }

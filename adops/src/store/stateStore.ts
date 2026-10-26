@@ -48,7 +48,8 @@ export class StateStore {
     let removed = 0;
     const keep = new Set(keepStatuses);
     for (const c of Object.values(this.state.creatives)) {
-      if (keep.has(c.status)) continue;
+      // 一部の媒体への入稿を再試行する予定のものも素材を残す
+      if (keep.has(c.status) || (c.pendingPlatforms?.length && (c.publishRetries ?? 0) < 3)) continue;
       if (inboxDir && existsSync(inboxDir)) {
         for (const f of readdirSync(inboxDir)) {
           if (f.startsWith(`${c.id}_`)) {

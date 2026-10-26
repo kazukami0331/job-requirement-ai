@@ -170,3 +170,80 @@ test('seasonalContext: 月ごとの文脈を返す', async () => {
   const { seasonalContext } = await import('../src/agents/strategist.ts');
   assert.match(seasonalContext('2026-03-10'), /^2026-03: .*4月入社/);
 });
+
+test('optimize: DRY RUN では媒体に出ている広告の状態を変えない／本番では止めてから状態を変える', async () => {
+  const { optimize } = await import('../src/pipeline/optimize.ts');
+  const { creative, daily } = await import('./fixtures.ts');
+  const bad = () => creative({ id: 'bad', metrics: daily('2026-10-04', 7, { impressions: 4000, clicks: 40, spend: 3000, conversions: 0 }) });
+  const paused: string[] = [];
+  const fakeMeta = { setAdStatus: async (id: string) => void paused.push(id), getAdset: async () => ({ id: '111', dailyBudget: null, status: 'ACTIVE' }) } as any;
+
+  const dry = ctxWith(offlineLlm(catalog()), { meta: fakeMeta, dryRun: true });
+  dry.store.state.creatives.bad = bad();
+  await optimize(dry);
+  assert.equal(dry.store.state.creatives.bad.status, 'published');
+  assert.equal(paused.length, 0);
+
+  const live = ctxWith(offlineLlm(catalog()), { meta: fakeMeta, dryRun: false });
+  live.store.state.creatives.bad = bad();
+  const d = await optimize(live);
+  assert.equal(live.store.state.creatives.bad.status, 'paused');
+  assert.deepEqual(paused, ['ad1']);
+  assert.equal(d[0].applied, true);
+
+  // API 未設定なら「止めたこと」にしない
+  const noApi = ctxWith(offlineLlm(catalog()), { meta: null, dryRun: false });
+  noApi.store.state.creatives.bad = bad();
+  await optimize(noApi);
+  assert.equal(noApi.store.state.creatives.bad.status, 'published');
+});
+
+test('optimize: 予算増は数日に1回だけ', async () => {
+  const { optimize } = await import('../src/pipeline/optimize.ts');
+  const { creative, daily, policy } = await import('./fixtures.ts');
+  const budgets: number[] = [];
+  const fakeMeta = { getAdset: async () => ({ id: '111', dailyBudget: 10000, status: 'ACTIVE' }), setAdsetDailyBudget: async (_: string, y: number) => void budgets.push(y) } as any;
+  const ctx = ctxWith(offlineLlm(catalog()), { meta: fakeMeta, dryRun: false });
+  ctx.catalog.policy = policy({ autonomy: 'auto' });
+  ctx.store.state.creatives.win = creative({ id: 'win', metrics: daily('2026-10-04', 7, { impressions: 3000, clicks: 60, spend: 3000, conversions: 1 }) });
+  await optimize(ctx);
+  await optimize(ctx);
+  assert.deepEqual(budgets, [12000]);
+});
+
+test('publish: 一部の広告セットで失敗しても作成済みの広告は記録し、Google の失敗は次回再試行する', async () => {
+  const { publish } = await import('../src/pipeline/publish.ts');
+  const { creative, brief, job } = await import('./fixtures.ts');
+  const { writeFileSync } = await import('node:fs');
+  const ctx = ctxWith(offlineLlm(catalog()), { dryRun: false });
+  ctx.catalog.jobs = [job({ placements: { meta: { adsetIds: ['a1', 'a2'] }, google: { adGroupIds: ['g1'] } } })];
+  const img = join(ctx.store.dir, 'x.jpg');
+  writeFileSync(img, 'x');
+  ctx.store.state.briefs.br_1 = brief();
+  ctx.store.state.creatives.c = creative({ id: 'c', status: 'produced', platformRefs: {}, assets: [{ ratio: '4:5', kind: 'image', path: img, width: 1, height: 1 }] });
+  let googleCalls = 0;
+  ctx.meta = {
+    createCreative: async () => 'cre1',
+    createAd: async (adset: string) => {
+      if (adset === 'a2') throw new Error('adset a2 is archived');
+      return 'ad_a1';
+    },
+  } as any;
+  ctx.google = {
+    createImageAsset: async () => {
+      googleCalls++;
+      throw new Error('quota');
+    },
+  } as any;
+  const r1 = await publish(ctx);
+  const c = ctx.store.state.creatives.c;
+  assert.equal(c.status, 'published');
+  assert.deepEqual(c.platformRefs.meta?.adIds, ['ad_a1']);
+  assert.deepEqual(c.pendingPlatforms, ['google']);
+  assert.equal(r1.failed.length, 1);
+  await publish(ctx);
+  assert.equal(googleCalls, 2);
+  assert.equal(c.publishRetries, 1);
+  // Meta は二重に入稿しない
+  assert.deepEqual(c.platformRefs.meta?.adIds, ['ad_a1']);
+});

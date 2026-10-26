@@ -6,6 +6,7 @@
  * - フィード画像: 公開 URL が必要なので、Meta の広告画像ライブラリにアップロードして得た CDN URL を使う
  * - リール: 再開可能アップロード（rupload.facebook.com）で動画本体を直接送る
  */
+import { createHmac } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 import type { Settings } from '../config.ts';
 import { HttpError, request, requestJson, sleep } from '../util/http.ts';
@@ -32,11 +33,20 @@ export class InstagramClient {
   }
 
   private async call<T = any>(method: 'GET' | 'POST', path: string, params: Record<string, string> = {}): Promise<T> {
-    const qs = new URLSearchParams({ access_token: this.s.accessToken, ...params });
+    const auth: Record<string, string> = { access_token: this.s.accessToken };
+    const secret = process.env.META_APP_SECRET;
+    if (secret) auth.appsecret_proof = createHmac('sha256', secret).update(this.s.accessToken).digest('hex');
+    const qs = new URLSearchParams({ ...auth, ...params });
     try {
       return method === 'GET'
         ? await requestJson<T>(`${this.base}/${path}?${qs}`)
-        : await requestJson<T>(`${this.base}/${path}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: qs });
+        : await requestJson<T>(`${this.base}/${path}`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: qs,
+            // 公開（media_publish）の再送は二重投稿になるので再試行しない
+            attempts: path.endsWith('/media_publish') ? 1 : undefined,
+          });
     } catch (e) {
       if (e instanceof HttpError) throw new Error(`Instagram API ${method} ${path}: ${metaErrorMessage(e.body)}`);
       throw e;
@@ -65,7 +75,8 @@ export class InstagramClient {
 
   private async publishContainer(creationId: string): Promise<{ id: string; permalink: string }> {
     const { id } = await this.call<{ id: string }>('POST', `${this.s.instagramUserId}/media_publish`, { creation_id: creationId });
-    const { permalink } = await this.call<{ permalink: string }>('GET', id, { fields: 'permalink' });
+    // 公開は済んでいるので、URL の取得に失敗しても投稿 ID は返す（二重投稿を防ぐため）
+    const permalink = await this.call<{ permalink: string }>('GET', id, { fields: 'permalink' }).then((r) => r.permalink).catch(() => '');
     return { id, permalink };
   }
 

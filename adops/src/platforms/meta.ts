@@ -29,6 +29,8 @@ export const DEFAULT_CONVERSION_ACTIONS = [
 export interface MetaPublishResult {
   adIds: string[];
   creativeIds: string[];
+  /** 一部の広告セットで失敗した場合の理由（作成できた広告は adIds に入る） */
+  errors: string[];
 }
 
 export class MetaClient {
@@ -60,10 +62,13 @@ export class MetaClient {
     try {
       if (method === 'GET') return await requestJson<T>(this.url(path, flat));
       const body = new URLSearchParams({ ...this.authParams(), ...flat });
+      // 広告・クリエイティブの作成は、タイムアウト後の再送で二重作成になり得るので再試行しない
+      const creates = /\/(ads|adcreatives)$/.test(path);
       return await requestJson<T>(`${this.base}/${path.replace(/^\//, '')}`, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         body,
+        attempts: creates ? 1 : undefined,
       });
     } catch (e) {
       if (e instanceof HttpError) throw new Error(`Meta API ${method} ${path}: ${metaErrorMessage(e.body)}`);
@@ -311,9 +316,15 @@ export async function publishToMeta(client: MetaClient, creative: Creative, brie
   const name = `adops_${creative.id}_${creative.angle}_${creative.format}`;
   const creativeId = await client.createCreative(brief, job, creative.assets, name);
   const adIds: string[] = [];
+  const errors: string[] = [];
+  // 1つの広告セットで失敗しても、作成済みの広告は必ず返す（追跡されない配信中広告を残さない）
   for (const adsetId of adsets) {
-    adIds.push(await client.createAd(adsetId, creativeId, name, active));
-    log.info(`入稿 ${creative.id} → adset ${adsetId}（${active ? '配信開始' : '停止状態'}）`);
+    try {
+      adIds.push(await client.createAd(adsetId, creativeId, name, active));
+      log.info(`入稿 ${creative.id} → adset ${adsetId}（${active ? '配信開始' : '停止状態'}）`);
+    } catch (e) {
+      errors.push(`adset ${adsetId}: ${(e as Error).message}`);
+    }
   }
-  return { adIds, creativeIds: [creativeId] };
+  return { adIds, creativeIds: [creativeId], errors };
 }

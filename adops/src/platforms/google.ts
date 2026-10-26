@@ -52,7 +52,9 @@ export class GoogleAdsClient {
     };
     if (this.s.loginCustomerId) headers['login-customer-id'] = this.s.loginCustomerId;
     try {
-      return await requestJson<T>(`https://googleads.googleapis.com/${this.s.apiVersion}/${path}`, { method: 'POST', headers, json: body });
+      // 作成系の mutate はタイムアウト後の再送で二重作成になり得るので再試行しない（検索は再試行する）
+      const attempts = path.endsWith(':mutate') ? 1 : undefined;
+      return await requestJson<T>(`https://googleads.googleapis.com/${this.s.apiVersion}/${path}`, { method: 'POST', headers, json: body, attempts });
     } catch (e) {
       if (e instanceof HttpError) throw new Error(`Google Ads ${path}: ${googleErrorMessage(e.body)}`);
       throw e;
@@ -227,6 +229,7 @@ export interface GooglePublishResult {
   assetResourceNames: string[];
   /** 作成した広告（ad_group_ad）またはアセットグループの紐付け */
   linkedTo: string[];
+  errors: string[];
 }
 
 /**
@@ -266,10 +269,11 @@ export async function publishToGoogle(
   const businessName = opts.businessName || process.env.GOOGLE_ADS_BUSINESS_NAME || '';
   const logo = opts.logoAsset || process.env.GOOGLE_ADS_LOGO_ASSET || '';
 
+  const errors: string[] = [];
+  if (adGroups.length && (!logo || !businessName)) {
+    throw new Error('デマンド ジェネレーション広告には GOOGLE_ADS_LOGO_ASSET（ロゴ画像アセットのリソース名）と GOOGLE_ADS_BUSINESS_NAME が必要です');
+  }
   for (const adGroupId of adGroups) {
-    if (!logo || !businessName) {
-      throw new Error('デマンド ジェネレーション広告には GOOGLE_ADS_LOGO_ASSET（ロゴ画像アセットのリソース名）と GOOGLE_ADS_BUSINESS_NAME が必要です');
-    }
     const common = {
       headlines: texts.headlines.map((text) => ({ text })),
       descriptions: texts.descriptions.map((text) => ({ text })),
@@ -299,9 +303,12 @@ export async function publishToGoogle(
             portraitMarketingImages: imageAssets.filter((i) => i.ratio === '4:5').map((i) => ({ asset: i.rn })),
           },
         };
-    const rn = await client.createDemandGenAd(adGroupId, ad, active);
-    linked.push(rn);
-    log.info(`入稿 ${creative.id} → Demand Gen 広告グループ ${adGroupId}`);
+    try {
+      linked.push(await client.createDemandGenAd(adGroupId, ad, active));
+      log.info(`入稿 ${creative.id} → Demand Gen 広告グループ ${adGroupId}`);
+    } catch (e) {
+      errors.push(`広告グループ ${adGroupId}: ${(e as Error).message}`);
+    }
   }
 
   for (const assetGroupId of assetGroups) {
@@ -309,11 +316,15 @@ export async function publishToGoogle(
       ...imageAssets.map((i) => ({ asset: i.rn, fieldType: FIELD_BY_RATIO[i.ratio] })),
       ...(videoAsset ? [{ asset: videoAsset, fieldType: 'YOUTUBE_VIDEO' }] : []),
     ];
-    const textRns = await client.createTextAssets(texts.headlines.slice(0, 2));
-    links.push(...textRns.map((asset) => ({ asset, fieldType: 'HEADLINE' })));
-    linked.push(...(await client.linkToAssetGroup(assetGroupId, links)));
-    log.info(`入稿 ${creative.id} → P-MAX アセットグループ ${assetGroupId}（${links.length} アセット）`);
+    try {
+      const textRns = await client.createTextAssets(texts.headlines.slice(0, 2));
+      links.push(...textRns.map((asset) => ({ asset, fieldType: 'HEADLINE' })));
+      linked.push(...(await client.linkToAssetGroup(assetGroupId, links)));
+      log.info(`入稿 ${creative.id} → P-MAX アセットグループ ${assetGroupId}（${links.length} アセット）`);
+    } catch (e) {
+      errors.push(`アセットグループ ${assetGroupId}: ${(e as Error).message}`);
+    }
   }
 
-  return { assetResourceNames: assetRns, linkedTo: linked };
+  return { assetResourceNames: assetRns, linkedTo: linked, errors };
 }

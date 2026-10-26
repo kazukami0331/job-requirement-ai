@@ -3,6 +3,7 @@ import type { Ctx } from './context.ts';
 import type { Decision } from '../types.ts';
 import { decide, type AdsetInfo } from '../optimize/decide.ts';
 import { logger } from '../util/log.ts';
+import { daysBetween } from '../util/id.ts';
 
 const log = logger('optimize');
 
@@ -24,23 +25,36 @@ export async function optimize(ctx: Ctx): Promise<Decision[]> {
     }
   }
 
-  const decisions = decide({ creatives: store.creatives(), policy: catalog.policy, today, adsetsByJob });
+  // 同じ広告セットの予算は数日に1回だけ上げる（1日3回の実行のたびに上がらないように。学習のリセットも避ける）
+  const cooldownDays = Number(process.env.ADOPS_BUDGET_COOLDOWN_DAYS ?? 3);
+  const recentlyScaled = new Set(
+    store.state.decisions
+      .filter((d) => d.action === 'scale_budget' && d.applied && d.adsetId && daysBetween(d.date, today) < cooldownDays)
+      .map((d) => d.adsetId!),
+  );
+  const decisions = decide({ creatives: store.creatives(), policy: catalog.policy, today, adsetsByJob, recentlyScaled });
   const auto = catalog.policy.autonomy === 'auto';
 
   for (const d of decisions) {
     try {
       if ((d.action === 'pause' || d.action === 'retire') && d.creativeId) {
         const c = store.state.creatives[d.creativeId];
-        if (!ctx.dryRun) {
-          for (const adId of c.platformRefs.meta?.adIds ?? []) await ctx.meta?.setAdStatus(adId, 'PAUSED');
-          for (const rn of c.platformRefs.google?.linkedTo ?? []) {
-            if (rn.includes('/adGroupAds/')) await ctx.google?.setAdGroupAdStatus(rn, 'PAUSED');
-          }
-          const pmax = (c.platformRefs.google?.linkedTo ?? []).filter((rn) => rn.includes('/assetGroupAssets/'));
-          if (pmax.length) await ctx.google?.removeAssetGroupAssets(pmax);
+        const metaAds = c.platformRefs.meta?.adIds ?? [];
+        const googleRefs = c.platformRefs.google?.linkedTo ?? [];
+        const onPlatform = metaAds.length + googleRefs.length > 0;
+        if (onPlatform && !ctx.dryRun) {
+          // 媒体に出ているのに API が未設定だと止められない。黙って「止めたこと」にしない
+          if (metaAds.length && !ctx.meta) throw new Error('Meta の API が未設定のため停止できません');
+          if (googleRefs.length && !ctx.google) throw new Error('Google 広告の API が未設定のため停止できません');
+          for (const adId of metaAds) await ctx.meta!.setAdStatus(adId, 'PAUSED');
+          for (const rn of googleRefs) if (rn.includes('/adGroupAds/')) await ctx.google!.setAdGroupAdStatus(rn, 'PAUSED');
+          const pmax = googleRefs.filter((rn) => rn.includes('/assetGroupAssets/'));
+          if (pmax.length) await ctx.google!.removeAssetGroupAssets(pmax);
           d.applied = true;
         }
-        store.setStatus(c, d.action === 'retire' ? 'retired' : 'paused', d.reason);
+        // 媒体に反映できたとき（または媒体に出ていないシミュレーション）だけ手元の状態を変える。
+        // DRY RUN で状態だけ変えると、配信中の広告が監視対象から外れてしまう
+        if (d.applied || !onPlatform) store.setStatus(c, d.action === 'retire' ? 'retired' : 'paused', d.reason);
       } else if (d.action === 'scale_budget' && d.adsetId) {
         // 予算を増やすのは auto モードのときだけ。draft モードでは提案として通知する
         if (auto && !ctx.dryRun && ctx.meta) {
