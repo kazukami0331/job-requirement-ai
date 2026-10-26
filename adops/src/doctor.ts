@@ -53,6 +53,16 @@ export async function liveChecks(s: Settings, catalog: Catalog): Promise<CheckRe
         return `${r.name}（${r.currency} / ${r.timezone_name}）`;
       }),
     );
+    out.push(
+      await attempt('Meta アクセストークンの期限', async () => {
+        const t = await meta.tokenExpiry();
+        if (!t.valid) throw new Error('無効なトークンです');
+        if (t.expiresAt === null) return '無期限';
+        const days = Math.floor((t.expiresAt * 1000 - Date.now()) / 86_400_000);
+        if (days < 14) throw new Error(`あと ${Math.max(0, days)} 日で切れます（システムユーザーの無期限トークンを推奨）`);
+        return `あと ${days} 日（${new Date(t.expiresAt * 1000).toISOString().slice(0, 10)}）。システムユーザーの無期限トークンを推奨`;
+      }),
+    );
     for (const job of catalog.jobs.filter((j) => j.active)) {
       for (const id of allPlacements(job).flatMap((p) => p.meta?.adsetIds ?? [])) {
         out.push(

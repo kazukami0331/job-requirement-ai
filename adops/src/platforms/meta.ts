@@ -81,6 +81,19 @@ export class MetaClient {
     }
   }
 
+  /**
+   * アクセストークンの有効期限。システムユーザーのトークンは無期限（null）。ユーザーのトークンは約60日で切れ、
+   * 切れると広告の停止も含めて何もできなくなるので、事前に知らせるために使う。
+   */
+  async tokenExpiry(): Promise<{ valid: boolean; expiresAt: number | null }> {
+    const r = await this.call<{ data?: { is_valid?: boolean; expires_at?: number; data_access_expires_at?: number } }>('GET', 'debug_token', {
+      input_token: this.s.accessToken,
+    });
+    const d = r.data ?? {};
+    const times = [d.expires_at, d.data_access_expires_at].filter((t): t is number => typeof t === 'number' && t > 0);
+    return { valid: d.is_valid !== false, expiresAt: times.length ? Math.min(...times) : null };
+  }
+
   get account(): string {
     return `act_${this.s.adAccountId}`;
   }

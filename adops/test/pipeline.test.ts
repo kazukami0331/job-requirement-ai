@@ -662,3 +662,22 @@ test('postLeads: 応募者情報を署名つきで連携先に送り、失敗し
     server.close();
   }
 });
+
+test('checkCredentials: Meta のトークンが14日以内に切れるなら「今日やること」に出す（1日1回）', async () => {
+  const { checkCredentials } = await import('../src/pipeline/credentials.ts');
+  const now = Date.parse('2026-10-10T00:00:00Z');
+  let calls = 0;
+  let expiresAt: number | null = now / 1000 + 5 * 86400 + 60;
+  const meta = { tokenExpiry: async () => (calls++, { valid: true, expiresAt }) } as any;
+  const ctx = ctxWith(offlineLlm(catalog()), { meta });
+  assert.match(await checkCredentials(ctx, now), /あと 5 日/);
+  assert.equal(ctx.store.state.credentials!.alerts.length, 1);
+  // 同じ日は確認し直さない
+  await checkCredentials(ctx, now);
+  assert.equal(calls, 1);
+  // 無期限なら何も出さない
+  expiresAt = null;
+  ctx.store.state.credentials!.checkedOn = '2026-10-09';
+  assert.equal(await checkCredentials(ctx, now), '');
+  assert.deepEqual(ctx.store.state.credentials!.alerts, []);
+});

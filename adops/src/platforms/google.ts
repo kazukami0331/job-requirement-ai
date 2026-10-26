@@ -40,6 +40,14 @@ export class GoogleAdsClient {
         refresh_token: this.s.refreshToken,
         grant_type: 'refresh_token',
       }),
+    }).catch((e: Error) => {
+      // OAuth 同意画面が「テスト」のままだとリフレッシュトークンは7日で失効する。原因が分かるように言い換える
+      if (/invalid_grant/.test(e.message)) {
+        throw new Error(
+          'Google 広告のリフレッシュトークンが無効です（invalid_grant）。取り直して GOOGLE_ADS_REFRESH_TOKEN を更新してください。OAuth 同意画面が「テスト」のままだと7日で失効するので「本番」にしてください',
+        );
+      }
+      throw e;
     });
     this.token = { value: r.access_token, exp: Date.now() + r.expires_in * 1000 };
     return r.access_token;

@@ -14,6 +14,7 @@ import { importOutcomes } from './outcomes.ts';
 import { collectSearchMetrics, rotateSearchAds } from './search.ts';
 import { watchComments } from './comments.ts';
 import { checkLandingPages } from './landing.ts';
+import { checkCredentials } from './credentials.ts';
 import { excludeIrrelevantTerms } from './negatives.ts';
 import { analyze } from '../agents/analyst.ts';
 import { memoToSlack, shouldWriteMemo, writeMemo } from '../agents/strategyMemo.ts';
@@ -81,7 +82,8 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
     // 検索広告の実績も先に取り込む（日予算の上限の判定に当日の費用を含めるため）
     const search = await collectSearchMetrics(ctx).catch((e) => `検索広告の実績取得に失敗: ${(e as Error).message}`);
     const landing = await checkLandingPages(ctx).catch((e) => `応募ページの確認に失敗: ${(e as Error).message}`);
-    return [ads, search, organic, outcomes, comments, landing].filter(Boolean).join(' / ');
+    const creds = await checkCredentials(ctx);
+    return [ads, search, organic, outcomes, comments, landing, creds].filter(Boolean).join(' / ');
   });
   await step('optimize', async () => {
     decisions = await optimize(ctx);
@@ -203,6 +205,7 @@ function summaryMessage(
   const waitingImages = handoffWaiting(ctx).length;
   if (waitingImages && ctx.images.name === 'handoff') todo.push(`Midjourney で画像を作る（${waitingImages} 本。下にプロンプト）`);
   if (ctx.catalog.policy.autonomy === 'draft' && !ctx.dryRun && r.published.published.length) todo.push(`入稿した ${r.published.published.length} 本を確認して配信開始（Slack の承認ボタンか管理画面）`);
+  for (const a of store.state.credentials?.alerts ?? []) todo.push(a);
   const lpBad = ctx.catalog.jobs.filter((j) => store.state.landing?.[j.id]?.ok === false).length;
   if (lpBad) todo.push(`応募ページを直す（${lpBad} 求人）`);
   const memo = store.state.memos?.at(-1);
