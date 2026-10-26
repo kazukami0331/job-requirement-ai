@@ -8,7 +8,7 @@
  */
 import { createHmac } from 'node:crypto';
 import type { Creative, CreativeBrief, Job } from '../types.ts';
-import { ANGLE_LABELS, FORMAT_LABEL } from '../types.ts';
+import { ANGLE_LABELS, FORMAT_LABEL, LANGUAGE_LABEL } from '../types.ts';
 import { formatYen } from '../compliance/rules.ts';
 
 export interface ApprovalValue {
@@ -52,6 +52,9 @@ export function approvalBlocks(c: Creative, brief: CreativeBrief, job: Job): unk
           `${job.title}｜${job.location}｜${s.type}${formatYen(s.min)}〜`,
           `*見出し* ${brief.headline}`,
           `*本文* ${brief.primaryText.slice(0, 280)}`,
+          ...(brief.translationJa
+            ? [`*日本語訳（${LANGUAGE_LABEL[brief.language ?? ''] ?? brief.language}の広告）* ${brief.translationJa.main} ／ ${brief.translationJa.headline}\n${brief.translationJa.primaryText.slice(0, 280)}`]
+            : []),
           `_仮説: ${brief.hypothesis}_`,
         ].join('\n'),
       },
