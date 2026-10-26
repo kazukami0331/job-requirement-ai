@@ -3,6 +3,7 @@
  * 個人情報は Slack にも状態ファイルにも残さない（イニシャルと求人名だけ）。詳細は Meta のリードセンター/CRM で確認する。
  */
 import type { Ctx } from './context.ts';
+import { allPlacements } from '../config.ts';
 import { notifySlack } from '../notify/slack.ts';
 import { ANGLE_LABELS } from '../types.ts';
 import { logger } from '../util/log.ts';
@@ -32,7 +33,7 @@ export function leadWindow(now = new Date()): { since: number; until: number } {
 
 export async function notifyLeads(ctx: Ctx, now = new Date()): Promise<string> {
   if (!ctx.meta) return 'Meta 未設定';
-  const forms = [...new Set(ctx.catalog.jobs.flatMap((j) => (j.placements.meta?.leadFormId ? [j.placements.meta.leadFormId] : [])))];
+  const forms = [...new Set(ctx.catalog.jobs.flatMap((j) => allPlacements(j).flatMap((p) => (p.meta?.leadFormId ? [p.meta.leadFormId] : []))))];
   if (forms.length === 0) return 'インスタントフォーム未使用';
   const { since, until } = leadWindow(now);
   const adToCreative = new Map<string, string>();
@@ -42,7 +43,7 @@ export async function notifyLeads(ctx: Ctx, now = new Date()): Promise<string> {
   for (const formId of forms) {
     // API は「より後」の指定なので1秒手前から取り、範囲 [since, until) で絞る
     const leads = (await ctx.meta.leads(formId, since - 1)).filter((l) => l.createdTime >= since && l.createdTime < until);
-    const job = ctx.catalog.jobs.find((j) => j.placements.meta?.leadFormId === formId);
+    const job = ctx.catalog.jobs.find((j) => allPlacements(j).some((p) => p.meta?.leadFormId === formId));
     for (const l of leads.sort((a, b) => a.createdTime - b.createdTime)) {
       const c = l.adId ? ctx.store.state.creatives[adToCreative.get(l.adId) ?? ''] : undefined;
       const when = new Date(l.createdTime * 1000).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });

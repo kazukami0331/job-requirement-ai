@@ -64,11 +64,18 @@ export interface Job {
   /** 今月の応募の目標件数。達したら新しい広告は作らない（配信中の広告はそのまま。翌月に再開） */
   monthlyApplicationTarget?: number;
   /** 媒体ごとの入稿先。キャンペーン・広告セットは人が作り、AIは広告（素材）を回す。 */
-  placements: {
-    /** leadFormId を指定すると、LP ではなく Meta のインスタントフォーム（リード獲得）で応募を受ける */
-    meta?: { adsetIds: string[]; leadFormId?: string };
-    google?: { assetGroupIds?: string[]; adGroupIds?: string[]; searchAdGroupIds?: string[] };
-  };
+  placements: Placements;
+  /**
+   * ペルソナごとの入稿先（ペルソナ ID → 入稿先）。外国語のペルソナは、ここに専用の広告セット（言語・地域で絞ったもの）が
+   * ないと入稿しない（日本語の広告セットに外国語の広告を混ぜないため）。
+   */
+  placementsByPersona?: Record<string, Placements>;
+}
+
+export interface Placements {
+  /** leadFormId を指定すると、LP ではなく Meta のインスタントフォーム（リード獲得）で応募を受ける */
+  meta?: { adsetIds: string[]; leadFormId?: string };
+  google?: { assetGroupIds?: string[]; adGroupIds?: string[]; searchAdGroupIds?: string[] };
 }
 
 export interface Persona {

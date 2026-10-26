@@ -500,11 +500,23 @@ test('runCycle: 途中で上限超えの緊急停止になったら、同じ実�
 
 test('plan: 外国語ペルソナの企画は language と日本語訳を持ち、日本語ペルソナでは持たない', async () => {
   const { persona } = await import('./fixtures.ts');
-  const cat = catalog({ personas: [persona(), persona({ id: 'vi', name: 'ベトナム人', language: 'vi' })], jobs: [job({ personas: ['p1', 'vi'], dailyCreativeQuota: 4 })], policy: policy({ briefsPerCycle: 4, videoShare: 0, exploreShare: 0 }) });
+  const { placementsFor } = await import('../src/config.ts');
+  const personas = [persona(), persona({ id: 'vi', name: 'ベトナム人', language: 'vi' })];
+  const pol = policy({ briefsPerCycle: 4, videoShare: 0, exploreShare: 0 });
+  // 専用の入稿先がなければ、外国語ペルソナは企画しない
+  const noPl = catalog({ personas, jobs: [job({ personas: ['p1', 'vi'], dailyCreativeQuota: 4 })], policy: pol });
+  const ctx0 = ctxWith(offlineLlm(noPl), { catalog: noPl });
+  await plan(ctx0);
+  assert.ok(Object.values(ctx0.store.state.briefs).every((b) => b.personaId === 'p1'));
+  assert.deepEqual(placementsFor(noPl, noPl.jobs[0], 'vi'), {});
+
+  const cat = catalog({ personas, jobs: [job({ personas: ['p1', 'vi'], dailyCreativeQuota: 4, placementsByPersona: { vi: { meta: { adsetIds: ['999'] } } } })], policy: pol });
+  assert.deepEqual(placementsFor(cat, cat.jobs[0], 'vi').meta?.adsetIds, ['999']);
+  assert.deepEqual(placementsFor(cat, cat.jobs[0], 'p1').meta?.adsetIds, ['111']);
   const ctx = ctxWith(offlineLlm(cat), { catalog: cat });
   await plan(ctx);
   const briefs = Object.values(ctx.store.state.briefs);
-  assert.ok(briefs.length > 0);
+  assert.ok(briefs.some((b) => b.personaId === 'vi'));
   for (const b of briefs) {
     if (b.personaId === 'vi') {
       assert.equal(b.language, 'vi');

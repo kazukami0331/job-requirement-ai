@@ -3,6 +3,7 @@
  * DRY RUN の設定に関係なく実行する（止める方向の操作なので）。P-MAX のアセットは外す。
  */
 import type { Ctx } from './context.ts';
+import { allPlacements } from '../config.ts';
 import { logger } from '../util/log.ts';
 
 const log = logger('emergency');
@@ -43,7 +44,7 @@ export async function emergencyStop(ctx: Ctx, reason = '緊急停止'): Promise<
   // 記録に残る前に実行が打ち切られた広告（入稿の途中で緊急停止した等）も、広告セットを見て止める
   if (ctx.meta?.liveAdopsAds) {
     const known = new Set(store.creatives().flatMap((c) => c.platformRefs.meta?.adIds ?? []));
-    for (const adsetId of new Set(ctx.catalog.jobs.flatMap((j) => j.placements.meta?.adsetIds ?? []))) {
+    for (const adsetId of new Set(ctx.catalog.jobs.flatMap((j) => allPlacements(j).flatMap((p) => p.meta?.adsetIds ?? [])))) {
       try {
         for (const ad of await ctx.meta.liveAdopsAds(adsetId)) {
           if (known.has(ad.id)) continue;

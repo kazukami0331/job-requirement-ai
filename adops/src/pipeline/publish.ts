@@ -3,7 +3,7 @@
  * draft モードでは「停止状態」で入れ、人が媒体の管理画面で ON にする。
  */
 import { existsSync } from 'node:fs';
-import { placeholderProblems } from '../config.ts';
+import { placeholderProblems, placementsFor } from '../config.ts';
 import type { Ctx } from './context.ts';
 import type { Creative, Platform } from '../types.ts';
 import { publishToMeta } from '../platforms/meta.ts';
@@ -34,7 +34,9 @@ export async function publish(ctx: Ctx): Promise<PublishSummary> {
   for (const c of queue) {
     const retrying = c.status === 'published';
     const brief = store.state.briefs[c.briefId];
-    const job = catalog.jobs.find((j) => j.id === c.jobId);
+    const baseJob = catalog.jobs.find((j) => j.id === c.jobId);
+    // ペルソナ別の入稿先があればそちらへ（外国語の広告は専用の広告セットだけに入れる）
+    const job = baseJob && { ...baseJob, placements: placementsFor(catalog, baseJob, c.personaId) };
     if (!job || !brief) {
       summary.skipped.push({ creative: c, reason: '求人または企画が見つからない（jobs.json から削除された等）' });
       continue;

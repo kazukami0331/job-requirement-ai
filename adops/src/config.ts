@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Brand, Job, Persona, Policy } from './types.ts';
+import type { Brand, Job, Persona, Placements, Policy } from './types.ts';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -221,6 +221,9 @@ export function validateCatalog(c: Catalog): void {
     if (!j.salary || !(j.salary.min > 0)) errors.push(`${j.id}: salary.min が未設定です（給与の明示は必須）`);
     for (const p of j.personas) if (!personaIds.has(p)) errors.push(`${j.id}: 未定義のペルソナ ${p}`);
     if (j.personas.length === 0) errors.push(`${j.id}: personas が空です`);
+    for (const pid of Object.keys(j.placementsByPersona ?? {})) {
+      if (!j.personas.includes(pid)) errors.push(`${j.id}: placementsByPersona の ${pid} が personas にありません`);
+    }
     if (j.monthlyApplicationTarget !== undefined && !(j.monthlyApplicationTarget > 0)) errors.push(`${j.id}: monthlyApplicationTarget は 1 以上の数（目標なしなら項目ごと消す）`);
   }
   const p = c.policy;
@@ -228,4 +231,23 @@ export function validateCatalog(c: Catalog): void {
   if (!(p.exploreShare >= 0 && p.exploreShare <= 1)) errors.push('policy.exploreShare は 0〜1');
   if (!['draft', 'auto'].includes(p.autonomy)) errors.push('policy.autonomy は draft か auto');
   if (errors.length) throw new Error(`設定エラー:\n- ${errors.join('\n- ')}`);
+}
+
+/** そのペルソナ向けの広告の入稿先。外国語のペルソナに専用の入稿先がなければ空（入稿しない）。 */
+export function placementsFor(catalog: Catalog, job: Job, personaId: string): Placements {
+  const own = job.placementsByPersona?.[personaId];
+  if (own) return own;
+  const lang = catalog.personas.find((p) => p.id === personaId)?.language;
+  return lang && lang !== 'ja' ? {} : job.placements;
+}
+
+/** 求人のすべての入稿先（共通 + ペルソナ別）。緊急停止・応募通知・接続確認で使う。 */
+export function allPlacements(job: Job): Placements[] {
+  return [job.placements, ...Object.values(job.placementsByPersona ?? {})];
+}
+
+/** 企画してよいペルソナか（外国語のペルソナは専用の入稿先があるときだけ） */
+export function personaPublishable(catalog: Catalog, job: Job, personaId: string): boolean {
+  const lang = catalog.personas.find((p) => p.id === personaId)?.language;
+  return !lang || lang === 'ja' || Boolean(job.placementsByPersona?.[personaId]);
 }

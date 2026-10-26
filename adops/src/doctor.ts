@@ -5,7 +5,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 import type { Catalog, Settings } from './config.ts';
-import { isGoogleConfigured, isMetaConfigured } from './config.ts';
+import { allPlacements, isGoogleConfigured, isMetaConfigured } from './config.ts';
 import { MetaClient } from './platforms/meta.ts';
 import { GoogleAdsClient } from './platforms/google.ts';
 import { DriveInbox } from './creative/inbox.ts';
@@ -54,7 +54,7 @@ export async function liveChecks(s: Settings, catalog: Catalog): Promise<CheckRe
       }),
     );
     for (const job of catalog.jobs.filter((j) => j.active)) {
-      for (const id of job.placements.meta?.adsetIds ?? []) {
+      for (const id of allPlacements(job).flatMap((p) => p.meta?.adsetIds ?? [])) {
         out.push(
           await attempt(`Meta 広告セット ${id}（${job.id}）`, async () => {
             const a = await meta.getAdset(id);
@@ -82,7 +82,7 @@ export async function liveChecks(s: Settings, catalog: Catalog): Promise<CheckRe
         return `${r.customer.descriptiveName}（${r.customer.currencyCode} / ${r.customer.timeZone}）`;
       }),
     );
-    const adGroups = catalog.jobs.filter((j) => j.active).flatMap((j) => (j.placements.google?.adGroupIds ?? []).map((id) => ({ id, job: j.id })));
+    const adGroups = catalog.jobs.filter((j) => j.active).flatMap((j) => allPlacements(j).flatMap((p) => p.google?.adGroupIds ?? []).map((id) => ({ id, job: j.id })));
     if (adGroups.length) {
       out.push(
         await attempt('Google 広告グループ', async () => {
