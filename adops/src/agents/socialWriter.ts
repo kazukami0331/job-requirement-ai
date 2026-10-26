@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import type { Llm } from '../llm/llm.ts';
 import type { Catalog } from '../config.ts';
-import type { CreativeBrief } from '../types.ts';
+import { LANGUAGE_LABEL, type CreativeBrief } from '../types.ts';
 import { formatYen } from '../compliance/rules.ts';
 
 export const CaptionSchema = z.object({
@@ -46,7 +46,11 @@ ${kind === 'reels' ? 'リール（縦動画）' : kind === 'carousel' ? 'カル�
 ${job.holidays ? `- 休日: ${job.holidays}` : ''}
 
 # 届けたい人
-${persona ? `${persona.name}: ${persona.summary}` : '求職中・転職検討中の方'}`,
+${persona ? `${persona.name}: ${persona.summary}` : '求職中・転職検討中の方'}${
+      brief.language && brief.language !== 'ja'
+        ? `\n\n# 言語\nキャプションは${LANGUAGE_LABEL[brief.language] ?? brief.language}で書き、そのあとに「【日本語】」として同じ内容の正確な日本語訳を併記する。金額は「300,000円」のように数字＋「円」で書く。`
+        : ''
+    }`,
     schema: CaptionSchema,
   });
   const tags = [...new Set([...out.hashtags, ...baseHashtags].map((t) => (t.startsWith('#') ? t : `#${t}`).replace(/\s+/g, '')))].slice(0, 15);

@@ -5,7 +5,7 @@
  */
 import type { Llm } from '../llm/llm.ts';
 import type { Catalog } from '../config.ts';
-import { ANGLE_LABELS, FORMAT_LABEL, type Angle, type CreativeBrief, type Format, type Job, type Persona, type ReviewIssue } from '../types.ts';
+import { ANGLE_LABELS, FORMAT_LABEL, LANGUAGE_LABEL, type Angle, type CreativeBrief, type Format, type Job, type Persona, type ReviewIssue } from '../types.ts';
 import { formatYen } from '../compliance/rules.ts';
 import { BriefDraftSchema, PlanOutputSchema, type BriefDraft } from './schemas.ts';
 import { HOUSING_HINT, visualHint } from '../creative/visualPresets.ts';
@@ -116,6 +116,9 @@ function describePersona(p: Persona): string {
     `- よく見る媒体: ${p.media.join(' / ')}`,
     p.vocabulary?.use?.length ? `- 響く言葉: ${p.vocabulary.use.join(' / ')}` : '',
     p.vocabulary?.avoid?.length ? `- 避ける言葉: ${p.vocabulary.avoid.join(' / ')}` : '',
+    p.language && p.language !== 'ja'
+      ? `- 言語: ${LANGUAGE_LABEL[p.language] ?? p.language}（${p.language}）。hook・headline・primaryText・description・overlay・storyboard の text はこの言語で、やさしい言い回しで書く。金額は必ず「300,000円」のように数字＋「円」で書く（現地通貨に換算しない）。translationJa に各項目の正確な日本語訳を入れる。visualConcept は日本語`
+      : '',
   ]
     .filter(Boolean)
     .join('\n');

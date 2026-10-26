@@ -62,7 +62,7 @@ jobs:
       - name: ffmpeg と日本語フォント
         # 毎時の応募通知では制作しないので入れない
         if: github.event.schedule != '30 0-12 * * *'
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-noto-cjk fonts-noto-cjk-extra >/dev/null
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-noto-cjk fonts-noto-cjk-extra fonts-noto-core >/dev/null
 
       - uses: actions/setup-node@v4
         with:

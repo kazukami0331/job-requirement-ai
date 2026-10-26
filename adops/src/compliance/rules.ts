@@ -202,6 +202,59 @@ export function checkBrief(brief: CreativeBrief, job: Job, brand: Brand): Review
   ];
   const issues = checkTexts(fields, job, brand);
   issues.push(...checkBriefFormat(brief));
+  if (brief.language && brief.language !== 'ja') issues.push(...checkForeignBrief(brief, fields, job, brand));
+  return issues;
+}
+
+/**
+ * 外国語の広告の追加チェック。日本語の規則（年齢・性別・誇張・給与）は日本語訳に当て、
+ * 金額は原文の数字そのものを求人情報と突き合わせる（訳の取り違えで誇張が素通りしないように）。
+ */
+export function checkForeignBrief(brief: CreativeBrief, fields: [string, string][], job: Job, brand: Brand): ReviewIssue[] {
+  const issues: ReviewIssue[] = [];
+  const t = brief.translationJa;
+  if (!t || !t.headline || !t.primaryText || !t.main) {
+    issues.push({ severity: 'major', field: 'translationJa', problem: '外国語の広告に日本語訳がありません', suggestion: 'translationJa に各項目の正確な日本語訳を入れてください' });
+  } else {
+    const ja: [string, string][] = [
+      ['translationJa.hook', t.hook],
+      ['translationJa.headline', t.headline],
+      ['translationJa.primaryText', t.primaryText],
+      ['translationJa.description', t.description],
+      ['translationJa.main', t.main],
+      ['translationJa.sub', t.sub],
+      ...t.badges.map((b, i) => [`translationJa.badges[${i}]`, b] as [string, string]),
+    ];
+    issues.push(...checkTexts(ja, job, brand));
+  }
+  for (const [field, text] of fields) issues.push(...checkForeignMoney(field, text, job));
+  return issues;
+}
+
+/** 原文中の金額（1,000以上の数字）を検査する。円以外の書き方は不可、求人の上限を超える金額も不可。 */
+export function checkForeignMoney(field: string, text: string, job: Job): ReviewIssue[] {
+  const issues: ReviewIssue[] = [];
+  if (!text) return issues;
+  const cap = job.salary.max ?? job.salary.min;
+  // 求人情報に出てくる数字（祝い金・寮費など）は書いてよい
+  const known = new Set([...JSON.stringify(job).matchAll(/\d[\d,]*/g)].map((m) => Number(m[0].replace(/,/g, ''))));
+  const normalized = text.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+  const re = /([¥￥$€]|USD|VND|JPY)?\s*(\d{1,3}(?:[.,\s]\d{3})+|\d{4,}|\d+(?:\.\d+)?\s*万)\s*(円|yen|yên|JPY|VND|USD|đồng|dong|reais?|R\$)?/gi;
+  for (const m of normalized.matchAll(re)) {
+    const [raw, pre, num, post] = m;
+    let yen = num.includes('万') ? Number(num.replace(/\s*万/, '')) * 10_000 : Number(num.replace(/[.,\s]/g, ''));
+    if (!(yen >= 1000)) continue;
+    if (/^(19|20)\d\d$/.test(num)) continue; // 年号
+    if (post !== '円') {
+      if (pre || post) {
+        issues.push({ severity: 'major', field, problem: `金額「${raw.trim()}」が円の書き方ではありません`, suggestion: '金額は「300,000円」のように数字＋「円」で書いてください（現地通貨に換算しない）' });
+      }
+      continue;
+    }
+    if (yen > cap && !known.has(yen)) {
+      issues.push({ severity: 'blocker', field, problem: `金額 ${yen.toLocaleString()}円 が求人の上限（${cap.toLocaleString()}円）を超えています`, suggestion: '求人情報にある金額だけを書いてください' });
+    }
+  }
   return issues;
 }
 

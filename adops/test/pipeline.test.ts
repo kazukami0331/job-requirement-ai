@@ -497,3 +497,21 @@ test('runCycle: 途中で上限超えの緊急停止になったら、同じ実�
     delete process.env.ADOPS_DAILY_SPEND_CAP;
   }
 });
+
+test('plan: 外国語ペルソナの企画は language と日本語訳を持ち、日本語ペルソナでは持たない', async () => {
+  const { persona } = await import('./fixtures.ts');
+  const cat = catalog({ personas: [persona(), persona({ id: 'vi', name: 'ベトナム人', language: 'vi' })], jobs: [job({ personas: ['p1', 'vi'], dailyCreativeQuota: 4 })], policy: policy({ briefsPerCycle: 4, videoShare: 0, exploreShare: 0 }) });
+  const ctx = ctxWith(offlineLlm(cat), { catalog: cat });
+  await plan(ctx);
+  const briefs = Object.values(ctx.store.state.briefs);
+  assert.ok(briefs.length > 0);
+  for (const b of briefs) {
+    if (b.personaId === 'vi') {
+      assert.equal(b.language, 'vi');
+      assert.ok(b.translationJa?.headline);
+    } else {
+      assert.equal(b.language, undefined);
+      assert.equal(b.translationJa, undefined);
+    }
+  }
+});

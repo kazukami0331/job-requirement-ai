@@ -18,6 +18,18 @@ export const BriefDraftSchema = z.object({
     .describe('動画のカット構成、またはカルーセルのカード（3〜5枚）。画像広告なら空配列'),
   visualConcept: z.string().describe('どんな写真か（日本語で人向けに説明）'),
   imagePrompt: z.string().describe('Midjourney 用の英語プロンプト。文字を含めない情景描写。"no text" を含める。パラメータ(--ar 等)は付けない'),
+  translationJa: z
+    .object({
+      hook: z.string(),
+      headline: z.string(),
+      primaryText: z.string(),
+      description: z.string(),
+      main: z.string(),
+      sub: z.string(),
+      badges: z.array(z.string()),
+    })
+    .optional()
+    .describe('外国語で書いた場合の、各項目の正確な日本語訳（意訳や誇張をしない）。日本語の広告なら全項目を空文字・空配列に'),
 });
 export type BriefDraft = z.infer<typeof BriefDraftSchema>;
 

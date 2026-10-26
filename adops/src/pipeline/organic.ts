@@ -10,7 +10,7 @@ import { InstagramClient } from '../platforms/instagram.ts';
 import { FacebookPageClient } from '../platforms/facebookPage.ts';
 import { uploadToYoutube } from '../platforms/youtube.ts';
 import { writeCaption } from '../agents/socialWriter.ts';
-import { checkTexts, hasBlocker } from '../compliance/rules.ts';
+import { checkForeignMoney, checkTexts, hasBlocker } from '../compliance/rules.ts';
 import { placeholderProblems } from '../config.ts';
 import { landingBroken } from './landing.ts';
 import { lastNDays, totals } from '../optimize/stats.ts';
@@ -84,6 +84,7 @@ export async function postOrganic(ctx: Ctx): Promise<string> {
     try {
       const caption = await writeCaption(ctx.llm, brief, ctx.catalog, kind, o.baseHashtags);
       const issues = checkTexts([['caption', caption]], job, ctx.catalog.brand);
+      if (brief.language && brief.language !== 'ja') issues.push(...checkForeignMoney('caption', caption, job));
       if (hasBlocker(issues)) {
         c.organicFailures = (c.organicFailures ?? 0) + 1;
         log.warn(`${c.id}: キャプションが機械チェックで不合格のため投稿しません: ${issues.filter((i) => i.severity === 'blocker').map((i) => i.problem).join(' / ')}`);

@@ -110,6 +110,10 @@ export async function plan(ctx: Ctx): Promise<PlanResult> {
         createdAt: new Date().toISOString(),
         storyboard: slot.format === 'image' ? [] : rest.storyboard,
       };
+      // 外国人材向けのペルソナは、その言語で書く（日本語訳はレビューと法令チェックに使う）
+      const language = catalog.personas.find((p) => p.id === slot.personaId)?.language;
+      if (language && language !== 'ja') brief.language = language;
+      else delete brief.translationJa;
       for (;;) {
         const { review } = await reviewBrief(llm, brief, catalog);
         store.state.reviews.push(review);
@@ -122,6 +126,7 @@ export async function plan(ctx: Ctx): Promise<PlanResult> {
         }
         const revised = await reviseBrief(llm, brief, review.issues, review.summary, catalog);
         brief = { ...brief, ...revised, storyboard: brief.format === 'image' ? [] : revised.storyboard, revision: brief.revision + 1 };
+        if (!brief.language) delete brief.translationJa;
       }
       const now = new Date().toISOString();
       const creative: Creative = {

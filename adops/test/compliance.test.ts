@@ -83,3 +83,34 @@ test('Google の文字数は全角を2で数える', () => {
   assert.equal(googleWidth('寮費0円'), 7);
   assert.equal(googleWidth('ｱｲｳ'), 3);
 });
+
+test('外国語の広告: 金額は原文の数字で検査し、日本語訳にも日本語の規則を当てる', async () => {
+  const { checkBrief, checkForeignMoney } = await import('../src/compliance/rules.ts');
+  const { brief, brand, job } = await import('./fixtures.ts');
+  const j = job(); // 月給 30〜38万円
+  // 上限内・求人にある金額は OK
+  assert.deepEqual(checkForeignMoney('headline', 'Lương 300.000円/tháng, ở ký túc xá miễn phí', j), []);
+  // 上限超えは blocker
+  assert.equal(checkForeignMoney('headline', 'Lương 500,000円 mỗi tháng', j)[0].severity, 'blocker');
+  // 現地通貨や円以外の書き方は major
+  assert.equal(checkForeignMoney('primaryText', 'Salary ¥300,000 per month', j)[0].severity, 'major');
+  assert.equal(checkForeignMoney('primaryText', 'Lương 50.000.000 VND', j)[0].severity, 'major');
+  // 年号は金額とみなさない
+  assert.deepEqual(checkForeignMoney('primaryText', 'Bắt đầu từ năm 2026', j), []);
+
+  const vi = brief({
+    language: 'vi',
+    headline: 'Việc làm nhà máy, lương 300.000円',
+    primaryText: 'Ký túc xá miễn phí.',
+    overlay: { main: 'Ký túc xá 0円', sub: 'Lương 300.000円', badges: [] },
+    translationJa: { hook: '寮費0円', headline: '工場の仕事、月給30万円', primaryText: '寮費無料。20代の男性限定', description: '', main: '寮費0円', sub: '月給30万円', badges: [] },
+  });
+  const issues = checkBrief(vi, j, brand());
+  // 日本語訳の「20代の男性限定」で年齢・性別の規則に当たる
+  assert.ok(issues.some((i) => i.field.startsWith('translationJa') && i.severity === 'blocker'));
+  // 訳がなければ major
+  const noTr = checkBrief(brief({ language: 'vi', translationJa: undefined }), j, brand());
+  assert.ok(noTr.some((i) => i.field === 'translationJa'));
+  // 日本語の広告には追加チェックをしない
+  assert.ok(!checkBrief(brief(), j, brand()).some((i) => i.field.startsWith('translationJa')));
+});

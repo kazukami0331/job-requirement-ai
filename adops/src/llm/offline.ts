@@ -26,7 +26,8 @@ export function offlineLlm(catalog: Catalog): ScriptedLlm {
     const slots = [...req.prompt.matchAll(/slot (\d+): 求人=([\w-]+) \/ ペルソナ=([\w-]+) \/ 訴求軸=.+?\((\w+)\) \/ 形式=(動画|画像|カルーセル)/g)];
     return {
       briefs: slots.map((m) => {
-        const [, slot, jobId, , angleRaw, format] = m;
+        const [, slot, jobId, personaId, angleRaw, format] = m;
+        const foreign = catalog.personas.find((p) => p.id === personaId)?.language;
         const job = catalog.jobs.find((j) => j.id === jobId)!;
         const angle = (ANGLES as readonly string[]).includes(angleRaw) ? (angleRaw as Angle) : 'pay';
         const pay = `${job.salary.type}${formatYen(job.salary.min)}`;
@@ -57,6 +58,20 @@ export function offlineLlm(catalog: Catalog): ScriptedLlm {
             : [],
           visualConcept: `${job.category}の現場で働く人物の自然な写真`,
           imagePrompt: `candid photo of a Japanese ${job.category === '製造' ? 'factory worker' : 'worker'} in safety gear at a clean workplace, natural light, no text, no letters, no logos`,
+          // オフラインでは翻訳しない（外国語ペルソナでも日本語のまま。訳は同じ文を入れる）
+          ...(foreign && foreign !== 'ja'
+            ? {
+                translationJa: {
+                  hook: main,
+                  headline: `${job.location.slice(0, 6)}の${job.category}｜${pay}〜`,
+                  primaryText: `${job.title}を募集しています。${pay}〜。`,
+                  description: job.perks.slice(0, 2).join('・'),
+                  main: main.slice(0, 16),
+                  sub: sub.slice(0, 28),
+                  badges: [],
+                },
+              }
+            : {}),
         };
       }),
     };

@@ -13,7 +13,7 @@ export const RATIO_PX: Record<Ratio, [number, number]> = {
   '1.91:1': [1200, 628],
 };
 
-export const FONT_FAMILY = `'Noto Sans CJK JP','Noto Sans JP','Hiragino Sans','WenQuanYi Zen Hei',sans-serif`;
+export const FONT_FAMILY = `'Noto Sans CJK JP','Noto Sans JP','Noto Sans','Hiragino Sans','WenQuanYi Zen Hei',sans-serif`;
 
 export function escapeXml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');

@@ -81,6 +81,32 @@ export interface Persona {
   media: string[];
   /** 響く言葉・NGな言葉 */
   vocabulary?: { use?: string[]; avoid?: string[] };
+  /** 広告を書く言語（既定 ja）。外国人材向けに vi / en / pt / id / tl / ne / zh / my など */
+  language?: string;
+}
+
+export const LANGUAGE_LABEL: Record<string, string> = {
+  ja: '日本語',
+  en: '英語',
+  vi: 'ベトナム語',
+  pt: 'ポルトガル語',
+  id: 'インドネシア語',
+  tl: 'タガログ語',
+  ne: 'ネパール語',
+  zh: '中国語（簡体字）',
+  my: 'ミャンマー語',
+  es: 'スペイン語',
+};
+
+/** 日本語訳（外国語で書いた広告のレビュー・法令チェック用） */
+export interface TranslationJa {
+  hook: string;
+  headline: string;
+  primaryText: string;
+  description: string;
+  main: string;
+  sub: string;
+  badges: string[];
 }
 
 export interface Brand {
@@ -169,6 +195,10 @@ export interface CreativeBrief {
   revision: number;
   createdAt: string;
   iterateOf?: string;
+  /** 広告の言語（ペルソナの言語。未設定は日本語） */
+  language?: string;
+  /** 外国語の広告の日本語訳 */
+  translationJa?: TranslationJa;
 }
 
 export interface ReviewIssue {
