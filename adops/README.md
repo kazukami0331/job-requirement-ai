@@ -242,6 +242,8 @@ node src/cli.ts emergency-stop / resume  # 緊急停止 / 解除
 > 導入から本番化の進め方、毎日・毎週の確認、トラブル時の対応は [RUNBOOK.md](RUNBOOK.md) にまとめています。
 
 - **1日の広告費の上限**: `ADOPS_DAILY_SPEND_CAP`（円）を設定すると、日中の実績取り込みで当日の消化額が上限を超えた時点で自動的に緊急停止します（自動モードでは必ず設定してください）。
+- **AI が使えないときは出さない**: `ANTHROPIC_API_KEY` が無いまま本番（DRY RUN でない）で動いた場合は、実績の取り込み・停止判断・報告だけを行い、AI のレビューを通っていない広告は入稿・投稿しません。`simulate` は本物の媒体・状態ファイルに触れません。
+- **審査落ちの再審査**: 不承認になった広告が再審査で配信され始めたら検知して、停止判断・日予算の上限・緊急停止の対象に戻します。
 - **応募ページの死活監視**: 1日3回、各求人の `landingUrl` を確認し、404・つながらない・「募集は終了しました」の表示があれば Slack に知らせ、その求人の新規入稿（検索広告・Instagram 投稿を含む）を止める。直れば自動で再開（配信中の広告は止めない。`ADOPS_LP_CHECK=false` で無効）。
 - **承認ボタンの安全確認**: Vercel に `ADOPS_GITHUB_TOKEN` / `ADOPS_GITHUB_REPO` を設定すると、承認前に adops の状態を読み、緊急停止中や adops が止めたクリエイティブの承認を断る（Google の広告は名前で判別できないため設定を推奨）。
 - **緊急停止**: Slack で `/adops stop`、または Actions → adops → Run workflow → `control: stop`（手元なら `node src/cli.ts emergency-stop`）で、adops が入稿した広告をすべて停止し、解除（`resume`）まで新しい入稿もしない。
