@@ -149,6 +149,30 @@ ${ads
   .join('')}
 </tbody></table>`;
 })()}
+${(() => {
+  const rows = new Map<string, { applied: number; interview: number; offer: number; hired: number; spend: number }>();
+  for (const c of creatives) {
+    if (!c.funnel) continue;
+    const r = rows.get(c.angle) ?? { applied: 0, interview: 0, offer: 0, hired: 0, spend: 0 };
+    r.applied += c.funnel.applied;
+    r.interview += c.funnel.interview;
+    r.offer += c.funnel.offer;
+    r.hired += c.funnel.hired;
+    r.spend += totals(c.metrics).spend;
+    rows.set(c.angle, r);
+  }
+  if (rows.size === 0) return '';
+  return `<h2>選考結果（訴求軸別・累計）</h2>
+<table><thead><tr><th>訴求軸</th><th>応募</th><th>面接</th><th>面接率</th><th>内定</th><th>入社</th><th>入社単価</th></tr></thead><tbody>
+${[...rows]
+  .sort((a, b) => b[1].hired - a[1].hired || b[1].interview - a[1].interview)
+  .map(
+    ([a, r]) =>
+      `<tr><td>${ANGLE_LABELS[a as Angle]}</td><td>${r.applied}</td><td>${r.interview}</td><td>${r.applied ? Math.round((r.interview / r.applied) * 100) : 0}%</td><td>${r.offer}</td><td>${r.hired}</td><td>${yen(r.hired ? r.spend / r.hired : null)}</td></tr>`,
+  )
+  .join('')}
+</tbody></table>`;
+})()}
 <h2>クリエイティブ（新しい順）</h2>
 <div class="grid">${creatives.slice(0, 120).map(card).join('\n')}</div>
 <h2>直近の判断</h2>
