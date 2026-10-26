@@ -144,6 +144,9 @@ Node.js 22.18 以上（TypeScript をそのまま実行します）、`ffmpeg`�
 | Secrets | `GOOGLE_SERVICE_ACCOUNT_JSON` `ADOPS_OUTCOMES_CSV_URL` `ANTHROPIC_API_KEY` `META_ACCESS_TOKEN` `META_APP_SECRET` `GOOGLE_ADS_DEVELOPER_TOKEN` `GOOGLE_ADS_CLIENT_ID` `GOOGLE_ADS_CLIENT_SECRET` `GOOGLE_ADS_REFRESH_TOKEN` `YOUTUBE_REFRESH_TOKEN` `MJ_API_KEY` `SLACK_WEBHOOK_URL` |
 | Variables | `ADOPS_DRY_RUN`（`false` で本番）`IMAGE_PROVIDER` `META_AD_ACCOUNT_ID` `META_PAGE_ID` `META_INSTAGRAM_USER_ID` `META_CONVERSION_ACTION_TYPES` `GOOGLE_ADS_CUSTOMER_ID` `GOOGLE_ADS_LOGIN_CUSTOMER_ID` `GOOGLE_ADS_CONVERSION_ACTION` `GOOGLE_ADS_LOGO_ASSET` `GOOGLE_ADS_BUSINESS_NAME` `ADOPS_MODEL` `MJ_API_BASE_URL` `MJ_VIDEO_ENABLED` `MJ_INBOX` `DRIVE_INBOX_FOLDER_ID` `ADOPS_MAX_LLM_USD` |
 
+本番前に、手元で `.env` を作って `node src/cli.ts check --live` を実行すると、Claude・Meta（広告アカウント・各広告セット・Instagram）・
+Google 広告（アカウント・広告グループがデマンド ジェネレーションか）・ドライブの設定を読み取りだけで確認できます。
+
 `ADOPS_DRY_RUN` を `false` にするまでは媒体に何も書き込みません。最初は DRY RUN のまま数日動かし、
 Slack とレポートで企画と素材の質を確認してから本番にしてください。
 
@@ -159,7 +162,7 @@ Slack とレポートで企画と素材の質を確認してから本番にし�
 node src/cli.ts cycle [--steps collect,optimize,analyze,plan,produce,publish,report]
 node src/cli.ts plan | produce | publish | collect | optimize | analyze | report
 node src/cli.ts status        # クリエイティブの状態一覧
-node src/cli.ts check         # 設定・接続の確認
+node src/cli.ts check [--live]  # 設定の確認（--live で各サービスへ読み取りだけの接続テスト）
 node src/cli.ts simulate --days 21 [--seed 42]
 共通: --offline（Claude を使わない） --today YYYY-MM-DD
 ```

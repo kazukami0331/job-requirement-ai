@@ -11,7 +11,7 @@
  *   node src/cli.ts optimize              停止・予算判断
  *   node src/cli.ts report                レポート再生成
  *   node src/cli.ts status                現在の状態を一覧
- *   node src/cli.ts check                 設定と接続の確認
+ *   node src/cli.ts check [--live]        設定の確認（--live で各サービスに読み取りの接続テスト）
  *   node src/cli.ts simulate --days 14    架空の配信データで改善ループを試す（媒体・API キー不要）
  *
  * 共通オプション: --offline（Claude を呼ばずテンプレートで動かす） --today YYYY-MM-DD
@@ -29,6 +29,7 @@ import { ANGLE_LABELS } from './types.ts';
 import { lastNDays, totals } from './optimize/stats.ts';
 import { newId } from './util/id.ts';
 import { simulate } from './sim/simulate.ts';
+import { liveChecks } from './doctor.ts';
 
 function parseArgs(argv: string[]) {
   const [command = 'help', ...rest] = argv;
@@ -144,6 +145,12 @@ async function main() {
       console.log(`${ok(await ffmpegAvailable())}ffmpeg`);
       console.log(`${ok(Boolean(s.fontPath))}日本語フォント: ${s.fontPath || '見つかりません（fonts-noto-cjk を入れてください）'}`);
       console.log(`${s.dryRun ? '-- DRY RUN（媒体への書き込みなし）' : 'OK 本番モード（媒体に書き込みます）'}`);
+      if (flags.live && catalogOk) {
+        console.log('\n接続テスト（読み取りのみ）');
+        const results = await liveChecks(s, loadCatalog(s.configDir));
+        for (const r of results) console.log(`${r.ok === null ? '-- ' : r.ok ? 'OK ' : 'NG '}${r.name}: ${r.detail}`);
+        if (results.some((r) => r.ok === false)) process.exitCode = 1;
+      } else if (!flags.live) console.log('\n（--live を付けると各サービスに読み取りだけの接続テストをします）');
       if (!catalogOk) process.exitCode = 1;
       break;
     }
