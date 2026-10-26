@@ -285,6 +285,21 @@ test('emergencyStop: 入稿済みの広告をすべて止め、解除まで企�
   assert.equal(ctx.store.state.creatives.b.status, 'produced');
 });
 
+test('emergencyStop: 記録に残っていない adops の配信中広告も広告セットから見つけて止める', async () => {
+  const { emergencyStop } = await import('../src/pipeline/emergency.ts');
+  const { creative } = await import('./fixtures.ts');
+  const paused: string[] = [];
+  const meta = {
+    stopAd: async (id: string) => void paused.push(id),
+    liveAdopsAds: async () => [{ id: 'ad1', name: 'adops_cr_1_housing_image' }, { id: 'orphan', name: 'adops_cr_9_pay_image' }],
+  };
+  const ctx = ctxWith(offlineLlm(catalog()), { dryRun: false, meta: meta as any });
+  ctx.store.state.creatives.a = creative({ id: 'a' });
+  const r = await emergencyStop(ctx);
+  assert.deepEqual(paused, ['ad1', 'orphan']);
+  assert.equal(r.paused, 2);
+});
+
 test('notifyLeads: 直前1時間（朝は夜間分）の応募だけを、氏名はイニシャルにして通知し、状態に個人情報を残さない', async () => {
   const { notifyLeads, maskName, leadWindow } = await import('../src/pipeline/leads.ts');
   const { creative, job } = await import('./fixtures.ts');

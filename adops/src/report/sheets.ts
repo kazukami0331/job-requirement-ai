@@ -97,8 +97,8 @@ export async function exportToSheets(state: State, catalog: Catalog, today: stri
     await requestJson(`${API}/${sheetId}:batchUpdate`, { method: 'POST', headers, json: { requests: missing.map((title) => ({ addSheet: { properties: { title } } })) } });
   }
   const write = async (title: string, values: (string | number)[][]) => {
-    await requestJson(`${API}/${sheetId}/values/${encodeURIComponent(`${title}!A:Z`)}:clear`, { method: 'POST', headers, json: {} });
-    await requestJson(`${API}/${sheetId}/values/${encodeURIComponent(`${title}!A1`)}?valueInputOption=RAW`, { method: 'PUT', headers, json: { values } });
+    await requestJson(`${API}/${sheetId}/values/${encodeURIComponent(`'${title}'!A:Z`)}:clear`, { method: 'POST', headers, json: {} });
+    await requestJson(`${API}/${sheetId}/values/${encodeURIComponent(`'${title}'!A1`)}?valueInputOption=RAW`, { method: 'PUT', headers, json: { values } });
   };
   const daily = dailyRows(state, today);
   const list = creativeRows(state, catalog);

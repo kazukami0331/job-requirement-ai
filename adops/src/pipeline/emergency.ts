@@ -40,6 +40,22 @@ export async function emergencyStop(ctx: Ctx, reason = '緊急停止'): Promise<
       paused++;
     }
   }
+  // 記録に残る前に実行が打ち切られた広告（入稿の途中で緊急停止した等）も、広告セットを見て止める
+  if (ctx.meta?.liveAdopsAds) {
+    const known = new Set(store.creatives().flatMap((c) => c.platformRefs.meta?.adIds ?? []));
+    for (const adsetId of new Set(ctx.catalog.jobs.flatMap((j) => j.placements.meta?.adsetIds ?? []))) {
+      try {
+        for (const ad of await ctx.meta.liveAdopsAds(adsetId)) {
+          if (known.has(ad.id)) continue;
+          await ctx.meta.stopAd(ad.id);
+          log.warn(`記録に無い adops の広告 ${ad.id}（${ad.name}）を停止`);
+          paused++;
+        }
+      } catch (e) {
+        errors.push(`広告セット ${adsetId} の確認: ${(e as Error).message}`);
+      }
+    }
+  }
   for (const a of Object.values(store.state.searchAds ?? {})) {
     if (a.status !== 'live' || !a.resourceName) continue;
     try {

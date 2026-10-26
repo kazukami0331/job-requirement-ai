@@ -276,6 +276,12 @@ export class MetaClient {
     await this.call('POST', adId, params);
   }
 
+  /** 広告セット内の、adops が作った（名前が adops_ で始まる）配信中の広告。緊急停止の取りこぼし対策に使う。 */
+  async liveAdopsAds(adsetId: string): Promise<{ id: string; name: string }[]> {
+    const res = await this.call<{ data: { id: string; name?: string; status?: string }[] }>('GET', `${adsetId}/ads`, { fields: 'id,name,status', limit: '500' });
+    return (res.data ?? []).filter((a) => a.status === 'ACTIVE' && a.name?.startsWith('adops_')).map((a) => ({ id: a.id, name: a.name! }));
+  }
+
   /**
    * 広告の配信状態と審査結果。effective_status は ACTIVE / PAUSED / DISAPPROVED / PENDING_REVIEW / WITH_ISSUES など。
    */
