@@ -118,6 +118,8 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           ADOPS_SLACK_APPROVALS: ${{ vars.ADOPS_SLACK_APPROVALS }}
           ADOPS_REPORT_URL: ${{ vars.ADOPS_REPORT_URL }}
+          ADOPS_WATCH_COMMENTS: ${{ vars.ADOPS_WATCH_COMMENTS }}
+          ADOPS_HIDE_SPAM: ${{ vars.ADOPS_HIDE_SPAM }}
           ADOPS_APPROVAL_SECRET: ${{ secrets.ADOPS_APPROVAL_SECRET }}
           ADOPS_TTS: ${{ vars.ADOPS_TTS }}
           ADOPS_TTS_VOICE: ${{ vars.ADOPS_TTS_VOICE }}

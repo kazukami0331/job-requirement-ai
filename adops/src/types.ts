@@ -254,7 +254,7 @@ export interface Creative {
   /** 媒体側で実際に配信中か（collect で同期。下書き入稿で人がまだ ON にしていなければ false） */
   live?: boolean;
   platformRefs: {
-    meta?: { adIds: string[]; creativeIds: string[]; status?: string; previewUrl?: string };
+    meta?: { adIds: string[]; creativeIds: string[]; status?: string; previewUrl?: string; storyId?: string };
     google?: { assetResourceNames: string[]; linkedTo: string[]; youtubeVideoId?: string; status?: string };
   };
   metrics: DailyMetric[];
@@ -338,6 +338,8 @@ export interface SearchAd {
 export interface State {
   version: 1;
   searchAds?: Record<string, SearchAd>;
+  /** コメント監視でどこまで見たか（投稿 ID → UNIX 秒） */
+  commentCursor?: Record<string, number>;
   /** 緊急停止中（解除するまで企画・制作・入稿・投稿をしない） */
   halted?: { at: string; reason: string };
   /** 週次の戦略メモ */

@@ -320,6 +320,28 @@ export class MetaClient {
     return out;
   }
 
+  /** 広告クリエイティブの投稿 ID（コメントが付く先）。 */
+  async storyIdOf(creativeId: string): Promise<string | null> {
+    const r = await this.call<{ effective_object_story_id?: string }>('GET', creativeId, { fields: 'effective_object_story_id' }).catch(() => ({ effective_object_story_id: undefined }));
+    return r.effective_object_story_id ?? null;
+  }
+
+  /** 投稿のコメント（since: UNIX 秒より後）。 */
+  async comments(postId: string, since: number): Promise<{ id: string; message: string; createdTime: number }[]> {
+    const out: { id: string; message: string; createdTime: number }[] = [];
+    let url: string | null = this.url(`${postId}/comments`, { fields: 'id,message,created_time', filter: 'stream', order: 'chronological', limit: '100', since: String(since) });
+    while (url) {
+      const page: any = await requestJson(url);
+      for (const c of page.data ?? []) out.push({ id: c.id, message: c.message ?? '', createdTime: Math.floor(Date.parse(c.created_time) / 1000) });
+      url = page.paging?.next ?? null;
+    }
+    return out.filter((c) => c.createdTime > since);
+  }
+
+  async hideComment(commentId: string): Promise<void> {
+    await this.call('POST', commentId, { is_hidden: 'true' });
+  }
+
   async getAdset(adsetId: string): Promise<{ id: string; dailyBudget: number | null; status: string }> {
     const r = await this.call<{ id: string; daily_budget?: string; effective_status?: string }>('GET', adsetId, { fields: 'id,daily_budget,effective_status' });
     // JPY は補助通貨単位が無いので daily_budget はそのまま円

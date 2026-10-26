@@ -12,6 +12,7 @@ import { publish, type PublishSummary } from './publish.ts';
 import { collectOrganic, postOrganic } from './organic.ts';
 import { importOutcomes } from './outcomes.ts';
 import { rotateSearchAds } from './search.ts';
+import { watchComments } from './comments.ts';
 import { analyze } from '../agents/analyst.ts';
 import { memoToSlack, shouldWriteMemo, writeMemo } from '../agents/strategyMemo.ts';
 import { lastNDays, totals } from '../optimize/stats.ts';
@@ -63,7 +64,8 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
     const ads = await collectMetrics(ctx);
     const organic = await collectOrganic(ctx).catch((e) => `オーガニック取得失敗: ${(e as Error).message}`);
     const outcomes = await importOutcomes(ctx).catch((e) => `選考結果の取り込み失敗: ${(e as Error).message}`);
-    return `${ads} / ${organic} / ${outcomes}`;
+    const comments = await watchComments(ctx).catch((e) => `コメント監視の失敗: ${(e as Error).message}`);
+    return `${ads} / ${organic} / ${outcomes} / ${comments}`;
   });
   await step('optimize', async () => {
     decisions = await optimize(ctx);

@@ -98,6 +98,17 @@ export function offlineLlm(catalog: Catalog): ScriptedLlm {
     decisions: [],
     experiments: [],
   }));
+  llm.on('commentTriage', (req) => {
+    const lines = req.prompt.split('# コメント\n')[1]?.split('\n') ?? [];
+    return {
+      items: lines.map((l, i) => ({
+        index: i,
+        kind: /http|稼げる副業|LINE追加/.test(l) ? 'spam' : /[?？]/.test(l) ? 'question' : /ブラック|最悪/.test(l) ? 'negative' : 'other',
+        summary: '',
+        suggestedReply: /[?？]/.test(l) ? '詳しくは DM でお答えします。' : '',
+      })),
+    };
+  });
   llm.on('analyst', () => ({
     summary: '（オフライン）集計のみ。AI 分析は ANTHROPIC_API_KEY 設定後に有効になります。',
     learnings: [],

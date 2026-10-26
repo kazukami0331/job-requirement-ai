@@ -34,6 +34,7 @@ AI が **企画 → レビュー → 修正 → 制作 → 入稿 → 分析 →
 | 停止・入替・予算 | コード（ルール） | 応募ゼロのまま目標単価の2倍消化 / 応募単価が目標の1.5倍超 / CTR が基準未満 / 広告疲れ / 同時配信数の上限 → 停止。勝ち広告のある広告セットは日予算を段階的に増額（上限あり） |
 | Google 検索広告 | Claude + コード | 求人ごとにレスポンシブ検索広告（見出し15・説明文4）を作り、広告グループ内で「現行＋挑戦者」の2本を回す。十分な表示の後、CTR（応募があれば応募率）が7割未満の方を止め、別の言い回しで次の挑戦者を作る |
 | Instagram 投稿 | Claude + コード | 広告で反応の良かった素材（無ければ当日の新作）を、共感型のキャプションに書き直してフィード/リールに1日1本投稿。キャプションも同じ機械チェックを通す |
+| コメント監視 | Claude + コード | 広告投稿のコメントを1日3回確認し、質問（＝応募見込み、返信案つき）とネガティブを Slack に通知。スパムは自動で非表示（`ADOPS_WATCH_COMMENTS=true`） |
 | 分析 | Claude | 訴求軸・形式・ペルソナ・求人・媒体別の集計から「何が効いたか」を言語化し、次の企画に渡す |
 | 報告 | コード | Slack に日次サマリ、`data/report.html` にクリエイティブ一覧つきレポート |
 
@@ -184,7 +185,7 @@ GitHub の Variables に `ADOPS_REPORT_URL=https://<Vercel のドメイン>/adop
 | 種類 | 名前 |
 |---|---|
 | Secrets | `ADOPS_APPROVAL_SECRET` `GEMINI_API_KEY` `GOOGLE_SERVICE_ACCOUNT_JSON` `ADOPS_OUTCOMES_CSV_URL` `ANTHROPIC_API_KEY` `META_ACCESS_TOKEN` `META_APP_SECRET` `GOOGLE_ADS_DEVELOPER_TOKEN` `GOOGLE_ADS_CLIENT_ID` `GOOGLE_ADS_CLIENT_SECRET` `GOOGLE_ADS_REFRESH_TOKEN` `YOUTUBE_REFRESH_TOKEN` `MJ_API_KEY` `SLACK_WEBHOOK_URL` |
-| Variables | `ADOPS_DRY_RUN`（`false` で本番）`IMAGE_PROVIDER` `META_AD_ACCOUNT_ID` `META_PAGE_ID` `META_INSTAGRAM_USER_ID` `META_CONVERSION_ACTION_TYPES` `GOOGLE_ADS_CUSTOMER_ID` `GOOGLE_ADS_LOGIN_CUSTOMER_ID` `GOOGLE_ADS_CONVERSION_ACTION` `GOOGLE_ADS_LOGO_ASSET` `GOOGLE_ADS_BUSINESS_NAME` `ADOPS_MODEL` `MJ_API_BASE_URL` `MJ_VIDEO_ENABLED` `MJ_INBOX` `DRIVE_INBOX_FOLDER_ID` `ADOPS_MAX_LLM_USD` `ADOPS_SLACK_APPROVALS` `ADOPS_TTS` `ADOPS_TTS_VOICE` `GEMINI_IMAGE_MODEL` `IMAGE_FALLBACK_AFTER_HOURS` |
+| Variables | `ADOPS_DRY_RUN`（`false` で本番）`IMAGE_PROVIDER` `META_AD_ACCOUNT_ID` `META_PAGE_ID` `META_INSTAGRAM_USER_ID` `META_CONVERSION_ACTION_TYPES` `GOOGLE_ADS_CUSTOMER_ID` `GOOGLE_ADS_LOGIN_CUSTOMER_ID` `GOOGLE_ADS_CONVERSION_ACTION` `GOOGLE_ADS_LOGO_ASSET` `GOOGLE_ADS_BUSINESS_NAME` `ADOPS_MODEL` `MJ_API_BASE_URL` `MJ_VIDEO_ENABLED` `MJ_INBOX` `DRIVE_INBOX_FOLDER_ID` `ADOPS_MAX_LLM_USD` `ADOPS_SLACK_APPROVALS` `ADOPS_TTS` `ADOPS_TTS_VOICE` `GEMINI_IMAGE_MODEL` `IMAGE_FALLBACK_AFTER_HOURS` `ADOPS_WATCH_COMMENTS` `ADOPS_HIDE_SPAM` `ADOPS_REPORT_URL` |
 
 本番前に、手元で `.env` を作って `node src/cli.ts check --live` を実行すると、Claude・Meta（広告アカウント・各広告セット・Instagram）・
 Google 広告（アカウント・広告グループがデマンド ジェネレーションか）・ドライブの設定を読み取りだけで確認できます。

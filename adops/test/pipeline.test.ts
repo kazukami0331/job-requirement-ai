@@ -341,3 +341,34 @@ test('カルーセル: 企画→制作でカード画像（＋条件まとめの
   assert.equal(children.length, 4);
   assert.equal(creative.object_story_spec.link_data.multi_share_optimized, false);
 });
+
+test('watchComments: 質問とネガティブを通知、スパムは非表示にし、本文は状態に残さない', async () => {
+  const { watchComments } = await import('../src/pipeline/comments.ts');
+  const { creative } = await import('./fixtures.ts');
+  const hidden: string[] = [];
+  const now = Math.floor(Date.now() / 1000);
+  const fakeMeta = {
+    storyIdOf: async () => 'page_post',
+    comments: async (_p: string, since: number) =>
+      [
+        { id: 'c1', message: '寮は個室ですか？', createdTime: now - 30 },
+        { id: 'c2', message: '稼げる副業はこちら http://spam.example', createdTime: now - 20 },
+        { id: 'c3', message: 'ここブラックって聞いた', createdTime: now - 10 },
+      ].filter((c) => c.createdTime > since),
+    hideComment: async (id: string) => void hidden.push(id),
+  } as any;
+  process.env.ADOPS_WATCH_COMMENTS = 'true';
+  try {
+    const ctx = ctxWith(offlineLlm(catalog()), { meta: fakeMeta, dryRun: false });
+    ctx.store.state.creatives.a = creative({ id: 'a' });
+    ctx.store.state.creatives.a.platformRefs.meta!.creativeIds = ['cre1'];
+    assert.match(await watchComments(ctx), /要対応 2 件 \/ スパム非表示 1 件/);
+    assert.deepEqual(hidden, ['c2']);
+    assert.equal(ctx.store.state.commentCursor!.page_post, now - 10);
+    assert.ok(!JSON.stringify(ctx.store.state).includes('個室'));
+    // 2回目は新しいコメントが無い
+    assert.match(await watchComments(ctx), /要対応 0 件/);
+  } finally {
+    delete process.env.ADOPS_WATCH_COMMENTS;
+  }
+});
