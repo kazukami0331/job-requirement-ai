@@ -333,6 +333,6 @@ export async function publishToMeta(client: MetaClient, creative: Creative, brie
     }
   }
   const feed = creative.assets.find((a) => a.ratio === '4:5') ?? creative.assets.find((a) => a.ratio === '1:1') ?? creative.assets[0];
-  const previewUrl = feed ? client.imageUrls.get(feed.kind === 'video' ? thumbOf(feed) : feed.path) : undefined;
+  const previewUrl = feed ? client.imageUrls?.get(feed.kind === 'video' ? thumbOf(feed) : feed.path) : undefined;
   return { adIds, creativeIds: [creativeId], errors, previewUrl };
 }
