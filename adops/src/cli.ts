@@ -33,6 +33,7 @@ import { ANGLE_LABELS } from './types.ts';
 import { lastNDays, totals } from './optimize/stats.ts';
 import { jstDate, newId } from './util/id.ts';
 import { simulate } from './sim/simulate.ts';
+import { monthApplications } from './optimize/allocate.ts';
 import { liveChecks } from './doctor.ts';
 import { importJob } from './agents/jobImporter.ts';
 import { emergencyStop } from './pipeline/emergency.ts';
@@ -145,6 +146,14 @@ async function main() {
       console.log(`クリエイティブ ${cs.length} 本: ${[...by].map(([k, v]) => `${k}=${v}`).join(' ')}`);
       const rsa = Object.values(ctx.store.state.searchAds ?? {});
       if (rsa.length) console.log(`検索広告 ${rsa.length} 本: ${['live', 'draft', 'paused', 'failed'].map((st) => `${st}=${rsa.filter((a) => a.status === st).length}`).join(' ')}`);
+      // 求人ごと: 応募ページの状態と今月の応募目標の進み具合
+      for (const j of ctx.catalog.jobs.filter((x) => x.active)) {
+        const lp = ctx.store.state.landing?.[j.id];
+        const month = monthApplications(j.id, cs, rsa, ctx.today);
+        console.log(
+          `求人 ${j.id}: 今月の応募 ${month}${j.monthlyApplicationTarget ? `/${j.monthlyApplicationTarget}` : ''} 件 / 応募ページ ${lp ? (lp.ok === false ? `異常（${lp.note}）` : lp.ok ? '正常' : '判定不能') : '未確認'}`,
+        );
+      }
       const last = ctx.store.state.cycles.at(-1);
       if (last) console.log(`前回の実行 ${last.startedAt}: ${last.steps.map((s) => `${s.name}=${s.ok ? 'ok' : 'NG'}`).join(' ')} / AI費用 $${last.llmCostUsd}`);
       for (const c of cs.filter((c) => ['published', 'produced', 'awaiting_images', 'planned'].includes(c.status))) {
