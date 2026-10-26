@@ -240,8 +240,9 @@ export class HandoffProvider implements ImageProvider {
   }
 
   async poll(req: GenerateRequest, jobId: string): Promise<GenerateResult> {
-    const dir = this.folder(jobId);
-    if (!existsSync(dir)) return { status: 'pending', jobId, note: 'フォルダなし' };
+    // 取り込み済み（.imported）も見る: 実行環境が変わって制作し直すときに同じ画像を使うため
+    const dir = [this.folder(jobId), `${this.folder(jobId)}.imported`].find((d) => existsSync(d));
+    if (!dir) return { status: 'pending', jobId, note: 'フォルダなし' };
     const files = readdirSync(dir).filter((f) => IMAGE_EXT.has(extname(f).toLowerCase()));
     if (files.length === 0) return { status: 'pending', jobId, note: '画像待ち' };
     mkdirSync(req.outDir, { recursive: true });
@@ -251,8 +252,8 @@ export class HandoffProvider implements ImageProvider {
       await sharp(join(dir, f)).png().toFile(p);
       paths.push(p);
     }
-    // 取り込んだら inbox から片付ける（二重取り込み防止）
-    renameSync(dir, `${dir}.imported`);
+    // 取り込んだら印を付ける（二重取り込み防止）
+    if (!dir.endsWith('.imported')) renameSync(dir, `${dir}.imported`);
     return { status: 'done', paths, jobId };
   }
 }

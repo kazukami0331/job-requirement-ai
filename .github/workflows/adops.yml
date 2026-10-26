@@ -1,0 +1,139 @@
+name: adops（広告の自動運用）
+
+# 毎朝 6:00 JST にフルサイクル（実績取込 → 停止判断 → 分析 → 企画・レビュー → 制作 → 入稿 → 報告）。
+# 日中 12:00 / 18:00 JST は実績取込と停止判断だけ（悪い広告に予算を使い続けないため）。
+on:
+  schedule:
+    - cron: '0 21 * * *' # 06:00 JST
+    - cron: '0 3,9 * * *' # 12:00 / 18:00 JST
+  workflow_dispatch:
+    inputs:
+      steps:
+        description: '実行する段階（カンマ区切り。空なら全部）例: plan,produce'
+        required: false
+        default: ''
+      dry_run:
+        description: 'DRY RUN（媒体に書き込まない）'
+        type: boolean
+        default: false
+
+concurrency:
+  group: adops
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  STATE_BRANCH: adops-state
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: adops
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 状態を復元（${{ env.STATE_BRANCH }} ブランチ）
+        working-directory: .
+        run: |
+          if git ls-remote --exit-code --heads origin "$STATE_BRANCH" >/dev/null 2>&1; then
+            git fetch --depth=1 origin "$STATE_BRANCH"
+            mkdir -p adops/data
+            git --work-tree=adops/data checkout "origin/$STATE_BRANCH" -- .
+            git reset -q
+          else
+            echo "初回実行: 状態ブランチはまだありません"
+          fi
+
+      - name: ffmpeg と日本語フォント
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-noto-cjk fonts-noto-cjk-extra >/dev/null
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: adops/package-lock.json
+
+      - run: npm ci
+
+      - name: 段階を決める
+        id: steps
+        run: |
+          if [ -n "${{ github.event.inputs.steps }}" ]; then
+            echo "steps=${{ github.event.inputs.steps }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 3,9 * * *" ]; then
+            echo "steps=collect,optimize,report" >> "$GITHUB_OUTPUT"
+          else
+            echo "steps=collect,optimize,analyze,plan,produce,publish,report" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 実行
+        env:
+          ADOPS_DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && 'true' || vars.ADOPS_DRY_RUN || 'true' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ADOPS_MODEL: ${{ vars.ADOPS_MODEL }}
+          IMAGE_PROVIDER: ${{ vars.IMAGE_PROVIDER || 'handoff' }}
+          MJ_API_BASE_URL: ${{ vars.MJ_API_BASE_URL }}
+          MJ_API_KEY: ${{ secrets.MJ_API_KEY }}
+          MJ_VIDEO_ENABLED: ${{ vars.MJ_VIDEO_ENABLED }}
+          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          META_AD_ACCOUNT_ID: ${{ vars.META_AD_ACCOUNT_ID }}
+          META_PAGE_ID: ${{ vars.META_PAGE_ID }}
+          META_INSTAGRAM_USER_ID: ${{ vars.META_INSTAGRAM_USER_ID }}
+          META_CONVERSION_ACTION_TYPES: ${{ vars.META_CONVERSION_ACTION_TYPES }}
+          GOOGLE_ADS_DEVELOPER_TOKEN: ${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}
+          GOOGLE_ADS_CLIENT_ID: ${{ secrets.GOOGLE_ADS_CLIENT_ID }}
+          GOOGLE_ADS_CLIENT_SECRET: ${{ secrets.GOOGLE_ADS_CLIENT_SECRET }}
+          GOOGLE_ADS_REFRESH_TOKEN: ${{ secrets.GOOGLE_ADS_REFRESH_TOKEN }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          GOOGLE_ADS_CUSTOMER_ID: ${{ vars.GOOGLE_ADS_CUSTOMER_ID }}
+          GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ vars.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}
+          GOOGLE_ADS_CONVERSION_ACTION: ${{ vars.GOOGLE_ADS_CONVERSION_ACTION }}
+          GOOGLE_ADS_LOGO_ASSET: ${{ vars.GOOGLE_ADS_LOGO_ASSET }}
+          GOOGLE_ADS_BUSINESS_NAME: ${{ vars.GOOGLE_ADS_BUSINESS_NAME }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: node src/cli.ts cycle --steps "${{ steps.steps.outputs.steps }}"
+
+      - name: 素材とレポートを保存（14日）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adops-${{ github.run_id }}
+          path: |
+            adops/data/report.html
+            adops/data/assets/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: 状態を保存（${{ env.STATE_BRANCH }} ブランチ。履歴を持たない最新スナップショット）
+        if: always()
+        working-directory: adops/data
+        run: |
+          [ -f state.json ] || { echo "state.json がないので保存しません"; exit 0; }
+          REMOTE="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          # 実行中に人が inbox にアップロードした画像を取りこぼさない（上書き保存の前に取り込む）
+          if git ls-remote --exit-code --heads "$REMOTE" "$STATE_BRANCH" >/dev/null 2>&1; then
+            tmp=$(mktemp -d)
+            git clone -q --depth=1 --branch "$STATE_BRANCH" "$REMOTE" "$tmp"
+            if [ -d "$tmp/inbox" ]; then
+              mkdir -p inbox
+              for d in "$tmp"/inbox/*/; do
+                [ -d "$d" ] || continue
+                name=$(basename "$d")
+                case "$name" in *.imported) continue ;; esac
+                [ -e "inbox/$name" ] || [ -e "inbox/$name.imported" ] || cp -r "$d" "inbox/$name"
+              done
+            fi
+            rm -rf "$tmp"
+          fi
+          git init -q -b "$STATE_BRANCH"
+          git config user.name "adops-bot"
+          git config user.email "adops-bot@users.noreply.github.com"
+          git add -A
+          git commit -qm "adops state $(date -u +%Y-%m-%dT%H:%MZ) run ${{ github.run_id }}"
+          git push -qf "$REMOTE" "HEAD:$STATE_BRANCH"

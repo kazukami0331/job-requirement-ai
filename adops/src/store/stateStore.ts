@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Creative, CreativeStatus, State } from '../types.ts';
 
@@ -33,6 +33,39 @@ export class StateStore {
     const d = join(this.dir, 'assets', creativeId);
     mkdirSync(d, { recursive: true });
     return d;
+  }
+
+  /** レポート用の小さなサムネイル（素材を掃除した後も残す）。 */
+  thumbPath(creativeId: string): string {
+    return join(this.dir, 'assets', creativeId, 'thumb.jpg');
+  }
+
+  /**
+   * 入稿・停止・却下が済んだクリエイティブの素材ファイルを消し、サムネイルだけ残す。
+   * 素材は媒体側に保管されるので、こちらに持ち続ける必要はない（state ブランチを小さく保つ）。
+   */
+  pruneAssets(inboxDir?: string, keepStatuses: CreativeStatus[] = ['planned', 'awaiting_images', 'produced']): number {
+    let removed = 0;
+    const keep = new Set(keepStatuses);
+    for (const c of Object.values(this.state.creatives)) {
+      if (keep.has(c.status)) continue;
+      if (inboxDir && existsSync(inboxDir)) {
+        for (const f of readdirSync(inboxDir)) {
+          if (f.startsWith(`${c.id}_`)) {
+            rmSync(join(inboxDir, f), { recursive: true, force: true });
+            removed++;
+          }
+        }
+      }
+      const dir = join(this.dir, 'assets', c.id);
+      if (!existsSync(dir)) continue;
+      for (const f of readdirSync(dir)) {
+        if (f === 'thumb.jpg') continue;
+        rmSync(join(dir, f), { recursive: true, force: true });
+        removed++;
+      }
+    }
+    return removed;
   }
 
   creatives(filter?: { status?: CreativeStatus | CreativeStatus[]; jobId?: string }): Creative[] {

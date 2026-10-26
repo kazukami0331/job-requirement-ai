@@ -4,6 +4,7 @@
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import sharp from 'sharp';
 import type { Ctx } from './context.ts';
 import type { Asset, Creative, CreativeBrief, ImageJob, Ratio } from '../types.ts';
 import { composeImage, RATIO_PX } from '../creative/compose.ts';
@@ -29,6 +30,12 @@ async function ensureImages(ctx: Ctx, c: Creative, brief: CreativeBrief): Promis
   const prompt = imagePromptFor(brief, ctx.catalog.brand.visualStyle);
   for (const ratio of requiredRatios(c)) {
     let job = c.imageJobs.find((j) => j.ratio === ratio);
+    // 前回の実行環境で生成したファイルが消えている（CI は毎回まっさら）場合は回収し直す
+    if (job?.paths?.length && !job.paths.every((p) => existsSync(p))) {
+      job.paths = undefined;
+      job.selected = undefined;
+      if (ctx.images.name !== job.provider) job.jobId = undefined;
+    }
     if (job?.paths?.length) continue;
     const req = { creativeId: `${c.id}_${ratio.replace(':', 'x').replace('.', '')}`, prompt, ratio, outDir };
     const r = job?.jobId ? await ctx.images.poll(req, job.jobId) : await ctx.images.generate(req);
@@ -145,9 +152,12 @@ export async function produceOne(ctx: Ctx, c: Creative): Promise<void> {
   // 完成品の最終チェック（画像は 4:5、動画はサムネイルで）
   const main = assets.find((a) => a.ratio === '4:5')!;
   const qa = await finalQa(ctx.llm, brief, main.kind === 'video' ? main.path.replace(/\.mp4$/, '.jpg') : main.path);
-  const selectedScore = c.imageJobs[0]?.selected ?? 0;
   c.assets = assets;
-  c.qa = { score: qa.score, notes: [qa.note, ...qa.problems].filter(Boolean).join(' / '), selectedIndex: selectedScore };
+  c.qa = { score: qa.score, notes: [qa.note, ...qa.problems].filter(Boolean).join(' / '), selectedIndex: c.imageJobs[0]?.selected ?? 0 };
+  await sharp(main.kind === 'video' ? main.path.replace(/\.mp4$/, '.jpg') : main.path)
+    .resize(360, 450, { fit: 'cover' })
+    .jpeg({ quality: 70 })
+    .toFile(store.thumbPath(c.id));
   if (!qa.pass) {
     store.setStatus(c, 'qa_failed', `最終チェック不合格: ${qa.problems.join(' / ')}`);
     log.warn(`${c.id}: 最終チェック不合格 ${qa.problems.join(' / ')}`);

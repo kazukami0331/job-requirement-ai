@@ -77,6 +77,9 @@ export async function runCycle(ctx: Ctx, steps: StepName[] = ALL_STEPS): Promise
     return `入稿 ${published.published.length} / 保留 ${published.skipped.length} / 失敗 ${published.failed.length}`;
   });
 
+  const pruned = store.pruneAssets(ctx.settings.image.inboxDir);
+  if (pruned) log.info(`入稿済み等の素材 ${pruned} ファイルを掃除（サムネイルは保持）`);
+
   record.llmCostUsd = Math.round(ctx.llm.usage.slice(usageBefore).reduce((a, u) => a + u.costUsd, 0) * 100) / 100;
   store.state.llmUsage.push(...ctx.llm.usage.slice(usageBefore));
   record.finishedAt = new Date().toISOString();

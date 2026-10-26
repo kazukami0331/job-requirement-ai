@@ -2,6 +2,7 @@
  * 段階6: 入稿。制作が済んだクリエイティブを Meta / Google に入れる。
  * draft モードでは「停止状態」で入れ、人が媒体の管理画面で ON にする。
  */
+import { existsSync } from 'node:fs';
 import type { Ctx } from './context.ts';
 import type { Creative } from '../types.ts';
 import { publishToMeta } from '../platforms/meta.ts';
@@ -33,6 +34,13 @@ export async function publish(ctx: Ctx): Promise<PublishSummary> {
     const wantGoogle = Boolean(ctx.google && ((job.placements.google?.adGroupIds?.length ?? 0) + (job.placements.google?.assetGroupIds?.length ?? 0) > 0));
     if (!wantMeta && !wantGoogle) {
       summary.skipped.push({ creative: c, reason: '入稿先の媒体が未設定（API キーまたは jobs.json の placements）' });
+      continue;
+    }
+    if (c.assets.some((a) => !existsSync(a.path))) {
+      // 前回の実行環境で作った素材が無い → 作り直す（画像生成の依頼結果は残っているので再合成だけ）
+      c.assets = [];
+      store.setStatus(c, 'planned', '素材ファイルが見つからないため再制作します');
+      summary.skipped.push({ creative: c, reason: '素材ファイルなし（次回再制作）' });
       continue;
     }
     if (ctx.dryRun) {

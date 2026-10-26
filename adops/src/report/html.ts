@@ -2,7 +2,7 @@
  * 運用レポート（静的 HTML）。data/report.html に書き出し、state ブランチに一緒に保存する。
  * 画像は data/assets/ を相対参照するので、ブランチをそのまま開けば見られる。
  */
-import { writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import type { Catalog } from '../config.ts';
 import type { State } from '../types.ts';
@@ -36,8 +36,11 @@ export function renderReport(state: State, catalog: Catalog, dataDir: string, to
   const card = (c: (typeof creatives)[number]) => {
     const b = state.briefs[c.briefId];
     const t = totals(windowed(c.metrics, from, today));
-    const img = c.assets.find((a) => a.ratio === '4:5' && a.kind === 'image') ?? c.assets.find((a) => a.kind === 'image');
-    const vid = c.assets.find((a) => a.kind === 'video' && a.ratio === '9:16');
+    const thumb = join(dataDir, 'assets', c.id, 'thumb.jpg');
+    const img =
+      [c.assets.find((a) => a.ratio === '4:5' && a.kind === 'image'), c.assets.find((a) => a.kind === 'image')].find((a) => a && existsSync(a.path)) ??
+      (existsSync(thumb) ? { path: thumb } : undefined);
+    const vid = c.assets.find((a) => a.kind === 'video' && a.ratio === '9:16' && existsSync(a.path));
     const media = vid
       ? `<video src="${escapeXml(relative(dataDir, vid.path))}" controls muted playsinline preload="none" poster="${escapeXml(relative(dataDir, vid.path.replace(/\.mp4$/, '.jpg')))}"></video>`
       : img
