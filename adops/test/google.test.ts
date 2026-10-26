@@ -72,3 +72,18 @@ test('P-MAX: draft モードでは入れず、auto モードでは比率に合�
     ['SQUARE_MARKETING_IMAGE', 'PORTRAIT_MARKETING_IMAGE', 'HEADLINE', 'HEADLINE'],
   );
 });
+
+test('searchBudgetLoss: 検索広告の広告グループのキャンペーンについて、予算不足で逃した表示の割合を返す', async () => {
+  const { client } = fakeClient();
+  const queries: string[] = [];
+  client.search = async (q: string) => {
+    queries.push(q);
+    if (q.includes('FROM ad_group')) return [{ campaign: { id: '900' } }, { campaign: { id: '900' } }];
+    return [{ campaign: { id: '900', name: '検索_工場' }, metrics: { searchBudgetLostImpressionShare: 0.35, searchImpressionShare: 0.4 } }];
+  };
+  const r = await client.searchBudgetLoss(['55', '56', 'x']);
+  assert.match(queries[0], /ad_group\.id IN \(55,56\)/);
+  assert.match(queries[1], /campaign\.id IN \(900\) AND segments\.date DURING LAST_7_DAYS/);
+  assert.deepEqual(r, [{ campaignId: '900', name: '検索_工場', lostToBudget: 0.35, impressionShare: 0.4 }]);
+  assert.deepEqual(await client.searchBudgetLoss([]), []);
+});

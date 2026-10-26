@@ -64,6 +64,16 @@ export async function collectSearchMetrics(ctx: Ctx): Promise<string> {
   if (!ctx.google || live.length === 0) return '';
   const byRn = await ctx.google.adMetrics(live.map((a) => a.resourceName!), addDays(ctx.today, -13), ctx.today);
   for (const a of live) a.metrics = mergeMetrics(a.metrics, byRn.get(a.resourceName!) ?? []);
+  // 予算不足での取りこぼし（1日1回）。応募単価が目標以内なら予算を上げる提案を出す
+  if (ctx.store.state.searchBudget?.date !== ctx.today) {
+    const groups = ctx.catalog.jobs.filter((j) => j.active).flatMap((j) => j.placements.google?.searchAdGroupIds ?? []);
+    try {
+      const rows = await ctx.google.searchBudgetLoss(groups);
+      ctx.store.state.searchBudget = { date: ctx.today, campaigns: rows };
+    } catch (e) {
+      log.warn(`検索キャンペーンの予算状況の取得に失敗: ${(e as Error).message.slice(0, 200)}`);
+    }
+  }
   return `検索広告 ${live.length} 本の実績を取り込み`;
 }
 

@@ -140,6 +140,27 @@ export class GoogleAdsClient {
     }));
   }
 
+  /**
+   * 検索広告の広告グループが属するキャンペーンの、直近7日の「予算不足で逃した表示の割合」と表示シェア（0〜1）。
+   * 応募単価が良いのに予算で取りこぼしているなら、予算を上げる価値がある。
+   */
+  async searchBudgetLoss(adGroupIds: string[]): Promise<{ campaignId: string; name: string; lostToBudget: number; impressionShare: number }[]> {
+    const ids = [...new Set(adGroupIds.map(Number).filter((n) => n > 0))];
+    if (ids.length === 0) return [];
+    const groups = await this.search<any>(`SELECT campaign.id FROM ad_group WHERE ad_group.id IN (${ids.join(',')})`);
+    const campaigns = [...new Set(groups.map((r) => String(r.campaign?.id ?? '')).filter(Boolean))];
+    if (campaigns.length === 0) return [];
+    const rows = await this.search<any>(
+      `SELECT campaign.id, campaign.name, metrics.search_budget_lost_impression_share, metrics.search_impression_share FROM campaign WHERE campaign.id IN (${campaigns.join(',')}) AND segments.date DURING LAST_7_DAYS`,
+    );
+    return rows.map((r) => ({
+      campaignId: String(r.campaign.id),
+      name: String(r.campaign.name ?? ''),
+      lostToBudget: Number(r.metrics?.searchBudgetLostImpressionShare ?? 0),
+      impressionShare: Number(r.metrics?.searchImpressionShare ?? 0),
+    }));
+  }
+
   /** 広告グループに除外キーワード（完全一致）を追加し、実際に追加できた語句を返す（一部失敗しても他は入れる）。 */
   async addNegativeKeywords(adGroupId: string, terms: string[]): Promise<string[]> {
     if (terms.length === 0) return [];
