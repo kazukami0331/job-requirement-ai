@@ -174,7 +174,8 @@ jobs:
           fi
 
       - name: 応募通知の位置を保存
-        if: success() && steps.steps.outputs.steps == 'leads' && hashFiles('adops/data/leads-cursor.json') != ''
+        # 連携先（CRM）への送信失敗で実行が失敗しても、通知済みの位置と未送信分の位置は保存する（Slack への二重通知を防ぐ）
+        if: ${{ !cancelled() && steps.steps.outputs.steps == 'leads' && hashFiles('adops/data/leads-cursor.json') != '' }}
         uses: actions/cache/save@v4
         with:
           path: adops/data/leads-cursor.json

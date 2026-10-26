@@ -136,4 +136,18 @@ test('excludeIrrelevantTerms: 応募のない求職者以外の検索を、auto 
   assert.match(await excludeIrrelevantTerms(draft), /除外の提案/);
   assert.equal(await excludeIrrelevantTerms(draft), '');
   assert.deepEqual(added, ['テスト社 評判']);
+
+  // 通信障害などで追加そのものが失敗したら記録せず、次回また試す
+  const realAdd = google.addNegativeKeywords;
+  let fail = true;
+  google.addNegativeKeywords = async (ag: string, terms: string[]) => {
+    if (fail) throw new Error('network');
+    return realAdd(ag, terms);
+  };
+  const auto2 = mk('auto');
+  added.length = 0;
+  assert.match(await excludeIrrelevantTerms(auto2), /除外の提案/);
+  assert.ok(!(auto2.store.state.negatives?.['55'] ?? []).some((n) => n.term === 'テスト社 評判'));
+  fail = false;
+  assert.match(await excludeIrrelevantTerms(auto2), /除外 「テスト社 評判」/);
 });

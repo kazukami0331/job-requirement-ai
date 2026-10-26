@@ -597,6 +597,9 @@ test('windowFromCursor: 前回の通知位置から今までを対象にし、�
   writeFileSync(p, JSON.stringify({ until: prev, hookPendingSince: prev - 3 * 86400 }));
   assert.equal(windowFromCursor(p, now).hookSince, prev - 3 * 86400);
   assert.equal(windowFromCursor(p, now).since, prev);
+  // 位置が使えなくても（未来の値など）未送信分は引き継ぐ
+  writeFileSync(p, JSON.stringify({ until: prev + 86400, hookPendingSince: prev - 86400 }));
+  assert.equal(windowFromCursor(p, now).hookSince, prev - 86400);
 });
 
 test('notifyLeads: 連携先への送信に失敗しても Slack には通知し、未送信分を次回再送する', async () => {

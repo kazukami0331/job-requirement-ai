@@ -197,16 +197,15 @@ export class DriveInbox implements Inbox {
   }
 
   async keep(id: string, files: string[]): Promise<void> {
+    // 前回の途中まで保存したフォルダなどが残っていたら退避し、毎回新しいフォルダに入れる（古い画像と混ざらないように）
     const found = await this.findFolder(id);
-    const folder =
-      found?.name.endsWith('.imported')
-        ? found
-        : await requestJson<{ id: string }>(`${DRIVE}/files?supportsAllDrives=true`, {
-            method: 'POST',
-            headers: await this.auth(),
-            json: { name: `${id}.imported`, mimeType: FOLDER_MIME, parents: [this.rootId] },
-            attempts: 1,
-          });
+    if (found?.name.endsWith('.imported')) await this.rename(found.id, `${id}.rejected-${Date.now()}`);
+    const folder = await requestJson<{ id: string }>(`${DRIVE}/files?supportsAllDrives=true`, {
+      method: 'POST',
+      headers: await this.auth(),
+      json: { name: `${id}.imported`, mimeType: FOLDER_MIME, parents: [this.rootId] },
+      attempts: 1,
+    });
     for (const f of files) {
       const boundary = `adops${Date.now()}`;
       const head = Buffer.from(

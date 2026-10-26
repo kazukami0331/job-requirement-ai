@@ -51,18 +51,21 @@ export async function excludeIrrelevantTerms(ctx: Ctx): Promise<string> {
       const picks = out.terms.filter((t) => t.exclude && known.has(t.term)).slice(0, MAX_PER_GROUP);
       const keeps = out.terms.filter((t) => !t.exclude && known.has(t.term));
       let applied = new Set<string>();
+      let picksToRecord = picks;
       if (auto && picks.length) {
         try {
           applied = new Set(await google.addNegativeKeywords(ag, picks.map((p) => p.term)));
         } catch (e) {
+          // 通信障害などで全体が失敗したときは記録しない（次回また試す。7日おくのは個別に拒否された語だけ）
           log.warn(`除外キーワードの追加に失敗（${ag}）: ${(e as Error).message}`);
+          picksToRecord = [];
         }
       }
-      const touched = new Set([...picks, ...keeps].map((p) => p.term));
+      const touched = new Set([...picksToRecord, ...keeps].map((p) => p.term));
       const list = (negatives[ag] ??= []).filter((n) => !touched.has(n.term));
       negatives[ag] = [
         ...list,
-        ...picks.map((p) => ({ term: p.term, reason: p.reason, addedOn: ctx.today, applied: applied.has(p.term) })),
+        ...picksToRecord.map((p) => ({ term: p.term, reason: p.reason, addedOn: ctx.today, applied: applied.has(p.term) })),
         ...keeps.map((p) => ({ term: p.term, reason: p.reason, addedOn: ctx.today, applied: false, keep: true })),
       ].slice(-500);
       if (picks.length === 0) continue;

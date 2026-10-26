@@ -40,19 +40,20 @@ export function leadWindow(now = new Date()): { since: number; until: number } {
  */
 export function windowFromCursor(cursorPath: string | undefined, now = new Date()): { since: number; until: number; hookSince: number } {
   const fallback = leadWindow(now);
-  if (!cursorPath || !existsSync(cursorPath)) return { ...fallback, hookSince: fallback.since };
+  let cur: { until?: unknown; hookPendingSince?: unknown } = {};
   try {
-    const cur = JSON.parse(readFileSync(cursorPath, 'utf8'));
-    const prev = Number(cur.until);
-    const until = Math.floor(now.getTime() / 1000) - 60;
-    if (!(prev < until)) return { ...fallback, hookSince: fallback.since };
-    const since = Math.max(prev, until - 24 * 3600);
-    const pending = Number(cur.hookPendingSince);
-    const hookSince = pending < since ? Math.max(pending, until - 7 * 86400) : since;
-    return { since, until, hookSince };
+    if (cursorPath && existsSync(cursorPath)) cur = JSON.parse(readFileSync(cursorPath, 'utf8'));
   } catch {
-    return { ...fallback, hookSince: fallback.since };
+    cur = {};
   }
+  const prev = Number(cur.until);
+  const until = Math.floor(now.getTime() / 1000) - 60;
+  const base = prev < until ? { since: Math.max(prev, until - 24 * 3600), until } : fallback;
+  // 連携先への未送信分は、位置が使えない場合でも引き継ぐ
+  const pending = Number(cur.hookPendingSince);
+  const hookSince = pending < base.since ? Math.max(pending, base.until - 7 * 86400) : base.since;
+  if (pending < base.until - 7 * 86400) log.warn(`連携先への未送信の応募のうち7日より前の分は再送しません（Meta のリードセンターで確認してください）`);
+  return { ...base, hookSince };
 }
 
 export async function notifyLeads(ctx: Ctx, now = new Date(), cursorPath?: string): Promise<string> {
