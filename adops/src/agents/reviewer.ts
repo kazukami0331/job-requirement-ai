@@ -25,7 +25,10 @@ export const REVIEWER_SYSTEM = `あなたは求人広告の審査とクリエイ
 - minor: 細かな改善
 - 機械チェックで既に出ている指摘は繰り返さなくてよい。機械では拾えない問題（文脈上の誤解、言外の差別的ニュアンス、
   ステレオタイプ、現場の安全描写の問題、媒体で不承認になりやすい表現）を重点的に見る
-- suggestion には書き換え案そのものを書く（「改善してください」ではなく「『寮費0円で今月から働ける』に」）`;
+- suggestion には書き換え案そのものを書く（「改善してください」ではなく「『寮費0円で今月から働ける』に」）
+- 外国語の広告（language あり）は、原文と日本語訳（translationJa）が同じ意味かを必ず確かめる。訳にない約束・金額・条件が
+  原文にある、または原文が誇張・差別的なら blocker。国籍・在留資格で応募者を限定・排除する表現も blocker。
+  原文の自然さ・分かりやすさ（やさしい言い回しか）も採点に含める`;
 
 export interface ReviewResult {
   review: Review;
@@ -74,6 +77,7 @@ ${JSON.stringify(
     storyboard: brief.storyboard,
     visualConcept: brief.visualConcept,
     imagePrompt: brief.imagePrompt,
+    ...(brief.language ? { language: brief.language, translationJa: brief.translationJa } : {}),
   },
   null,
   2,
