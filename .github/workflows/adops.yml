@@ -98,6 +98,7 @@ jobs:
           GOOGLE_ADS_LOGO_ASSET: ${{ vars.GOOGLE_ADS_LOGO_ASSET }}
           GOOGLE_ADS_BUSINESS_NAME: ${{ vars.GOOGLE_ADS_BUSINESS_NAME }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          ADOPS_OUTCOMES_CSV_URL: ${{ secrets.ADOPS_OUTCOMES_CSV_URL }}
         run: node src/cli.ts cycle --steps "${{ steps.steps.outputs.steps }}"
 
       - name: 素材とレポートを保存（14日）

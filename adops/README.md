@@ -116,6 +116,16 @@ Node.js 22.18 以上（TypeScript をそのまま実行します）、`ffmpeg`�
 3. P-MAX を使う場合はアセットグループ ID を `placements.google.assetGroupIds` に（素材の追加・入替のみ。成果の学習には使いません）。
 4. 応募のコンバージョンアクション名を `GOOGLE_ADS_CONVERSION_ACTION` に。
 
+### 選考結果（面接・入社）を取り込む（任意）
+
+広告のリンクには `utm_content=<企画ID>`（`br_...`）が付きます。応募管理やスプレッドシートにこの値を残し、
+次の列を持つ CSV を `ADOPS_OUTCOMES_CSV_URL`（Google スプレッドシートの「ウェブに公開 → CSV」URL など）に設定すると、
+広告ごとの面接・内定・入社数がレポートと AI 分析に入ります。「応募は取れるが面接に来ない訴求」を見分けられます。
+
+| 企画ID（utm_content） | 応募者ID（任意） | ステータス（応募/面接/内定/入社） |
+|---|---|---|
+| br_20261027_600542 | 1234 | 面接 |
+
 ### 4. GitHub Actions で毎日動かす
 
 `.github/workflows/adops.yml` が毎朝 6:00（フル）と 12:00 / 18:00（停止判断のみ）に動きます。
@@ -123,7 +133,7 @@ Node.js 22.18 以上（TypeScript をそのまま実行します）、`ffmpeg`�
 
 | 種類 | 名前 |
 |---|---|
-| Secrets | `ANTHROPIC_API_KEY` `META_ACCESS_TOKEN` `META_APP_SECRET` `GOOGLE_ADS_DEVELOPER_TOKEN` `GOOGLE_ADS_CLIENT_ID` `GOOGLE_ADS_CLIENT_SECRET` `GOOGLE_ADS_REFRESH_TOKEN` `YOUTUBE_REFRESH_TOKEN` `MJ_API_KEY` `SLACK_WEBHOOK_URL` |
+| Secrets | `ADOPS_OUTCOMES_CSV_URL` `ANTHROPIC_API_KEY` `META_ACCESS_TOKEN` `META_APP_SECRET` `GOOGLE_ADS_DEVELOPER_TOKEN` `GOOGLE_ADS_CLIENT_ID` `GOOGLE_ADS_CLIENT_SECRET` `GOOGLE_ADS_REFRESH_TOKEN` `YOUTUBE_REFRESH_TOKEN` `MJ_API_KEY` `SLACK_WEBHOOK_URL` |
 | Variables | `ADOPS_DRY_RUN`（`false` で本番）`IMAGE_PROVIDER` `META_AD_ACCOUNT_ID` `META_PAGE_ID` `META_INSTAGRAM_USER_ID` `META_CONVERSION_ACTION_TYPES` `GOOGLE_ADS_CUSTOMER_ID` `GOOGLE_ADS_LOGIN_CUSTOMER_ID` `GOOGLE_ADS_CONVERSION_ACTION` `GOOGLE_ADS_LOGO_ASSET` `GOOGLE_ADS_BUSINESS_NAME` `ADOPS_MODEL` `MJ_API_BASE_URL` `MJ_VIDEO_ENABLED` |
 
 `ADOPS_DRY_RUN` を `false` にするまでは媒体に何も書き込みません。最初は DRY RUN のまま数日動かし、
@@ -180,4 +190,4 @@ adops/
 ## まだやっていないこと
 
 - 実際の Meta / Google / Midjourney 中継 API での疎通確認（認証情報が必要）。最初は `check` と DRY RUN で確認してください。
-- 応募後の選考結果（面接・入社）を学習に使うこと。CRM の結果を取り込めば、応募単価ではなく「入社単価」で最適化できます。
+- 選考結果は分析・レポートには使っていますが、配分ロジック（バンディット）の報酬はまだ応募数です。入社データが十分に貯まったら報酬を「入社」に切り替えられます。

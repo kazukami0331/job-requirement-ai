@@ -249,6 +249,8 @@ export interface Creative {
   publishedAt?: string;
   updatedAt: string;
   organic?: OrganicPost;
+  /** 選考結果（ATS / スプレッドシートから取り込み）。広告経由の応募者がどこまで進んだか */
+  funnel?: { applied: number; interview: number; offer: number; hired: number; updatedAt: string };
 }
 
 export interface OrganicPost {

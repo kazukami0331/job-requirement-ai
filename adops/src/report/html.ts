@@ -57,7 +57,9 @@ export function renderReport(state: State, catalog: Catalog, dataDir: string, to
   <h3>${escapeXml(b?.overlay.main ?? '')}</h3>
   <p class="sub">${escapeXml(b?.headline ?? '')}</p>
   <p class="job">${escapeXml(catalog.jobs.find((j) => j.id === c.jobId)?.title ?? c.jobId)}</p>
-  <dl><dt>表示</dt><dd>${t.impressions.toLocaleString()}</dd><dt>CTR</dt><dd>${t.ctr.toFixed(2)}%</dd><dt>応募</dt><dd>${t.conversions}</dd><dt>単価</dt><dd>${yen(t.cpa)}</dd></dl>
+  <dl><dt>表示</dt><dd>${t.impressions.toLocaleString()}</dd><dt>CTR</dt><dd>${t.ctr.toFixed(2)}%</dd><dt>応募</dt><dd>${t.conversions}</dd><dt>単価</dt><dd>${yen(t.cpa)}</dd>${
+    c.funnel ? `<dt>面接</dt><dd>${c.funnel.interview}</dd><dt>入社</dt><dd>${c.funnel.hired}</dd>` : ''
+  }</dl>
   ${c.statusReason ? `<p class="reason">${escapeXml(c.statusReason)}</p>` : ''}
 </article>`;
   };
@@ -96,6 +98,7 @@ ul{padding-left:20px}
   <div class="kpi"><span class="muted">広告費</span><b>${yen(all.spend)}</b></div>
   <div class="kpi"><span class="muted">応募</span><b>${all.conversions}</b></div>
   <div class="kpi"><span class="muted">応募単価</span><b>${yen(all.cpa)}</b></div>
+  <div class="kpi"><span class="muted">入社（累計・取込分）</span><b>${creatives.reduce((a, c) => a + (c.funnel?.hired ?? 0), 0)}</b></div>
   <div class="kpi"><span class="muted">AI費用（7日）</span><b>$${spendUsd.toFixed(2)}</b></div>
 </section>
 ${

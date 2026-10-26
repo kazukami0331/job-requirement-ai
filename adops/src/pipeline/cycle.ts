@@ -10,6 +10,7 @@ import { plan, type PlanResult } from './plan.ts';
 import { produce } from './produce.ts';
 import { publish, type PublishSummary } from './publish.ts';
 import { collectOrganic, postOrganic } from './organic.ts';
+import { importOutcomes } from './outcomes.ts';
 import { analyze } from '../agents/analyst.ts';
 import { lastNDays, totals } from '../optimize/stats.ts';
 import { notifySlack, sections } from '../notify/slack.ts';
@@ -52,7 +53,8 @@ export async function runCycle(ctx: Ctx, steps: StepName[] = ALL_STEPS): Promise
   await step('collect', async () => {
     const ads = await collectMetrics(ctx);
     const organic = await collectOrganic(ctx).catch((e) => `オーガニック取得失敗: ${(e as Error).message}`);
-    return `${ads} / ${organic}`;
+    const outcomes = await importOutcomes(ctx).catch((e) => `選考結果の取り込み失敗: ${(e as Error).message}`);
+    return `${ads} / ${organic} / ${outcomes}`;
   });
   await step('optimize', async () => {
     decisions = await optimize(ctx);
