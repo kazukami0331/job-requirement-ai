@@ -211,7 +211,7 @@ export function allocateSlots(input: AllocationInput): Slot[] {
     const winners = jobCreatives
       .filter((c) => (c.status === 'retired' || (c.status === 'published' && c.publishedAt && daysBetween(c.publishedAt.slice(0, 10), today) >= 10)) && !iterated.has(c.briefId))
       .map((c) => ({ c, t: totals(c.metrics) }))
-      .filter((x) => x.t.conversions >= 3 && x.t.cpa !== null && x.t.cpa <= policy.guardrails.targetCpa)
+      .filter((x) => x.t.conversions >= 3 && x.t.cpa !== null && x.t.cpa <= (job.targetCpa ?? policy.guardrails.targetCpa))
       .sort((a, b) => a.t.cpa! - b.t.cpa!);
 
     for (let i = 0; i < n; i++) {

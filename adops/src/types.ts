@@ -61,6 +61,8 @@ export interface Job {
   landingUrl: string;
   /** 1日に作る新規クリエイティブの上限（求人ごと） */
   dailyCreativeQuota?: number;
+  /** この求人の目標応募単価（円）。無ければ policy.json の guardrails.targetCpa（職種で採用の価値が違う場合に） */
+  targetCpa?: number;
   /** 今月の応募の目標件数。達したら新しい広告は作らない（配信中の広告はそのまま。翌月に再開） */
   monthlyApplicationTarget?: number;
   /** 媒体ごとの入稿先。キャンペーン・広告セットは人が作り、AIは広告（素材）を回す。 */

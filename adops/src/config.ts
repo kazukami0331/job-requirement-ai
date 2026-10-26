@@ -224,6 +224,7 @@ export function validateCatalog(c: Catalog): void {
     for (const pid of Object.keys(j.placementsByPersona ?? {})) {
       if (!j.personas.includes(pid)) errors.push(`${j.id}: placementsByPersona の ${pid} が personas にありません`);
     }
+    if (j.targetCpa !== undefined && !(j.targetCpa > 0)) errors.push(`${j.id}: targetCpa は正の数（円）`);
     if (j.monthlyApplicationTarget !== undefined && !(j.monthlyApplicationTarget > 0)) errors.push(`${j.id}: monthlyApplicationTarget は 1 以上の数（目標なしなら項目ごと消す）`);
   }
   const p = c.policy;

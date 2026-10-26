@@ -26,6 +26,8 @@ export interface DecideInput {
   recentlyScaled?: Set<string>;
   /** 募集中の求人 ID。指定されていれば、それ以外（募集終了・削除）の求人の広告はすべて止める */
   activeJobIds?: Set<string>;
+  /** 求人ごとの目標応募単価（jobs.json の targetCpa）。無ければ policy の値 */
+  targetCpaByJob?: Map<string, number>;
 }
 
 /** 応募効率のスコア（大きいほど良い）。停止候補の並べ替えに使う。 */
@@ -62,16 +64,18 @@ export function decide(input: DecideInput): Decision[] {
     }
   }
 
+  const target = (jobId: string) => input.targetCpaByJob?.get(jobId) ?? g.targetCpa;
   for (const { c, t } of withData) {
     if (paused.has(c.id)) continue;
+    const targetCpa = target(c.jobId);
     // 1. 応募ゼロのまま使いすぎ
-    if (t.conversions === 0 && t.spend >= g.targetCpa * g.zeroConversionSpendMultiple) {
+    if (t.conversions === 0 && t.spend >= targetCpa * g.zeroConversionSpendMultiple) {
       pause(c, `応募0件のまま ${Math.round(t.spend).toLocaleString()}円 消化（目標応募単価の${g.zeroConversionSpendMultiple}倍）`, { spend: t.spend });
       continue;
     }
     // 2. 応募単価が目標の1.5倍超（応募3件以上で判断）
-    if (t.conversions >= 3 && t.cpa !== null && t.cpa > g.targetCpa * 1.5) {
-      pause(c, `応募単価 ${Math.round(t.cpa).toLocaleString()}円 が目標 ${g.targetCpa.toLocaleString()}円 の1.5倍超`, { cpa: t.cpa });
+    if (t.conversions >= 3 && t.cpa !== null && t.cpa > targetCpa * 1.5) {
+      pause(c, `応募単価 ${Math.round(t.cpa).toLocaleString()}円 が目標 ${targetCpa.toLocaleString()}円 の1.5倍超`, { cpa: t.cpa });
       continue;
     }
     // 3. クリック率が低すぎる（十分表示された上で、絶対値と相対値の両方で下回る）
@@ -118,7 +122,7 @@ export function decide(input: DecideInput): Decision[] {
     const jobWinners = live
       .filter((c) => c.jobId === jobId && !paused.has(c.id))
       .map((c) => ({ c, t: totals(windowed(c.metrics, from, today, 'meta')) }))
-      .filter(({ t }) => t.conversions >= 3 && t.cpa !== null && t.cpa <= g.targetCpa * 0.8);
+      .filter(({ t }) => t.conversions >= 3 && t.cpa !== null && t.cpa <= target(jobId) * 0.8);
     for (const adset of adsets) {
       // その広告セットに入っているペルソナの勝ち広告だけで判断する（外国人向けの成果で日本人向けの予算を上げない）
       const winners = adset.personaIds ? jobWinners.filter((w) => adset.personaIds!.includes(w.c.personaId)) : jobWinners;

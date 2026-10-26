@@ -72,6 +72,7 @@ export async function optimize(ctx: Ctx): Promise<Decision[]> {
     adsetsByJob,
     recentlyScaled,
     activeJobIds: new Set(catalog.jobs.filter((j) => j.active).map((j) => j.id)),
+    targetCpaByJob: new Map(catalog.jobs.filter((j) => j.targetCpa).map((j) => [j.id, j.targetCpa!])),
   });
   const auto = catalog.policy.autonomy === 'auto';
 

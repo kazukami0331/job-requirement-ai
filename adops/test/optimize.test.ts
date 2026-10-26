@@ -293,3 +293,12 @@ test('decide: 予算増はその広告セットに入るペルソナの勝ち広
   });
   assert.deepEqual(d.filter((x) => x.action === 'scale_budget').map((x) => x.adsetId), ['vi_set']);
 });
+
+test('decide: 求人ごとの目標応募単価（targetCpa）で停止を判断する', () => {
+  // 応募単価 10,000円: 全体の目標 8,000円 なら1.5倍以内（継続）、求人の目標 5,000円 なら1.5倍超（停止）
+  const c = creative({ metrics: daily('2026-10-01', 7, { impressions: 3000, clicks: 30, spend: 10000, conversions: 1 }) });
+  const base = decide({ creatives: [c], policy: policy(), today: '2026-10-07', adsetsByJob: new Map() });
+  assert.ok(!base.some((d) => d.action === 'pause'));
+  const strict = decide({ creatives: [c], policy: policy(), today: '2026-10-07', adsetsByJob: new Map(), targetCpaByJob: new Map([['factory', 5000]]) });
+  assert.ok(strict.some((d) => d.action === 'pause' && /目標 5,000円/.test(d.reason)));
+});
