@@ -11,8 +11,9 @@ import { produce } from './produce.ts';
 import { publish, type PublishSummary } from './publish.ts';
 import { collectOrganic, postOrganic } from './organic.ts';
 import { importOutcomes } from './outcomes.ts';
-import { rotateSearchAds } from './search.ts';
+import { collectSearchMetrics, rotateSearchAds } from './search.ts';
 import { watchComments } from './comments.ts';
+import { checkLandingPages } from './landing.ts';
 import { analyze } from '../agents/analyst.ts';
 import { memoToSlack, shouldWriteMemo, writeMemo } from '../agents/strategyMemo.ts';
 import { lastNDays, totals } from '../optimize/stats.ts';
@@ -47,6 +48,11 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
 
   const step = async (name: StepName, fn: () => Promise<string>) => {
     if (!steps.includes(name)) return;
+    // 途中の段階（日予算の上限超えなど）で緊急停止になったら、以降の企画・入稿・投稿はしない
+    if (store.state.halted && !SAFE_WHEN_HALTED.includes(name)) {
+      record.steps.push({ name, ok: true, note: `緊急停止中のためスキップ（${store.state.halted.reason}）`, ms: 0 });
+      return;
+    }
     const t = Date.now();
     try {
       const note = await fn();
@@ -66,7 +72,10 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
     const organic = await collectOrganic(ctx).catch((e) => `オーガニック取得失敗: ${(e as Error).message}`);
     const outcomes = await importOutcomes(ctx).catch((e) => `選考結果の取り込み失敗: ${(e as Error).message}`);
     const comments = await watchComments(ctx).catch((e) => `コメント監視の失敗: ${(e as Error).message}`);
-    return `${ads} / ${organic} / ${outcomes} / ${comments}`;
+    // 検索広告の実績も先に取り込む（日予算の上限の判定に当日の費用を含めるため）
+    const search = await collectSearchMetrics(ctx).catch((e) => `検索広告の実績取得に失敗: ${(e as Error).message}`);
+    const landing = await checkLandingPages(ctx).catch((e) => `応募ページの確認に失敗: ${(e as Error).message}`);
+    return [ads, search, organic, outcomes, comments, landing].filter(Boolean).join(' / ');
   });
   await step('optimize', async () => {
     decisions = await optimize(ctx);
@@ -175,6 +184,8 @@ function summaryMessage(
   lines.push(`*広告自動運用 ${today}*${ctx.dryRun ? '（DRY RUN）' : ''}`);
   if (store.state.halted) lines.push(`:octagonal_sign: 緊急停止中（${store.state.halted.reason}）。企画・入稿は止めています。解除は \`resume\``);
   lines.push(`直近7日: 表示 ${t7.impressions.toLocaleString()} / CTR ${t7.ctr.toFixed(2)}% / 費用 ${Math.round(t7.spend).toLocaleString()}円 / 応募 ${t7.conversions}${t7.cpa ? ` / 単価 ${Math.round(t7.cpa).toLocaleString()}円` : ''}`);
+  const brokenLp = ctx.catalog.jobs.filter((j) => store.state.landing?.[j.id]?.ok === false);
+  if (brokenLp.length) lines.push(`:rotating_light: 応募ページに問題: ${brokenLp.map((j) => `${j.title}（${store.state.landing![j.id].note}）`).join(' / ')}。この求人は新規入稿を止めています`);
   const failedSteps = record.steps.filter((s) => !s.ok);
   if (failedSteps.length) lines.push(`:warning: 失敗した段階: ${failedSteps.map((s) => `${s.name}（${s.note.slice(0, 120)}）`).join(' / ')}`);
 

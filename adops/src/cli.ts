@@ -37,6 +37,7 @@ import { liveChecks } from './doctor.ts';
 import { importJob } from './agents/jobImporter.ts';
 import { emergencyStop } from './pipeline/emergency.ts';
 import { notifyLeads } from './pipeline/leads.ts';
+import { fetchPage } from './pipeline/landing.ts';
 import { notifySlack } from './notify/slack.ts';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -75,6 +76,7 @@ function buildCtx(flags: Record<string, string | boolean>): Ctx {
     meta,
     google,
     dryRun: settings.dryRun,
+    checkPage: process.env.ADOPS_LP_CHECK === 'false' ? undefined : fetchPage,
     cycleId: newId('cy'),
     today: typeof flags.today === 'string' ? flags.today : undefined,
   });
@@ -191,6 +193,8 @@ async function main() {
       const ctx = buildCtx({ ...flags, offline: true });
       const was = ctx.store.state.halted;
       delete ctx.store.state.halted;
+      // 日予算の上限で止まった日に解除したなら、その日はもう上限で止めない（すぐ止め直さないように）
+      if (was?.reason.includes('上限')) ctx.store.state.spendCapWaivedOn = ctx.today;
       ctx.store.save();
       console.log(was ? `緊急停止を解除しました（${was.at} ${was.reason}）。止めた広告は自動では再開しません。必要なものを管理画面で ON にしてください。` : '緊急停止中ではありません');
       if (was) await notifySlack(ctx.settings.slack.webhookUrl, { text: ':arrow_forward: *adops 緊急停止を解除* 次回の実行から企画・入稿を再開します（止めた広告は管理画面で個別に再開してください）' });

@@ -10,6 +10,7 @@ import { publishToMeta } from '../platforms/meta.ts';
 import { publishToGoogle } from '../platforms/google.ts';
 import { uploadToYoutube } from '../platforms/youtube.ts';
 import { logger } from '../util/log.ts';
+import { landingBroken } from './landing.ts';
 
 const log = logger('publish');
 const MAX_RETRIES = 3;
@@ -69,6 +70,11 @@ export async function publish(ctx: Ctx): Promise<PublishSummary> {
     }
     if (ctx.dryRun) {
       summary.skipped.push({ creative: c, reason: 'DRY RUN（ADOPS_DRY_RUN=false で入稿）' });
+      continue;
+    }
+    const lp = landingBroken(ctx, job.id);
+    if (lp) {
+      summary.skipped.push({ creative: c, reason: `応募ページに問題があるため入稿を保留（${lp.note}）` });
       continue;
     }
     const placeholders = placeholderProblems(catalog, job.id);

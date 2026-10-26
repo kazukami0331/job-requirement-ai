@@ -8,6 +8,7 @@
  */
 import type { Ctx } from './context.ts';
 import { placeholderProblems } from '../config.ts';
+import { landingBroken } from './landing.ts';
 import type { SearchAd } from '../types.ts';
 import { writeRsa } from '../agents/searchWriter.ts';
 import { withUtm } from '../platforms/meta.ts';
@@ -56,6 +57,16 @@ export function pickSearchLosers(ads: SearchAd[], today: string): SearchDecision
   return out;
 }
 
+/** 検索広告の直近14日の実績を取り込む（収集の段階と、入れ替えの前に呼ぶ）。 */
+export async function collectSearchMetrics(ctx: Ctx): Promise<string> {
+  const ads = Object.values(ctx.store.state.searchAds ?? {});
+  const live = ads.filter((a) => a.resourceName && a.status !== 'failed');
+  if (!ctx.google || live.length === 0) return '';
+  const byRn = await ctx.google.adMetrics(live.map((a) => a.resourceName!), addDays(ctx.today, -13), ctx.today);
+  for (const a of live) a.metrics = mergeMetrics(a.metrics, byRn.get(a.resourceName!) ?? []);
+  return `検索広告 ${live.length} 本の実績を取り込み`;
+}
+
 export async function rotateSearchAds(ctx: Ctx): Promise<string> {
   const { store, catalog, today } = ctx;
   store.state.searchAds ??= {};
@@ -65,11 +76,7 @@ export async function rotateSearchAds(ctx: Ctx): Promise<string> {
   const notes: string[] = [];
 
   // 1) 実績の取り込み
-  const live = Object.values(ads).filter((a) => a.resourceName && a.status !== 'failed');
-  if (ctx.google && live.length) {
-    const byRn = await ctx.google.adMetrics(live.map((a) => a.resourceName!), addDays(today, -13), today);
-    for (const a of live) a.metrics = mergeMetrics(a.metrics, byRn.get(a.resourceName!) ?? []);
-  }
+  await collectSearchMetrics(ctx);
 
   // 2) 負けている広告と、募集が終わった求人の広告を止める
   const activeJobs = new Set(catalog.jobs.filter((j) => j.active).map((j) => j.id));
@@ -107,6 +114,11 @@ export async function rotateSearchAds(ctx: Ctx): Promise<string> {
       // サンプル設定のままなら作らない（実際にお金がかかる入稿なので）
       if (!ctx.dryRun && placeholderProblems(catalog, job.id).length) {
         notes.push(`${job.id}: サンプル設定のままのため検索広告を作りません（${placeholderProblems(catalog, job.id).join(' / ')}）`);
+        continue;
+      }
+      const lp = landingBroken(ctx, job.id);
+      if (lp) {
+        notes.push(`${job.id}: 応募ページに問題があるため検索広告を作りません（${lp.note}）`);
         continue;
       }
       try {

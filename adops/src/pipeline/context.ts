@@ -6,6 +6,7 @@ import { MetaClient } from '../platforms/meta.ts';
 import { GoogleAdsClient } from '../platforms/google.ts';
 import type { StateStore } from '../store/stateStore.ts';
 import { jstDate } from '../util/id.ts';
+import type { CheckPage } from './landing.ts';
 
 /** 各段階に渡す実行コンテキスト。外部依存はすべてここ経由にしてテストで差し替えられるようにする。 */
 export interface Ctx {
@@ -20,6 +21,8 @@ export interface Ctx {
   cycleId: string;
   /** 入稿・停止・予算変更などの「外部への書き込み」をしない */
   dryRun: boolean;
+  /** 応募ページの死活監視に使う（未指定なら確認しない。テストでは差し替える） */
+  checkPage?: CheckPage;
 }
 
 export function platformClients(settings: Settings): { meta: MetaClient | null; google: GoogleAdsClient | null } {

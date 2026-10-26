@@ -12,6 +12,7 @@ import { uploadToYoutube } from '../platforms/youtube.ts';
 import { writeCaption } from '../agents/socialWriter.ts';
 import { checkTexts, hasBlocker } from '../compliance/rules.ts';
 import { placeholderProblems } from '../config.ts';
+import { landingBroken } from './landing.ts';
 import { lastNDays, totals } from '../optimize/stats.ts';
 import { jstDate } from '../util/id.ts';
 import { logger } from '../util/log.ts';
@@ -103,6 +104,8 @@ export async function postOrganic(ctx: Ctx): Promise<string> {
         done.push(`${c.id}: サンプル設定のままのため投稿しません（${placeholders.join(' / ')}）`);
         break;
       }
+      // 応募ページが壊れている求人は、別の候補へ
+      if (landingBroken(ctx, job.id)) continue;
       // 投稿先ごとに独立して試す（1つ失敗しても他は投稿する）。公開できたものはすぐ記録して二重投稿を防ぐ
       const record = (patch: Partial<NonNullable<Creative['organic']>>) => {
         c.organic = { kind, mediaId: '', permalink: '', postedAt: new Date().toISOString(), caption, insights: [], ...c.organic, ...patch };

@@ -455,6 +455,29 @@ test('enforceSpendCap: 当日の広告費が上限を超えたら全停止して
     assert.equal(d.length, 0);
     assert.deepEqual(stopped, ['ad1']);
     assert.match(ctx.store.state.halted!.reason, /上限/);
+
+    // 人が同じ日に解除したら、その日は上限で止め直さない
+    delete ctx.store.state.halted;
+    ctx.store.state.spendCapWaivedOn = '2026-10-10';
+    stopped.length = 0;
+    await optimize(ctx);
+    assert.equal(ctx.store.state.halted, undefined);
+    assert.deepEqual(stopped, []);
+  } finally {
+    delete process.env.ADOPS_DAILY_SPEND_CAP;
+  }
+});
+
+test('runCycle: 途中で上限超えの緊急停止になったら、同じ実行の企画・入稿はしない', async () => {
+  const { creative, daily } = await import('./fixtures.ts');
+  const ctx = ctxWith(offlineLlm(catalog()), { dryRun: false, meta: { stopAd: async () => {}, getAdset: async () => ({ id: '111', dailyBudget: null, status: 'ACTIVE' }) } as any });
+  ctx.store.state.creatives.a = creative({ id: 'a', metrics: daily('2026-10-10', 1, { impressions: 10000, clicks: 100, spend: 60000, conversions: 1 }) });
+  process.env.ADOPS_DAILY_SPEND_CAP = '50000';
+  try {
+    const rec = await runCycle(ctx, ['optimize', 'plan', 'publish']);
+    assert.ok(ctx.store.state.halted);
+    assert.match(rec.steps.find((s) => s.name === 'plan')!.note, /緊急停止中のためスキップ/);
+    assert.equal(Object.keys(ctx.store.state.briefs).length, 0);
   } finally {
     delete process.env.ADOPS_DAILY_SPEND_CAP;
   }

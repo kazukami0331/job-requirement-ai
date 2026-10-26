@@ -203,7 +203,7 @@ GitHub の Variables に `ADOPS_REPORT_URL=https://<Vercel のドメイン>/adop
 | 種類 | 名前 |
 |---|---|
 | Secrets | `ADOPS_APPROVAL_SECRET` `GEMINI_API_KEY` `GOOGLE_SERVICE_ACCOUNT_JSON` `ADOPS_OUTCOMES_CSV_URL` `ANTHROPIC_API_KEY` `META_ACCESS_TOKEN` `META_APP_SECRET` `GOOGLE_ADS_DEVELOPER_TOKEN` `GOOGLE_ADS_CLIENT_ID` `GOOGLE_ADS_CLIENT_SECRET` `GOOGLE_ADS_REFRESH_TOKEN` `YOUTUBE_REFRESH_TOKEN` `MJ_API_KEY` `SLACK_WEBHOOK_URL` |
-| Variables | `ADOPS_DRY_RUN`（`false` で本番）`IMAGE_PROVIDER` `META_AD_ACCOUNT_ID` `META_PAGE_ID` `META_INSTAGRAM_USER_ID` `META_CONVERSION_ACTION_TYPES` `GOOGLE_ADS_CUSTOMER_ID` `GOOGLE_ADS_LOGIN_CUSTOMER_ID` `GOOGLE_ADS_CONVERSION_ACTION` `GOOGLE_ADS_LOGO_ASSET` `GOOGLE_ADS_BUSINESS_NAME` `ADOPS_MODEL` `MJ_API_BASE_URL` `MJ_VIDEO_ENABLED` `MJ_INBOX` `DRIVE_INBOX_FOLDER_ID` `ADOPS_MAX_LLM_USD` `ADOPS_SLACK_APPROVALS` `ADOPS_TTS` `ADOPS_TTS_VOICE` `GEMINI_IMAGE_MODEL` `IMAGE_FALLBACK_AFTER_HOURS` `ADOPS_WATCH_COMMENTS` `ADOPS_HIDE_SPAM` `ADOPS_REPORT_URL` `ADOPS_SHEET_ID` `ADOPS_DAILY_SPEND_CAP` |
+| Variables | `ADOPS_DRY_RUN`（`false` で本番）`IMAGE_PROVIDER` `META_AD_ACCOUNT_ID` `META_PAGE_ID` `META_INSTAGRAM_USER_ID` `META_CONVERSION_ACTION_TYPES` `GOOGLE_ADS_CUSTOMER_ID` `GOOGLE_ADS_LOGIN_CUSTOMER_ID` `GOOGLE_ADS_CONVERSION_ACTION` `GOOGLE_ADS_LOGO_ASSET` `GOOGLE_ADS_BUSINESS_NAME` `ADOPS_MODEL` `MJ_API_BASE_URL` `MJ_VIDEO_ENABLED` `MJ_INBOX` `DRIVE_INBOX_FOLDER_ID` `ADOPS_MAX_LLM_USD` `ADOPS_SLACK_APPROVALS` `ADOPS_TTS` `ADOPS_TTS_VOICE` `GEMINI_IMAGE_MODEL` `IMAGE_FALLBACK_AFTER_HOURS` `ADOPS_WATCH_COMMENTS` `ADOPS_HIDE_SPAM` `ADOPS_REPORT_URL` `ADOPS_SHEET_ID` `ADOPS_DAILY_SPEND_CAP` `ADOPS_LP_CHECK` |
 
 本番前に、手元で `.env` を作って `node src/cli.ts check --live` を実行すると、Claude・Meta（広告アカウント・各広告セット・Instagram）・
 Google 広告（アカウント・広告グループがデマンド ジェネレーションか）・ドライブの設定を読み取りだけで確認できます。
@@ -236,6 +236,8 @@ node src/cli.ts emergency-stop / resume  # 緊急停止 / 解除
 > 導入から本番化の進め方、毎日・毎週の確認、トラブル時の対応は [RUNBOOK.md](RUNBOOK.md) にまとめています。
 
 - **1日の広告費の上限**: `ADOPS_DAILY_SPEND_CAP`（円）を設定すると、日中の実績取り込みで当日の消化額が上限を超えた時点で自動的に緊急停止します（自動モードでは必ず設定してください）。
+- **応募ページの死活監視**: 1日3回、各求人の `landingUrl` を確認し、404・つながらない・「募集は終了しました」の表示があれば Slack に知らせ、その求人の新規入稿（検索広告・Instagram 投稿を含む）を止める。直れば自動で再開（配信中の広告は止めない。`ADOPS_LP_CHECK=false` で無効）。
+- **承認ボタンの安全確認**: Vercel に `ADOPS_GITHUB_TOKEN` / `ADOPS_GITHUB_REPO` を設定すると、承認前に adops の状態を読み、緊急停止中や adops が止めたクリエイティブの承認を断る（Google の広告は名前で判別できないため設定を推奨）。
 - **緊急停止**: Slack で `/adops stop`、または Actions → adops → Run workflow → `control: stop`（手元なら `node src/cli.ts emergency-stop`）で、adops が入稿した広告をすべて停止し、解除（`resume`）まで新しい入稿もしない。
 
 - 既定は DRY RUN（媒体への入稿・停止・予算変更・Instagram 投稿をしない。企画・画像生成・制作は行うので Claude と Midjourney の費用はかかる）。

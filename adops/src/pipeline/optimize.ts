@@ -16,6 +16,8 @@ const log = logger('optimize');
 export async function enforceSpendCap(ctx: Ctx): Promise<string | null> {
   const cap = Number(process.env.ADOPS_DAILY_SPEND_CAP ?? 0);
   if (!(cap > 0) || ctx.store.state.halted) return null;
+  // 上限超えで止まったあと、人が確認して同じ日に解除した場合は、その日はもう止めない（解除がすぐ打ち消されないように）
+  if (ctx.store.state.spendCapWaivedOn === ctx.today) return null;
   const spent =
     ctx.store.creatives().reduce((a, c) => a + c.metrics.filter((m) => m.date === ctx.today).reduce((x, m) => x + m.spend, 0), 0) +
     Object.values(ctx.store.state.searchAds ?? {}).reduce((a, s) => a + s.metrics.filter((m) => m.date === ctx.today).reduce((x, m) => x + m.spend, 0), 0);
@@ -25,7 +27,7 @@ export async function enforceSpendCap(ctx: Ctx): Promise<string | null> {
   if (ctx.dryRun) return `${reason}（DRY RUN のため実際には止めていません）`;
   const r = await emergencyStop(ctx, reason);
   await notifySlack(ctx.settings.slack.webhookUrl, {
-    text: `:rotating_light: *adops: ${reason}*\n${r.paused} 件を停止し、新しい入稿も止めました。原因を確認して、問題なければ Actions の control: resume で解除してください。`,
+    text: `:rotating_light: *adops: ${reason}*\n${r.paused} 件を停止し、新しい入稿も止めました。原因を確認して、問題なければ Actions の control: resume（または Slack の /adops resume）で解除してください。解除した日は上限による停止をしません。`,
   });
   return reason;
 }

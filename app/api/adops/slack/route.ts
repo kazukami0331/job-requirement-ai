@@ -12,6 +12,8 @@
  *   META_ACCESS_TOKEN / META_APP_SECRET / META_API_VERSION
  *   GOOGLE_ADS_DEVELOPER_TOKEN / GOOGLE_ADS_CLIENT_ID / GOOGLE_ADS_CLIENT_SECRET / GOOGLE_ADS_REFRESH_TOKEN /
  *   GOOGLE_ADS_LOGIN_CUSTOMER_ID / GOOGLE_ADS_API_VERSION（Google の広告も承認する場合）
+ *   ADOPS_GITHUB_TOKEN / ADOPS_GITHUB_REPO   設定すると、承認の前に adops の状態（adops-state ブランチの state.json）を見て、
+ *                               緊急停止中や adops が止めた広告の承認を断る（Google の広告は名前で判別できないため、設定を推奨）
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { after, NextResponse } from "next/server";
@@ -41,6 +43,28 @@ function verifyValue(v: ApprovalValue): string | null {
   const b = Buffer.from(v.s);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return "ボタンの署名が一致しません";
   if (!(v.e > Date.now() / 1000)) return "このボタンは有効期限（48時間）が切れています。次回の通知か管理画面から操作してください";
+  return null;
+}
+
+/**
+ * adops の状態から、承認してよいかを確かめる。緊急停止中や、adops が止めた・入れ替えたクリエイティブは承認させない。
+ * GitHub の設定が無ければ確認しない（null）。状態を読めなければ安全側に倒して断る。
+ */
+async function stateBlocksApproval(creativeId: string): Promise<string | null> {
+  const repo = process.env.ADOPS_GITHUB_REPO;
+  const token = process.env.ADOPS_GITHUB_TOKEN;
+  if (!repo || !token) return null;
+  const branch = process.env.ADOPS_STATE_BRANCH || "adops-state";
+  const res = await fetch(`https://api.github.com/repos/${repo}/contents/state.json?ref=${encodeURIComponent(branch)}`, {
+    headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github.raw", "x-github-api-version": "2022-11-28" },
+    cache: "no-store",
+  }).catch(() => null);
+  if (!res?.ok) return "adops の状態を読めなかったため、承認を保留しました。少し待ってからもう一度押すか、管理画面で操作してください";
+  const state = (await res.json().catch(() => null)) as { halted?: { reason: string }; creatives?: Record<string, { status?: string }> } | null;
+  if (!state) return "adops の状態を読めなかったため、承認を保留しました";
+  if (state.halted) return `adops は緊急停止中のため承認できません（${state.halted.reason}）。解除してから管理画面で操作してください`;
+  const status = state.creatives?.[creativeId]?.status;
+  if (status && status !== "published") return `このクリエイティブは adops が ${status} にしたため承認できません`;
   return null;
 }
 
@@ -152,6 +176,12 @@ export async function POST(req: Request) {
   // Slack には3秒以内に応答する必要があるので、媒体の操作は応答後に行い、結果でメッセージを書き換える
   after(async () => {
     const errors: string[] = [];
+    const blockedByState = approve ? await stateBlocksApproval(value.c) : null;
+    if (blockedByState) {
+      // ボタンは残したまま、押した人にだけ理由を返す
+      await respond(payload.response_url, { response_type: "ephemeral", replace_original: false, text: blockedByState });
+      return;
+    }
     if (approve) {
       for (const id of value.m) {
         const blocked = await metaAdIsAwaitingApproval(id);
