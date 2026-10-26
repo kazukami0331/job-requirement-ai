@@ -63,7 +63,7 @@ export interface Job {
   /** 媒体ごとの入稿先。キャンペーン・広告セットは人が作り、AIは広告（素材）を回す。 */
   placements: {
     meta?: { adsetIds: string[] };
-    google?: { assetGroupIds?: string[]; adGroupIds?: string[] };
+    google?: { assetGroupIds?: string[]; adGroupIds?: string[]; searchAdGroupIds?: string[] };
   };
 }
 
@@ -304,8 +304,27 @@ export interface LlmUsage {
   costUsd: number;
 }
 
+/** Google 検索広告（レスポンシブ検索広告）。画像素材と別に管理する */
+export interface SearchAd {
+  id: string;
+  jobId: string;
+  adGroupId: string;
+  resourceName?: string;
+  headlines: string[];
+  descriptions: string[];
+  path1?: string;
+  path2?: string;
+  status: 'draft' | 'live' | 'paused' | 'failed';
+  statusReason?: string;
+  metrics: DailyMetric[];
+  createdAt: string;
+  /** 作成した日（日本時間の YYYY-MM-DD） */
+  createdOn: string;
+}
+
 export interface State {
   version: 1;
+  searchAds?: Record<string, SearchAd>;
   briefs: Record<string, CreativeBrief>;
   reviews: Review[];
   creatives: Record<string, Creative>;

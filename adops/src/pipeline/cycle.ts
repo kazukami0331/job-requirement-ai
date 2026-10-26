@@ -11,6 +11,7 @@ import { produce } from './produce.ts';
 import { publish, type PublishSummary } from './publish.ts';
 import { collectOrganic, postOrganic } from './organic.ts';
 import { importOutcomes } from './outcomes.ts';
+import { rotateSearchAds } from './search.ts';
 import { analyze } from '../agents/analyst.ts';
 import { lastNDays, totals } from '../optimize/stats.ts';
 import { notifySlack, sections } from '../notify/slack.ts';
@@ -21,8 +22,8 @@ import { logger } from '../util/log.ts';
 
 const log = logger('cycle');
 
-export type StepName = 'collect' | 'optimize' | 'analyze' | 'plan' | 'produce' | 'publish' | 'organic' | 'report';
-export const ALL_STEPS: StepName[] = ['collect', 'optimize', 'analyze', 'plan', 'produce', 'publish', 'organic', 'report'];
+export type StepName = 'collect' | 'optimize' | 'analyze' | 'plan' | 'produce' | 'publish' | 'search' | 'organic' | 'report';
+export const ALL_STEPS: StepName[] = ['collect', 'optimize', 'analyze', 'plan', 'produce', 'publish', 'search', 'organic', 'report'];
 
 export async function runCycle(ctx: Ctx, steps: StepName[] = ALL_STEPS): Promise<CycleRecord> {
   const { store } = ctx;
@@ -84,6 +85,12 @@ export async function runCycle(ctx: Ctx, steps: StepName[] = ALL_STEPS): Promise
     return `入稿 ${published.published.length} / 保留 ${published.skipped.length} / 失敗 ${published.failed.length}`;
   });
 
+  let searchNote = '';
+  await step('search', async () => {
+    searchNote = await rotateSearchAds(ctx);
+    return searchNote;
+  });
+
   let organicNote = '';
   await step('organic', async () => {
     organicNote = await postOrganic(ctx);
@@ -102,7 +109,7 @@ export async function runCycle(ctx: Ctx, steps: StepName[] = ALL_STEPS): Promise
 
   await step('report', async () => {
     const path = writeReport(store.state, ctx.catalog, store.dir, ctx.today);
-    await notifySlack(ctx.settings.slack.webhookUrl, summaryMessage(ctx, record, { decisions, planned, produced, published, analyzed, organicNote }));
+    await notifySlack(ctx.settings.slack.webhookUrl, summaryMessage(ctx, record, { decisions, planned, produced, published, analyzed, organicNote, searchNote }));
     return path;
   });
   // report の結果も記録に残す
@@ -115,7 +122,7 @@ export async function runCycle(ctx: Ctx, steps: StepName[] = ALL_STEPS): Promise
 function summaryMessage(
   ctx: Ctx,
   record: CycleRecord,
-  r: { decisions: Decision[]; planned: PlanResult; produced: { produced: number; waiting: number; failed: number }; published: PublishSummary; analyzed: boolean; organicNote: string },
+  r: { decisions: Decision[]; planned: PlanResult; produced: { produced: number; waiting: number; failed: number }; published: PublishSummary; analyzed: boolean; organicNote: string; searchNote: string },
 ) {
   const { store, today } = ctx;
   const t7 = totals(store.creatives().flatMap((c) => lastNDays(c.metrics, today, 7)));
@@ -157,6 +164,7 @@ function summaryMessage(
   for (const f of r.published.failed.slice(0, 5)) lines.push(`• :x: ${f.creative.id}: ${f.error.slice(0, 200)}`);
   const skippedReasons = [...new Set(r.published.skipped.map((s) => s.reason))];
   if (skippedReasons.length) lines.push(`• 保留 ${r.published.skipped.length} 本: ${skippedReasons.join(' / ')}`);
+  if (r.searchNote) lines.push(`*Google 検索広告* ${r.searchNote}`);
   if (r.organicNote) lines.push(`*Instagram 投稿* ${r.organicNote}`);
   lines.push('', `AI費用 $${record.llmCostUsd}`);
   const text = lines.join('\n');

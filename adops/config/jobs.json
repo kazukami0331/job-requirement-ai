@@ -16,7 +16,7 @@
     "dailyCreativeQuota": 2,
     "placements": {
       "meta": { "adsetIds": [] },
-      "google": { "assetGroupIds": [] }
+      "google": { "adGroupIds": [], "assetGroupIds": [], "searchAdGroupIds": [] }
     }
   },
   {
@@ -36,7 +36,7 @@
     "dailyCreativeQuota": 2,
     "placements": {
       "meta": { "adsetIds": [] },
-      "google": { "assetGroupIds": [] }
+      "google": { "adGroupIds": [], "assetGroupIds": [], "searchAdGroupIds": [] }
     }
   },
   {
@@ -56,7 +56,7 @@
     "dailyCreativeQuota": 1,
     "placements": {
       "meta": { "adsetIds": [] },
-      "google": { "assetGroupIds": [] }
+      "google": { "adGroupIds": [], "assetGroupIds": [], "searchAdGroupIds": [] }
     }
   }
 ]

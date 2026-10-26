@@ -73,6 +73,18 @@ export function offlineLlm(catalog: Catalog): ScriptedLlm {
     const hook = req.prompt.match(/- フック: (.+)/)?.[1] ?? '';
     return { caption: `${hook}\n\n（オフライン生成のキャプション）\nプロフィールのリンクから詳細を見られます。`, hashtags: ['#求人'] };
   });
+  llm.on('searchWriter', (req) => {
+    const title = req.prompt.match(/- 職種: (.+?)（/)?.[1] ?? '求人';
+    const place = req.prompt.match(/- 勤務地: (.+)/)?.[1] ?? '';
+    const pay = req.prompt.match(/- 給与: (.+?)(（|$)/m)?.[1] ?? '';
+    const perks = (req.prompt.match(/- 待遇: (.+)/)?.[1] ?? '').split(' / ');
+    return {
+      headlines: [title.slice(0, 15), `${place.slice(0, 6)}の求人`, pay.replace(/\s/g, '').slice(0, 15), ...perks.map((p) => p.slice(0, 15)), '未経験から始める', 'スマホで簡単応募', '詳しい条件はこちら', '見学・相談だけでも', '正社員登用あり', '週払いにも対応'],
+      descriptions: [`${title}を募集。${pay}。`.slice(0, 45), `${perks.slice(0, 3).join('・')}。まずは条件をご確認ください。`.slice(0, 45)],
+      path1: '求人',
+      path2: '詳細',
+    };
+  });
   llm.on('analyst', () => ({
     summary: '（オフライン）集計のみ。AI 分析は ANTHROPIC_API_KEY 設定後に有効になります。',
     learnings: [],
