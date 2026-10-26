@@ -4,18 +4,24 @@
 AI が **企画 → レビュー → 修正 → 制作 → 入稿 → 分析 → 改善** まで毎日回し続ける仕組みです。
 
 人がやることは、最初の設定（求人・広告セット・API キー）と、日々の Slack 通知の確認だけ。
-慣れるまでは「停止状態で入稿 → 人が管理画面で ON」の下書きモードで動かし、信頼できたら完全自動に切り替えます。
+慣れるまでは「停止状態で入稿 → 人が Slack のボタンか管理画面で ON」の下書きモードで動かし、信頼できたら完全自動に切り替えます。
 
 ```
-          ┌──────────── 毎朝 6:00（GitHub Actions）─────────────┐
-          │                                                     │
- 実績取込 → 停止・予算判断 → AI分析 → 配分決定 → AI企画 ⇄ AIレビュー
- (Meta/Google)  (ルール)     (学び)   (バンディット) (コピー・構成)  (法令・品質)
-                                                         │
-          Slack 報告 ← 入稿 ← 最終QA ← 動画化 ← 文字合成 ← Midjourney → AI画像選定
-          + HTML       (Meta/Google)  (AI)   (ffmpeg)  (4比率)    (文字なし画像)
-          └──── 12:00 / 18:00 は「実績取込 → 停止判断」だけ ────┘
+          ┌──────────────── 毎朝 6:00（GitHub Actions）─────────────────┐
+          │                                                             │
+ 実績・状態取込 → 停止・予算判断 → AI分析 → 配分決定 → AI企画 ⇄ AIレビュー
+ (Meta/Google/    (ルール)        (学び)   (バンディット) (コピー・構成)  (法令・品質)
+  選考結果/コメント)                                          │
+          Slack 報告 ← 入稿 ← 最終QA ← 動画/カルーセル化 ← 文字合成 ← 画像生成 → AI画像選定
+          + レポート  (Meta/Google/   (AI)   (ffmpeg+ナレーション) (4比率×3レイアウト) (Midjourney
+                       検索広告/Instagram)                                         ／Gemini 代替)
+          ├──── 12:00 / 18:00 は「実績取込 → 停止判断」だけ
+          └──── 9:30〜21:30 毎時: インスタントフォームの応募を Slack 通知
 ```
+
+**最短の始め方**: `npm install` → `node src/cli.ts cycle --offline` で動きを見る → `config/` を自社の求人に書き換える →
+GitHub の Secrets に `ANTHROPIC_API_KEY` と `SLACK_WEBHOOK_URL` を入れて DRY RUN のまま毎朝回す（企画・素材の質を Slack で確認）→
+媒体の API キーと入稿先を設定して `ADOPS_DRY_RUN=false`。詳しい段取りは [RUNBOOK.md](RUNBOOK.md)。
 
 ## 何が自動化されているか
 
@@ -204,10 +210,12 @@ Slack とレポートで企画と素材の質を確認してから本番にし�
 ```
 node src/cli.ts cycle [--steps collect,optimize,analyze,plan,produce,publish,search,organic,report]
 node src/cli.ts plan | produce | publish | collect | optimize | analyze | report
-node src/cli.ts status        # クリエイティブの状態一覧
-node src/cli.ts check [--live]  # 設定の確認（--live で各サービスへ読み取りだけの接続テスト）
-node src/cli.ts simulate --days 21 [--seed 42]
+node src/cli.ts status                 # クリエイティブの状態一覧
+node src/cli.ts check [--live]         # 設定の確認（--live で各サービスへ読み取りだけの接続テスト）
+node src/cli.ts simulate --days 21     # 架空の配信データで改善ループを確認
 node src/cli.ts add-job --file 求人票.txt [--write]   # 求人票から jobs.json に追加
+node src/cli.ts leads                  # インスタントフォームの新しい応募を Slack に通知
+node src/cli.ts emergency-stop / resume  # 緊急停止 / 解除
 共通: --offline（Claude を使わない） --today YYYY-MM-DD
 ```
 
@@ -231,17 +239,19 @@ node src/cli.ts add-job --file 求人票.txt [--write]   # 求人票から jobs.
 
 ```
 adops/
-  config/           求人・ペルソナ・ブランド・運用方針（人が編集する）
+  config/           求人・ペルソナ・ブランド・運用方針・お手本コピー（人が編集する）
   src/
-    agents/         Claude のエージェント（企画・レビュー・画像審査・分析）
+    agents/         Claude のエージェント（企画・レビュー・画像審査・分析・週次メモ・SNS/検索広告コピー・コメント仕分け・求人取込）
     compliance/     求人広告の機械チェック（法令・ポリシー・文字数）
-    optimize/       集計・配分（バンディット）・停止/予算の判断
-    creative/       画像生成（Midjourney 等）・文字合成・動画化
-    platforms/      Meta / Google 広告 / YouTube の API
-    pipeline/       各段階とサイクル全体
-    report/ notify/ 報告
+    optimize/       集計・配分（訴求軸/レイアウトのバンディット）・停止/予算の判断
+    creative/       画像生成（Midjourney 手渡し・中継 / Gemini）・文字合成・動画化・ナレーション・inbox（ローカル/ドライブ）
+    platforms/      Meta / Google 広告 / YouTube / Instagram の API
+    pipeline/       各段階（収集・最適化・企画・制作・入稿・検索広告・SNS投稿・応募通知・コメント・選考結果・緊急停止）とサイクル全体
+    report/ notify/ レポート・Slack（承認ボタン）
     sim/            架空データでのシミュレーター
-  test/             node --test
+  test/             node --test（単体・統合）
+app/api/adops/slack/  Slack 承認ボタンの受け口（Next.js）
+app/adops/            レポートの閲覧ページ（Next.js）
 ```
 
 ## 費用の目安
@@ -252,5 +262,6 @@ adops/
 
 ## まだやっていないこと
 
-- 実際の Meta / Google / Midjourney 中継 API での疎通確認（認証情報が必要）。最初は `check` と DRY RUN で確認してください。
-- 選考結果は分析・レポートには使っていますが、配分ロジック（バンディット）の報酬はまだ応募数です。入社データが十分に貯まったら報酬を「入社」に切り替えられます。
+- 実際の Meta / Google / Midjourney 中継 / Instagram / ドライブ / Gemini / 音声合成 API での疎通確認（認証情報が必要）。最初は `check --live` と DRY RUN で確認してください。
+- 選考結果は「面接率」で訴求軸の配分を補正していますが、報酬そのものはまだ応募数です。入社データが十分に貯まったら「入社」を報酬にできます。
+- LINE 広告・TikTok 広告など、Meta / Google 以外の媒体。`platforms/` に同じ形のクライアントを足せば広げられます。
