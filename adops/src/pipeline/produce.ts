@@ -75,6 +75,7 @@ async function selectImages(ctx: Ctx, c: Creative, brief: CreativeBrief): Promis
       job.paths = undefined;
       job.jobId = undefined;
       job.selected = undefined;
+      job.note = undefined; // 作り直しで手渡しになれば付け直す（自動生成に回るものを人の作業として数えない）
       return false;
     }
     job.selected = pick.selectedIndex;
