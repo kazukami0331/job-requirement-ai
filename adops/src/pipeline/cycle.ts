@@ -22,7 +22,7 @@ import { notifySlack, sections } from '../notify/slack.ts';
 import { approvalBlocks } from '../notify/approval.ts';
 import { writeReport } from '../report/html.ts';
 import { exportToSheets } from '../report/sheets.ts';
-import { ANGLE_LABELS, FORMAT_LABEL } from '../types.ts';
+import { ANGLE_LABELS, FORMAT_LABEL, LANGUAGE_LABEL } from '../types.ts';
 import { daysBetween } from '../util/id.ts';
 import { logger } from '../util/log.ts';
 
@@ -206,7 +206,8 @@ function summaryMessage(
   lines.push('', `*企画* 採用 ${r.planned.created.length} / 却下 ${r.planned.rejected.length}`);
   for (const c of r.planned.created.slice(0, 8)) {
     const b = store.state.briefs[c.briefId];
-    lines.push(`• [${ANGLE_LABELS[c.angle]}${c.format !== 'image' ? `・${FORMAT_LABEL[c.format]}` : ''}${c.explore ? '・探索' : ''}] ${b.overlay.main}`);
+    const lang = b.language ? `・${LANGUAGE_LABEL[b.language] ?? b.language}` : '';
+    lines.push(`• [${ANGLE_LABELS[c.angle]}${c.format !== 'image' ? `・${FORMAT_LABEL[c.format]}` : ''}${c.explore ? '・探索' : ''}${lang}] ${b.overlay.main}${b.translationJa?.main ? `（訳: ${b.translationJa.main}）` : ''}`);
   }
   lines.push(`*制作* 完成 ${r.produced.produced} / 画像待ち ${r.produced.waiting} / 失敗 ${r.produced.failed}`);
   const waiting = store.creatives({ status: 'awaiting_images' });
