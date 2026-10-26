@@ -81,6 +81,18 @@ ${
   searchTerms.filter((t) => t.clicks >= 3 && t.conversions === 0).slice(0, 20).map((t) => `- 「${t.term}」 クリック ${t.clicks}`).join('\n') || '- なし'
 }
 
+## 求人別（4週間）: クリック→応募の率（低すぎる求人は LP・応募フォーム・求人条件の問題の疑い）
+${
+  catalog.jobs
+    .filter((j) => j.active)
+    .map((j) => {
+      const t = totals(creatives.filter((c) => c.jobId === j.id).flatMap((c) => windowed(c.metrics, from, today)));
+      const lp = state.landing?.[j.id];
+      return `- ${j.id}: クリック ${t.clicks} / 応募 ${t.conversions} / 応募率 ${t.clicks ? ((t.conversions / t.clicks) * 100).toFixed(1) + '%' : '-'}${lp?.ok === false ? `（応募ページ異常: ${lp.note}）` : ''}`;
+    })
+    .join('\n') || '- なし'
+}
+
 ## 直近の AI 分析の学び
 ${(state.insights.at(-1)?.learnings ?? []).map((l) => `- ${l}`).join('\n') || '- なし'}
 

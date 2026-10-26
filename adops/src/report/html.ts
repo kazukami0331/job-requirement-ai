@@ -85,7 +85,7 @@ th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;font
 .card img,.card video{width:100%;aspect-ratio:4/5;object-fit:cover;display:block;background:#000}
 .card .ph{aspect-ratio:4/5;display:grid;place-items:center;color:var(--muted)}
 .card h3{font-size:15px;margin:6px 12px 0}.card .sub,.card .job,.card .reason{margin:2px 12px;font-size:13px;color:var(--muted)}
-.card .reason{color:var(--warn)}
+.card .reason,.alerts .reason{color:var(--warn)}.alerts{font-weight:600}
 .meta{display:flex;flex-wrap:wrap;gap:4px;padding:8px 12px 0}.tag{font-size:11px;border:1px solid var(--line);border-radius:99px;padding:1px 8px}.tag.x{border-color:var(--accent);color:var(--accent)}
 dl{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:0 8px;margin:6px 12px 0;font-size:13px}dt{color:var(--muted)}dd{margin:0;font-variant-numeric:tabular-nums}
 .s-paused,.s-retired,.s-rejected,.s-failed,.s-qa_failed{opacity:.6}
@@ -102,6 +102,15 @@ ul{padding-left:20px}
   <div class="kpi"><span class="muted">入社（累計・取込分）</span><b>${creatives.reduce((a, c) => a + (c.funnel?.hired ?? 0), 0)}</b></div>
   <div class="kpi"><span class="muted">AI費用（7日）</span><b>$${spendUsd.toFixed(2)}</b></div>
 </section>
+${(() => {
+  const alerts: string[] = [];
+  if (state.halted) alerts.push(`緊急停止中（${escapeXml(state.halted.reason)}）。企画・入稿・投稿を止めています`);
+  for (const j of catalog.jobs) {
+    const h = state.landing?.[j.id];
+    if (h?.ok === false) alerts.push(`応募ページに問題: ${escapeXml(j.title)}（${escapeXml(h.note)}）— 新規入稿を保留中`);
+  }
+  return alerts.length ? `<ul class="alerts">${alerts.map((a) => `<li class="reason">${a}</li>`).join('')}</ul>` : '';
+})()}
 ${
   insight
     ? `<h2>AI分析（${insight.date}）</h2><p>${escapeXml(insight.summary)}</p>
