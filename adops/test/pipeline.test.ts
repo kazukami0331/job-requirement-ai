@@ -445,7 +445,8 @@ test('sheets: 日次と広告一覧の行を作る（新しい日付が上）', 
   assert.equal(d[1][0], '2026-10-03');
   assert.equal(d[1][10], 1);
   const l = creativeRows(ctx.store.state, ctx.catalog);
-  assert.equal(l[1][8], brief().overlay.main);
+  assert.equal(l[1][9], brief().overlay.main);
+  assert.equal(l[1][8], 'ja');
 });
 
 test('placeholderProblems: サンプルの社名・URL だけを検出し、実在の社名は誤検知しない', async () => {
