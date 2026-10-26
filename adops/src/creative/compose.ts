@@ -252,14 +252,16 @@ ${bottom.svg}
 </svg>`;
 }
 
-export function payLine(job: Job): string {
+export function payLine(job: Job, language = 'ja'): string {
   const s = job.salary;
+  if (language !== 'ja') return salaryLine(job, language);
   return `${s.type}${formatYen(s.min)}${s.max ? `〜${formatYen(s.max)}` : '〜'}`;
 }
 
-export function footerLine(job: Job): string {
-  const s = job.salary;
-  return `${job.location}｜${s.type}${formatYen(s.min)}${s.max ? `〜${formatYen(s.max)}` : '〜'}｜${job.employmentType}`;
+export function footerLine(job: Job, language = 'ja'): string {
+  // 外国語の広告では雇用形態（日本語）を省き、給与を読みやすい形にする
+  if (language !== 'ja') return `${job.location}｜${salaryLine(job, language)}`;
+  return `${job.location}｜${payLine(job)}｜${job.employmentType}`;
 }
 
 /** 元画像を指定比率でトリミングし、コピーを合成して保存する。 */
@@ -273,12 +275,13 @@ export async function composeImage(
   layout: Layout = 'band',
 ): Promise<{ width: number; height: number }> {
   const [W, H] = RATIO_PX[ratio];
-  const input: OverlayInput = { width: W, height: H, main: brief.overlay.main, sub: brief.overlay.sub, badges: brief.overlay.badges, brand, footer: footerLine(job) };
+  const lang = brief.language ?? 'ja';
+  const input: OverlayInput = { width: W, height: H, main: brief.overlay.main, sub: brief.overlay.sub, badges: brief.overlay.badges, brand, footer: footerLine(job, lang) };
   const overlay =
     layout === 'card'
       ? cardSvg(input)
       : layout === 'bold'
-        ? boldSvg({ ...input, pay: payLine(job), footer: `${job.location}｜${job.employmentType}` })
+        ? boldSvg({ ...input, pay: payLine(job, lang), footer: lang === 'ja' ? `${job.location}｜${job.employmentType}` : job.location })
         : overlaySvg(input);
   const layers: OverlayOptions[] = [{ input: Buffer.from(overlay), top: 0, left: 0 }];
   if (brand.logoPath) {
