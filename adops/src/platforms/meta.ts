@@ -194,7 +194,7 @@ export class MetaClient {
               call_to_action: { type: brief.cta, value: ctaValue },
             },
           };
-      const res = await this.postCreative({ name, object_story_spec: story });
+      const res = await this.postCreative({ name, object_story_spec: story }, { video: isVideo });
       return res.id;
     }
 
@@ -247,27 +247,36 @@ export class MetaClient {
       name,
       object_story_spec: { page_id: this.s.pageId, ...ig },
       asset_feed_spec: assetFeedSpec,
-    });
+    }, { video: isVideo });
     return res.id;
   }
 
   /**
    * 広告クリエイティブを作る。Meta の自動「テキストの最適化」などは、レビュー済みのコピーを書き換えて
    * 法令チェックを通っていない表現になりうるので、既定で OPT_OUT する（ADOPS_META_ENHANCEMENTS=allow で無効化）。
-   * その指定が広告の種類に合わず拒否された場合だけ、指定なしで作り直す（クリエイティブ自体は配信されないので安全）。
+   * 指定が広告の種類に合わず「パラメータ不正」で拒否された場合だけ、段階的に減らして作り直す
+   * （まずテキストの最適化の OPT_OUT だけ残し、最後に指定なし）。5xx・429 などは作られた可能性があるので作り直さない。
    */
-  private async postCreative(params: Record<string, unknown>): Promise<{ id: string }> {
-    if (process.env.ADOPS_META_ENHANCEMENTS === 'allow') return this.call<{ id: string }>('POST', `${this.account}/adcreatives`, params);
+  private async postCreative(params: Record<string, unknown>, opts: { video?: boolean } = {}): Promise<{ id: string }> {
+    const post = (extra: Record<string, unknown>) => this.call<{ id: string }>('POST', `${this.account}/adcreatives`, { ...params, ...extra });
+    if (process.env.ADOPS_META_ENHANCEMENTS === 'allow') return post({});
     const optOut = { enroll_status: 'OPT_OUT' };
-    const spec = { creative_features_spec: { text_optimizations: optOut, image_touchups: optOut, image_template: optOut } };
-    try {
-      return await this.call<{ id: string }>('POST', `${this.account}/adcreatives`, { ...params, degrees_of_freedom_spec: spec });
-    } catch (e) {
-      // サーバーが拒否した（＝作られていない）ときだけ。タイムアウトは作られた可能性があるので作り直さない
-      if (!(e as Error).message.startsWith('Meta API')) throw e;
-      log.warn(`自動補正の OPT_OUT 指定が受け付けられなかったため、指定なしで作成します: ${(e as Error).message.slice(0, 200)}`);
-      return this.call<{ id: string }>('POST', `${this.account}/adcreatives`, params);
+    const textOnly = { creative_features_spec: { text_optimizations: optOut } };
+    // 画像の補正・テンプレートは動画には無いので、動画はテキストの最適化だけ
+    const stages: Record<string, unknown>[] = opts.video
+      ? [{ degrees_of_freedom_spec: textOnly }, {}]
+      : [{ degrees_of_freedom_spec: { creative_features_spec: { text_optimizations: optOut, image_touchups: optOut, image_template: optOut } } }, { degrees_of_freedom_spec: textOnly }, {}];
+    for (const [i, extra] of stages.entries()) {
+      try {
+        return await post(extra);
+      } catch (e) {
+        const msg = (e as Error).message;
+        if (i === stages.length - 1 || !isSpecRejection(msg)) throw e;
+        const next = stages[i + 1].degrees_of_freedom_spec ? 'テキストの最適化の OPT_OUT だけ' : '指定なし（Meta がコピーを書き換える可能性あり）';
+        log.warn(`自動補正の OPT_OUT 指定が受け付けられなかったため、${next}で作成します: ${msg.slice(0, 200)}`);
+      }
     }
+    throw new Error('unreachable');
   }
 
   async createAd(adsetId: string, creativeId: string, name: string, active: boolean): Promise<string> {
@@ -458,6 +467,12 @@ export class MetaClient {
     }
     return out;
   }
+}
+
+/** クリエイティブ作成のエラーが「指定の内容が不正」（＝作られていない）によるものか。 */
+export function isSpecRejection(msg: string): boolean {
+  if (!msg.startsWith('Meta API')) return false;
+  return /degrees_of_freedom|creative_features|Invalid parameter|\(code 100[)/]/i.test(msg);
 }
 
 export function metaErrorMessage(body: string): string {

@@ -1,7 +1,7 @@
 /** Meta への入稿パラメータの形（HTTP は呼ばず、送る内容だけを確かめる）。 */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MetaClient, publishToMeta } from '../src/platforms/meta.ts';
+import { MetaClient, isSpecRejection, publishToMeta } from '../src/platforms/meta.ts';
 import { brief, creative, job } from './fixtures.ts';
 import type { Asset } from '../src/types.ts';
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -81,7 +81,7 @@ test('publishToMeta: 一部の広告セットで失敗しても作成済みの�
   assert.match(r.previewUrl!, /^https:\/\/cdn\//);
 });
 
-test('クリエイティブ: Meta の自動テキスト最適化などを OPT_OUT し、拒否されたら指定なしで作り直す', async () => {
+test('クリエイティブ: Meta の自動テキスト最適化などを OPT_OUT し、拒否されたら段階的に減らして作り直す', async () => {
   const { client, sent } = fakeClient();
   await client.createCreative(brief(), job(), [img('4:5'), img('9:16')], 'n');
   const first = sent.filter((x) => x.path.endsWith('adcreatives'));
@@ -101,6 +101,25 @@ test('クリエイティブ: Meta の自動テキスト最適化などを OPT_OU
   const id = await f2.client.createCreative(brief(), job(), [img('4:5'), img('9:16')], 'n');
   assert.equal(id, 'cre1');
   const tries = f2.sent.filter((x) => x.path.endsWith('adcreatives'));
-  assert.equal(tries.length, 2);
-  assert.equal(tries[1].params.degrees_of_freedom_spec, undefined);
+  assert.equal(tries.length, 3);
+  // 2回目はテキストの最適化の OPT_OUT だけ残す
+  assert.deepEqual(Object.keys(tries[1].params.degrees_of_freedom_spec.creative_features_spec), ['text_optimizations']);
+  assert.equal(tries[2].params.degrees_of_freedom_spec, undefined);
+
+  // 5xx などパラメータ以外のエラーは作り直さない（作られている可能性があるため）
+  const f3 = fakeClient();
+  f3.client.call = async (method: string, path: string, params: any) => {
+    f3.sent.push({ method, path, params });
+    if (path.endsWith('adcreatives')) throw new Error('Meta API POST act_1/adcreatives: An unknown error occurred (code 1)');
+    return orig(method, path, params);
+  };
+  await assert.rejects(f3.client.createCreative(brief(), job(), [img('4:5'), img('9:16')], 'n'));
+  assert.equal(f3.sent.filter((x) => x.path.endsWith('adcreatives')).length, 1);
+});
+
+test('isSpecRejection: パラメータ不正だけを「作られていない」と判断する', () => {
+  assert.equal(isSpecRejection('Meta API POST x: Invalid parameter (code 100)'), true);
+  assert.equal(isSpecRejection('Meta API POST x: Param degrees_of_freedom_spec is invalid (code 100/1487)'), true);
+  assert.equal(isSpecRejection('Meta API POST x: Service temporarily unavailable (code 2)'), false);
+  assert.equal(isSpecRejection('fetch failed'), false);
 });
