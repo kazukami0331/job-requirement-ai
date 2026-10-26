@@ -104,8 +104,8 @@ ul{padding-left:20px}
 ${
   insight
     ? `<h2>AI分析（${insight.date}）</h2><p>${escapeXml(insight.summary)}</p>
-<h3>学び</h3><ul>${insight.learnings.map((l) => `<li>${escapeXml(l)}</li>`).join('')}</ul>
-<h3>次の打ち手</h3><ul>${insight.nextActions.map((l) => `<li>${escapeXml(l)}</li>`).join('')}</ul>`
+${insight.learnings.length ? `<h3>学び</h3><ul>${insight.learnings.map((l) => `<li>${escapeXml(l)}</li>`).join('')}</ul>` : ''}
+${insight.nextActions.length ? `<h3>次の打ち手</h3><ul>${insight.nextActions.map((l) => `<li>${escapeXml(l)}</li>`).join('')}</ul>` : ''}`
     : ''
 }
 <h2>訴求軸別（7日）</h2>
@@ -130,7 +130,7 @@ ${posts
 <h2>クリエイティブ（新しい順）</h2>
 <div class="grid">${creatives.slice(0, 120).map(card).join('\n')}</div>
 <h2>直近の判断</h2>
-<table><thead><tr><th>日付</th><th>対象</th><th>判断</th><th>理由</th><th>反映</th></tr></thead><tbody>
+<table><thead><tr><th>日付</th><th>対象</th><th>判断</th><th style="text-align:left">理由</th><th>反映</th></tr></thead><tbody>
 ${state.decisions
   .slice(-30)
   .reverse()
