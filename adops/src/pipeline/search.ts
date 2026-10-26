@@ -7,6 +7,7 @@
  * 検索語・入札・予算は人（または Google の自動入札）に任せ、コピーの改善だけを自動化する。
  */
 import type { Ctx } from './context.ts';
+import { placeholderProblems } from '../config.ts';
 import type { SearchAd } from '../types.ts';
 import { writeRsa } from '../agents/searchWriter.ts';
 import { withUtm } from '../platforms/meta.ts';
@@ -103,6 +104,11 @@ export async function rotateSearchAds(ctx: Ctx): Promise<string> {
       if (!ctx.dryRun && ctx.google) for (const d of drafts) delete ads[d.id];
       // 同じ日に何度も作らない
       if (Object.values(ads).some((a) => a.adGroupId === adGroupId && a.status === 'live' && a.createdOn === today)) continue;
+      // サンプル設定のままなら作らない（実際にお金がかかる入稿なので）
+      if (!ctx.dryRun && placeholderProblems(catalog, job.id).length) {
+        notes.push(`${job.id}: サンプル設定のままのため検索広告を作りません（${placeholderProblems(catalog, job.id).join(' / ')}）`);
+        continue;
+      }
       try {
         // 実際の検索語句があれば、それに答える見出しを作る（取得できなくても続行）
         const google = ctx.google;

@@ -58,7 +58,11 @@ export async function uploadToYoutube(
     timeoutMs: 600_000,
     attempts: 1, // 再送で同じ動画が二重に公開されないように
   });
-  const body = (await res.json()) as { id?: string };
+  const body = (await res.json()) as { id?: string; status?: { privacyStatus?: string } };
   if (!body.id) throw new Error('YouTube: 動画 ID が返りませんでした');
+  // 審査を通っていない API プロジェクトからのアップロードは、公開を指定しても非公開にされる
+  if (meta.privacy === 'public' && body.status?.privacyStatus && body.status.privacyStatus !== 'public') {
+    console.warn(`YouTube: 動画 ${body.id} は ${body.status.privacyStatus} になりました（API プロジェクトが YouTube の審査を通っていない可能性）`);
+  }
   return body.id;
 }

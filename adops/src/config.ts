@@ -151,7 +151,8 @@ function findJapaneseFont(): string {
  */
 export function placeholderProblems(c: Catalog, jobId?: string): string[] {
   const out: string[] = [];
-  if (!c.brand.name || /ここに|社名|sample|example/i.test(c.brand.name)) out.push(`brand.json の name が未記入です（${c.brand.name}）`);
+  // サンプルの「（社名をここに）」や空欄だけを検出する（「株式会社名鉄…」のような実在の社名を誤検知しない）
+  if (!c.brand.name.trim() || /ここに/.test(c.brand.name) || /^[（(]?社名[）)]?$/.test(c.brand.name.trim())) out.push(`brand.json の name が未記入です（${c.brand.name}）`);
   for (const j of c.jobs.filter((x) => x.active && (!jobId || x.id === jobId))) {
     let host = '';
     try {

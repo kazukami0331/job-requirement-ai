@@ -432,3 +432,13 @@ test('sheets: 日次と広告一覧の行を作る（新しい日付が上）', 
   const l = creativeRows(ctx.store.state, ctx.catalog);
   assert.equal(l[1][8], brief().overlay.main);
 });
+
+test('placeholderProblems: サンプルの社名・URL だけを検出し、実在の社名は誤検知しない', async () => {
+  const { placeholderProblems } = await import('../src/config.ts');
+  const { brand, job } = await import('./fixtures.ts');
+  const base = catalog();
+  assert.deepEqual(placeholderProblems({ ...base, brand: brand({ name: '株式会社名鉄運輸' }) }), []);
+  assert.equal(placeholderProblems({ ...base, brand: brand({ name: '（社名をここに）' }) }).length, 1);
+  assert.equal(placeholderProblems({ ...base, brand: brand({ name: '' }) }).length, 1);
+  assert.equal(placeholderProblems({ ...base, jobs: [job({ landingUrl: 'https://www.example.com/x' })] }).length, 1);
+});

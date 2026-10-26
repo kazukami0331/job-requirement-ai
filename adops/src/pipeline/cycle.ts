@@ -88,10 +88,18 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
     await step('analyze', async () => {
       // 検索広告の検索語句（除外キーワードの提案に使う）
       const google = ctx.google;
-      const groups = ctx.catalog.jobs.flatMap((j) => j.placements.google?.searchAdGroupIds ?? []);
-      const terms = google
-        ? (await Promise.all(groups.map((g) => Promise.resolve().then(() => google.searchTerms(g, 50)).catch(() => [])))).flat()
-        : [];
+      const groups = [...new Set(ctx.catalog.jobs.flatMap((j) => j.placements.google?.searchAdGroupIds ?? []))];
+      const raw = google ? (await Promise.all(groups.map((g) => Promise.resolve().then(() => google.searchTerms(g, 50)).catch(() => [])))).flat() : [];
+      // 同じ語句は合算し、クリックの多い順に（どの広告グループの語句も公平に並ぶように）
+      const merged = new Map<string, { term: string; clicks: number; conversions: number; impressions: number }>();
+      for (const t of raw) {
+        const m = merged.get(t.term) ?? { term: t.term, clicks: 0, conversions: 0, impressions: 0 };
+        m.clicks += t.clicks;
+        m.conversions += t.conversions;
+        m.impressions += t.impressions;
+        merged.set(t.term, m);
+      }
+      const terms = [...merged.values()].sort((a, b) => b.clicks - a.clicks);
       const memo = await writeMemo(ctx.llm, store.state, ctx.catalog, ctx.today, terms);
       (store.state.memos ??= []).push(memo);
       await notifySlack(ctx.settings.slack.webhookUrl, { text: memoToSlack(memo), blocks: sections(memoToSlack(memo)) });

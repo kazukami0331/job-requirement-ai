@@ -11,11 +11,20 @@ import { FacebookPageClient } from '../platforms/facebookPage.ts';
 import { uploadToYoutube } from '../platforms/youtube.ts';
 import { writeCaption } from '../agents/socialWriter.ts';
 import { checkTexts, hasBlocker } from '../compliance/rules.ts';
+import { placeholderProblems } from '../config.ts';
 import { lastNDays, totals } from '../optimize/stats.ts';
 import { jstDate } from '../util/id.ts';
 import { logger } from '../util/log.ts';
 
 const log = logger('organic');
+
+/**
+ * 通信が途中で切れた失敗（タイムアウト・接続断）は、相手側では公開済みのことがある。
+ * 再投稿すると二重投稿になるので、投稿済みとして記録し、人に確認してもらう。
+ */
+function ambiguous(e: unknown): boolean {
+  return /timeout|timed out|aborted|ECONNRESET|socket|fetch failed|network/i.test((e as Error)?.message ?? '');
+}
 
 /** 投稿候補を良い順に並べる。 */
 export function organicCandidates(ctx: Ctx): { c: Creative; kind: 'feed' | 'reels' | 'carousel'; path: string; paths?: string[]; score: number }[] {
@@ -80,11 +89,19 @@ export async function postOrganic(ctx: Ctx): Promise<string> {
         continue;
       }
       const video = c.assets.find((a) => a.kind === 'video' && a.ratio === '9:16' && existsSync(a.path));
-      if (!ig && !fb && !(ytAuth && video)) {
+      if (ctx.dryRun) {
         posted++;
-        done.push(`${c.id}(${kind}, 未投稿: ${ctx.dryRun ? 'DRY RUN' : '投稿先が未設定'})`);
+        done.push(`${c.id}(${kind}, 未投稿: DRY RUN)`);
         log.info(`[投稿予定] ${c.id} ${kind}\n${caption}`);
         continue;
+      }
+      // この素材を受け取れる投稿先が無い（例: YouTube だけ設定で画像の素材）なら、枠を使わず次の候補へ
+      if (!ig && !fb && !(ytAuth && video)) continue;
+      // サンプル設定のままなら公開投稿しない
+      const placeholders = placeholderProblems(ctx.catalog, job.id);
+      if (placeholders.length) {
+        done.push(`${c.id}: サンプル設定のままのため投稿しません（${placeholders.join(' / ')}）`);
+        break;
       }
       // 投稿先ごとに独立して試す（1つ失敗しても他は投稿する）。公開できたものはすぐ記録して二重投稿を防ぐ
       const record = (patch: Partial<NonNullable<Creative['organic']>>) => {
@@ -99,6 +116,7 @@ export async function postOrganic(ctx: Ctx): Promise<string> {
           results.push(`Instagram ${r.permalink}`);
         } catch (e) {
           log.error(`${c.id}: Instagram 投稿に失敗 ${(e as Error).message}`);
+          if (ambiguous(e)) record({ permalink: '（タイムアウト: 投稿されたか要確認）' });
         }
       }
       if (fb) {
@@ -108,6 +126,7 @@ export async function postOrganic(ctx: Ctx): Promise<string> {
           results.push(`Facebook ${id}`);
         } catch (e) {
           log.error(`${c.id}: Facebook ページ投稿に失敗 ${(e as Error).message}`);
+          if (ambiguous(e)) record({ facebookPostId: '（タイムアウト: 投稿されたか要確認）' });
         }
       }
       if (ytAuth && video) {
@@ -121,6 +140,7 @@ export async function postOrganic(ctx: Ctx): Promise<string> {
           results.push(`YouTube https://youtube.com/shorts/${id}`);
         } catch (e) {
           log.error(`${c.id}: YouTube ショート投稿に失敗 ${(e as Error).message}`);
+          if (ambiguous(e)) record({ youtubeVideoId: '（タイムアウト: 投稿されたか要確認）' });
         }
       }
       if (results.length) {
