@@ -188,8 +188,11 @@ jobs:
           if [ "$rc" = 0 ]; then
             tmp=$(mktemp -d)
             git clone -q --depth=1 --branch "$STATE_BRANCH" "$REMOTE" "$tmp"
-            # ひとつ前の状態を ${STATE_BRANCH}-prev に残す（壊れた状態を保存してしまったときの戻し先）
-            git -C "$tmp" push -qf "$REMOTE" "HEAD:refs/heads/${STATE_BRANCH}-prev" || echo "前回の状態のバックアップに失敗（続行）"
+            # 毎朝のフル実行の直前の状態を ${STATE_BRANCH}-prev に残す（誤った状態を保存してしまったときの戻し先。
+            # 日中の実行では上書きしないので、少なくとも半日前の状態が残る）
+            case "${{ steps.steps.outputs.steps }}" in
+              *plan*) git -C "$tmp" push -qf "$REMOTE" "HEAD:refs/heads/${STATE_BRANCH}-prev" || echo "前回の状態のバックアップに失敗（続行）" ;;
+            esac
             if [ -f "$tmp/state.json" ]; then tmp_state="$RUNNER_TEMP/remote_state.json"; cp "$tmp/state.json" "$tmp_state"; fi
             if [ -d "$tmp/inbox" ]; then
               mkdir -p inbox

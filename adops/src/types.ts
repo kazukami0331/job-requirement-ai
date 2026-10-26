@@ -397,7 +397,7 @@ export interface State {
   /** 応募ページの死活監視（求人 ID → 直近の確認結果） */
   landing?: Record<string, { ok: boolean | null; status: number; note: string; checkedAt: string; since?: string; failCount?: number }>;
   /** Google 検索広告に入れた除外キーワード（広告グループ ID → 語句） */
-  negatives?: Record<string, { term: string; reason: string; addedOn: string; applied: boolean }[]>;
+  negatives?: Record<string, { term: string; reason: string; addedOn: string; applied: boolean; keep?: boolean }[]>;
   /** 週次の戦略メモ */
   memos?: { date: string; headline: string; findings: string[]; decisions: { topic: string; recommendation: string; why: string }[]; experiments: string[] }[];
   briefs: Record<string, CreativeBrief>;

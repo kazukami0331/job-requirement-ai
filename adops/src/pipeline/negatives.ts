@@ -30,9 +30,14 @@ export async function excludeIrrelevantTerms(ctx: Ctx): Promise<string> {
   const notes: string[] = [];
   for (const job of ctx.catalog.jobs.filter((j) => j.active)) {
     for (const ag of job.placements.google?.searchAdGroupIds ?? []) {
-      // 入れたものは再判定しない。提案だけのものは、auto でなければ7日間は繰り返し知らせない
+      // 入れたものは再判定しない。提案だけのものは auto でなければ7日間、「求職者の検索」と判定したものは30日間は判定し直さない
       const weekAgo = addDays(ctx.today, -7);
-      const done = new Set((negatives[ag] ?? []).filter((n) => n.applied || (!auto && n.addedOn > weekAgo)).map((n) => n.term));
+      const monthAgo = addDays(ctx.today, -30);
+      const done = new Set(
+        (negatives[ag] ?? [])
+          .filter((n) => n.applied || (n.keep ? n.addedOn > monthAgo : !auto && n.addedOn > weekAgo))
+          .map((n) => n.term),
+      );
       const terms = (await google.searchTerms(ag, 50)).filter((t) => t.clicks >= MIN_CLICKS && t.conversions === 0 && !done.has(t.term));
       if (terms.length === 0) continue;
       const out = await ctx.llm.structured({
@@ -44,19 +49,27 @@ export async function excludeIrrelevantTerms(ctx: Ctx): Promise<string> {
       });
       const known = new Set(terms.map((t) => t.term));
       const picks = out.terms.filter((t) => t.exclude && known.has(t.term)).slice(0, MAX_PER_GROUP);
-      if (picks.length === 0) continue;
-      let applied = false;
-      if (auto) {
+      const keeps = out.terms.filter((t) => !t.exclude && known.has(t.term));
+      let applied = new Set<string>();
+      if (auto && picks.length) {
         try {
-          await google.addNegativeKeywords(ag, picks.map((p) => p.term));
-          applied = true;
+          applied = new Set(await google.addNegativeKeywords(ag, picks.map((p) => p.term)));
         } catch (e) {
           log.warn(`除外キーワードの追加に失敗（${ag}）: ${(e as Error).message}`);
         }
       }
-      const list = (negatives[ag] ??= []).filter((n) => !picks.some((p) => p.term === n.term));
-      negatives[ag] = [...list, ...picks.map((p) => ({ term: p.term, reason: p.reason, addedOn: ctx.today, applied }))].slice(-500);
-      notes.push(`${job.id}: ${applied ? '除外' : '除外の提案'} ${picks.map((p) => `「${p.term}」`).join(' ')}`);
+      const touched = new Set([...picks, ...keeps].map((p) => p.term));
+      const list = (negatives[ag] ??= []).filter((n) => !touched.has(n.term));
+      negatives[ag] = [
+        ...list,
+        ...picks.map((p) => ({ term: p.term, reason: p.reason, addedOn: ctx.today, applied: applied.has(p.term) })),
+        ...keeps.map((p) => ({ term: p.term, reason: p.reason, addedOn: ctx.today, applied: false, keep: true })),
+      ].slice(-500);
+      if (picks.length === 0) continue;
+      const done2 = picks.filter((p) => applied.has(p.term));
+      const proposed = picks.filter((p) => !applied.has(p.term));
+      if (done2.length) notes.push(`${job.id}: 除外 ${done2.map((p) => `「${p.term}」`).join(' ')}`);
+      if (proposed.length) notes.push(`${job.id}: 除外の提案 ${proposed.map((p) => `「${p.term}」`).join(' ')}`);
     }
   }
   return notes.join(' / ');

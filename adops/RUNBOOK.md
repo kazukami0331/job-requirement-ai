@@ -87,7 +87,7 @@ Slack とレポートに理由が出ます（`failed`「媒体審査で不承認
 - Meta のトークンはシステムユーザーの無期限トークンを推奨（個人トークンは約60日で切れます）。
 
 ### 状態が壊れた・消えた
-毎回の保存の直前に、ひとつ前の状態を `adops-state-prev` ブランチに残しています。`state.json` が壊れて実行が止まった場合
+毎朝のフル実行の保存の直前に、その時点の状態を `adops-state-prev` ブランチに残しています（日中の実行では上書きしません）。`state.json` が壊れて実行が止まった場合
 （`state.json.corrupt` に退避されます）や、誤った状態が保存された場合は、`adops-state-prev` の内容を `adops-state` に戻してください
 （`git push -f origin origin/adops-state-prev:adops-state`）。広告の記録が前回より減る保存は自動で中止します。
 

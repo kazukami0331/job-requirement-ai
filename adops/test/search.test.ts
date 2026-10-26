@@ -110,7 +110,7 @@ test('excludeIrrelevantTerms: 応募のない求職者以外の検索を、auto 
       { term: '製造 求人 豊田', clicks: 12, conversions: 0, impressions: 300 },
       { term: '寮付き 仕事', clicks: 2, conversions: 0, impressions: 50 },
     ],
-    addNegativeKeywords: async (_ag: string, terms: string[]) => void added.push(...terms),
+    addNegativeKeywords: async (_ag: string, terms: string[]) => (added.push(...terms), terms),
   };
   const llm = new ScriptedLlm().on('negativeKeywords', () => ({
     terms: [
