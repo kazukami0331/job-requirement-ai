@@ -120,7 +120,12 @@ async function main() {
       const cs = ctx.store.creatives();
       const by = new Map<string, number>();
       for (const c of cs) by.set(c.status, (by.get(c.status) ?? 0) + 1);
+      if (ctx.store.state.halted) console.log(`!! 緊急停止中（${ctx.store.state.halted.at} ${ctx.store.state.halted.reason}）。解除: node src/cli.ts resume`);
       console.log(`クリエイティブ ${cs.length} 本: ${[...by].map(([k, v]) => `${k}=${v}`).join(' ')}`);
+      const rsa = Object.values(ctx.store.state.searchAds ?? {});
+      if (rsa.length) console.log(`検索広告 ${rsa.length} 本: ${['live', 'draft', 'paused', 'failed'].map((st) => `${st}=${rsa.filter((a) => a.status === st).length}`).join(' ')}`);
+      const last = ctx.store.state.cycles.at(-1);
+      if (last) console.log(`前回の実行 ${last.startedAt}: ${last.steps.map((s) => `${s.name}=${s.ok ? 'ok' : 'NG'}`).join(' ')} / AI費用 $${last.llmCostUsd}`);
       for (const c of cs.filter((c) => ['published', 'produced', 'awaiting_images', 'planned'].includes(c.status))) {
         const b = ctx.store.state.briefs[c.briefId];
         const t = totals(lastNDays(c.metrics, ctx.today, 7));
