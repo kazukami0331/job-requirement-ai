@@ -131,6 +131,18 @@ ${usedJobs.map((id) => describeJob(jobs.get(id)!)).join('\n\n')}
 # ペルソナ
 ${usedPersonas.map((id) => describePersona(personas.get(id)!)).join('\n\n')}
 
+# お手本（人が選んだ表現。そのまま使わず、考え方を参考にする）
+${(() => {
+  const angles = new Set(slots.map((s) => s.angle));
+  const good = (catalog.examples?.good ?? []).filter((e) => angles.has(e.angle as Angle));
+  const bad = catalog.examples?.bad ?? [];
+  if (!good.length && !bad.length) return '- なし';
+  return [
+    ...good.map((e) => `- 良い例 [${ANGLE_LABELS[e.angle as Angle] ?? e.angle}] 「${e.hook}」… ${e.why}`),
+    ...bad.map((e) => `- 悪い例 「${e.hook}」… ${e.why}`),
+  ].join('\n');
+})()}
+
 # これまでの学び（分析エージェントより）
 ${ctx.learnings.length ? ctx.learnings.map((l) => `- ${l}`).join('\n') : '- まだデータがありません。基本に忠実に。'}
 

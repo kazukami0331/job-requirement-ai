@@ -9,12 +9,12 @@ const PRESETS: { match: RegExp; hint: string }[] = [
     hint: 'bright modern Japanese factory floor, worker in clean work uniform and cap with safety glasses, organized production line, soft overhead lighting, shallow depth of field',
   },
   {
-    match: /物流|倉庫|ピッキング|仕分け|フォークリフト/,
-    hint: 'spacious Japanese logistics warehouse with tall racks, worker in reflective vest and helmet, handheld scanner or forklift, morning light through high windows',
-  },
-  {
     match: /ドライバー|配送|運送|トラック/,
     hint: 'Japanese delivery truck on a calm suburban road in early morning, driver in neat uniform beside the cab, clear sky, sense of freedom and routine',
+  },
+  {
+    match: /物流|倉庫|ピッキング|仕分け|フォークリフト/,
+    hint: 'spacious Japanese logistics warehouse with tall racks, worker in reflective vest and helmet, handheld scanner or forklift, morning light through high windows',
   },
   {
     match: /建設|施工|現場|土木|足場|設備/,

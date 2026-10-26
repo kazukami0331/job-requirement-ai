@@ -154,11 +154,18 @@ function readJson<T>(dir: string, file: string): T {
   }
 }
 
+export interface Examples {
+  good: { angle: string; hook: string; why: string }[];
+  bad: { hook: string; why: string }[];
+}
+
 export interface Catalog {
   jobs: Job[];
   personas: Persona[];
   brand: Brand;
   policy: Policy;
+  /** 人が選んだお手本（任意。config/examples.json） */
+  examples?: Examples;
 }
 
 export function loadCatalog(configDir: string): Catalog {
@@ -167,6 +174,7 @@ export function loadCatalog(configDir: string): Catalog {
     personas: readJson<Persona[]>(configDir, 'personas.json'),
     brand: readJson<Brand>(configDir, 'brand.json'),
     policy: readJson<Policy>(configDir, 'policy.json'),
+    examples: existsSync(join(configDir, 'examples.json')) ? readJson<Examples>(configDir, 'examples.json') : undefined,
   };
   validateCatalog(catalog);
   return catalog;
