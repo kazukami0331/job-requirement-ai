@@ -63,13 +63,19 @@ export function betaSample(a: number, b: number, rng: Rng): number {
  * 応募が3件以上あれば応募/インプレッション、なければクリック/インプレッション×想定応募率で近似する。
  * 古いデータに引っ張られすぎないよう、有効サンプル数に上限をかける。
  */
-export function posterior(t: Totals | undefined, opts = { assumedCvr: 0.05, maxEffective: 20000 }): { a: number; b: number } {
-  if (!t || t.impressions === 0) return { a: 1, b: 200 }; // 事前分布: 応募率 0.5% 前後を想定
+export function posterior(
+  t: Totals | undefined,
+  opts: { assumedCvr: number; maxEffective: number; minConv?: number; priorB?: number } = { assumedCvr: 0.05, maxEffective: 20000 },
+): { a: number; b: number } {
+  // 事前分布: 表示あたりの応募率 0.05%（CTR 1% × 応募率 5%）前後を、弱い強さで想定する。
+  // 楽観的すぎると、活用枠でも未検証の訴求ばかり選ばれて勝ち筋に寄らない
+  const PRIOR_B = opts.priorB ?? 2000;
+  if (!t || t.impressions === 0) return { a: 1, b: PRIOR_B };
   const scale = Math.min(1, opts.maxEffective / t.impressions);
-  const successes = t.conversions >= 3 ? t.conversions : t.clicks * opts.assumedCvr;
+  const successes = t.conversions >= (opts.minConv ?? 3) ? t.conversions : t.clicks * opts.assumedCvr;
   const n = t.impressions * scale;
   const s = successes * scale;
-  return { a: 1 + s, b: 200 + Math.max(0, n - s) };
+  return { a: 1 + s, b: PRIOR_B + Math.max(0, n - s) };
 }
 
 /**
@@ -145,12 +151,29 @@ export function allocateSlots(input: AllocationInput): Slot[] {
     for (let k = 0; k < exploreTarget; k++) explorePositions.add(Math.min(total - 1, Math.floor(k * step + step / 2)));
   }
 
-  const quality = qualityFactors(creatives);
+  // 面接数を報酬にしている場合は質の補正を重ねない
+  const quality = policy.rewardMetric === 'interviews' ? new Map<Angle, number>() : qualityFactors(creatives);
   const slots: Slot[] = [];
   let slotNo = 1;
   for (const job of catalog.jobs.filter((j) => j.active)) {
     const n = quotas.get(job.id) ?? 0;
-    const stats = angleTotals(creatives, job.id, from, today);
+    // 面接数は期間で区切れない累計なので、その場合は表示回数なども1年分で数えて揃える
+    const stats = angleTotals(creatives, job.id, policy.rewardMetric === 'interviews' ? addDays(today, -365) : from, today);
+    // 報酬を「面接数」にする設定なら、選考結果の面接数で応募数を置き換える（応募の質まで含めて学習する）
+    const withFunnel = new Set<Angle>();
+    if (policy.rewardMetric === 'interviews') {
+      for (const [angle, t] of stats) {
+        const cs = creatives.filter((c) => c.jobId === job.id && c.angle === angle && c.funnel);
+        if (cs.length) withFunnel.add(angle);
+        stats.set(angle, { ...t, conversions: cs.reduce((a, c) => a + c.funnel!.interview, 0) });
+      }
+    }
+    // 面接数が報酬のときは、選考結果がある軸はその数をそのまま使い、無い軸はクリック × 想定面接率（1.5%）で近似する
+    const post = (a: Angle) =>
+      policy.rewardMetric === 'interviews'
+        ? // 面接は応募の4割程度なので、事前分布も表示あたり 0.02% 前後に下げる
+          posterior(stats.get(a), { assumedCvr: 0.015, maxEffective: 20000, minConv: withFunnel.has(a) ? 0 : Infinity, priorB: 5000 })
+        : posterior(stats.get(a));
     const jobCreatives = creatives.filter((c) => c.jobId === job.id);
     const personaUse = new Map(job.personas.map((p) => [p, jobCreatives.filter((c) => c.personaId === p).length]));
     const usedThisCycle = new Set<Angle>();
@@ -180,7 +203,7 @@ export function allocateSlots(input: AllocationInput): Slot[] {
         angle = ranked[0]?.a ?? ANGLES[Math.floor(rng() * ANGLES.length)];
       } else {
         const draws = ANGLES.filter((a) => !usedThisCycle.has(a)).map((a) => {
-          const { a: alpha, b: beta } = posterior(stats.get(a));
+          const { a: alpha, b: beta } = post(a);
           return { a, v: betaSample(alpha, beta, rng) * (quality.get(a) ?? 1) };
         });
         draws.sort((x, y) => y.v - x.v);

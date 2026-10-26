@@ -101,6 +101,8 @@ export interface Policy {
   briefsPerCycle: number;
   /** 動画を作る割合（0〜1） */
   videoShare: number;
+  /** 配分の報酬: applications（応募数・既定）か interviews（選考結果の面接数。データが貯まってから） */
+  rewardMetric?: 'applications' | 'interviews';
   /** カルーセル（Meta・Instagram 向けの複数枚画像）を作る割合（0〜1。既定 0） */
   carouselShare?: number;
   /** 新しい訴求軸を試す割合（探索率） */

@@ -45,7 +45,7 @@ test('betaSample は 0〜1 で平均が理論値に近い', () => {
 });
 
 test('posterior: データが無ければ弱い事前分布、応募が多い軸ほど期待値が高い', () => {
-  assert.deepEqual(posterior(undefined), { a: 1, b: 200 });
+  assert.deepEqual(posterior(undefined), { a: 1, b: 2000 });
   const good = posterior(totals(daily('2026-10-01', 7, { impressions: 3000, clicks: 45, spend: 2000, conversions: 3 })));
   const bad = posterior(totals(daily('2026-10-01', 7, { impressions: 3000, clicks: 10, spend: 2000, conversions: 0 })));
   assert.ok(good.a / (good.a + good.b) > bad.a / (bad.a + bad.b));
@@ -197,4 +197,28 @@ test('allocateSlots: 疲弊で入れ替えた勝ち広告があれば、活用�
   // 既に改良版があれば作らない
   const again = allocateSlots({ catalog: cat, creatives: [winner, creative({ id: 'v', iterateOf: 'br_w' })], today: '2026-10-20', rng: seededRng(1) });
   assert.ok(again.every((s) => !s.iterateOf));
+});
+
+test('rewardMetric=interviews: 面接数が多い訴求軸を選ぶ', () => {
+  const f = (applied: number, interview: number) => ({ applied, interview, offer: 0, hired: 0, updatedAt: '' });
+  const cs = [
+    // 応募は多いが面接に来ない
+    creative({ id: 'a', angle: 'quick_cash', funnel: f(30, 1), metrics: daily('2026-10-01', 7, { impressions: 5000, clicks: 100, spend: 3000, conversions: 5 }) }),
+    // 応募は少なめだが面接に来る
+    creative({ id: 'b', angle: 'skill', funnel: f(12, 10), metrics: daily('2026-10-01', 7, { impressions: 5000, clicks: 60, spend: 3000, conversions: 2 }) }),
+  ];
+  const pick = (reward?: 'interviews', list = cs) => {
+    const cat = catalog({ policy: policy({ briefsPerCycle: 1, exploreShare: 0, videoShare: 0, rewardMetric: reward }), jobs: [job({ dailyCreativeQuota: 1 })] });
+    const counts = new Map<string, number>();
+    for (let s = 0; s < 40; s++) {
+      const [slot] = allocateSlots({ catalog: cat, creatives: list, today: '2026-10-07', rng: seededRng(s) });
+      counts.set(slot.angle, (counts.get(slot.angle) ?? 0) + 1);
+    }
+    return counts;
+  };
+  // 選考結果が無ければ応募数で比べる（応募の多い quick_cash が有利）
+  const byApps = pick(undefined, cs.map((c) => ({ ...c, funnel: undefined })));
+  const byInterviews = pick('interviews');
+  assert.ok((byApps.get('quick_cash') ?? 0) > (byApps.get('skill') ?? 0), JSON.stringify([...byApps]));
+  assert.ok((byInterviews.get('skill') ?? 0) > (byInterviews.get('quick_cash') ?? 0), JSON.stringify([...byInterviews]));
 });

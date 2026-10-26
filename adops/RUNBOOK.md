@@ -35,6 +35,7 @@ Slack の日次通知で次を見ます。
 | したいこと | 変える場所 |
 |---|---|
 | 1日に作る本数を増やす/減らす | `policy.json` の `briefsPerCycle`、求人ごとは `jobs.json` の `dailyCreativeQuota` |
+| 応募の数より質（面接に来る人）で最適化する | 選考結果の取り込みが1〜2か月分貯まったら `policy.json` に `"rewardMetric": "interviews"` |
 | 動画を増やす | `policy.json` の `videoShare` |
 | 新しい訴求をもっと試す / 勝ち筋に寄せる | `policy.json` の `exploreShare`（上げると試す、下げると寄せる）。シミュレーション（30日・3通り）では 0.1 と 0.3 がほぼ同等、0.5 は応募が約2割減。市場の変化に追従するため既定は 0.3、0.5 以上は非推奨 |
 | 停止を厳しく/ゆるく | `policy.json` の `guardrails`（`targetCpa`、`ctrFloorPct`、`minImpressions` など） |
