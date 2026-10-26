@@ -30,6 +30,9 @@ export function loadDotEnv(path = join(ROOT, '.env')): void {
   }
 }
 
+/** 写実寄り（--style raw, 低い stylize）で、画像内の文字・ロゴを出さない（文字は後から合成する） */
+export const DEFAULT_MJ_PARAMS = '--v 7 --style raw --s 50 --no text, letters, logo, watermark';
+
 export type ImageProviderKind = 'mock' | 'midjourney' | 'handoff';
 
 export interface Settings {
@@ -95,7 +98,7 @@ export function loadSettings(): Settings {
         baseUrl: env('MJ_API_BASE_URL', 'https://api.piapi.ai'),
         apiKey: env('MJ_API_KEY'),
         flavor: env('MJ_API_FLAVOR', 'piapi') as 'piapi' | 'generic',
-        params: env('MJ_PARAMS', '--v 7 --style raw'),
+        params: env('MJ_PARAMS', DEFAULT_MJ_PARAMS),
         videoEnabled: envBool('MJ_VIDEO_ENABLED', false),
       },
       inboxDir: resolve(ROOT, env('MJ_INBOX_DIR', 'data/inbox')),

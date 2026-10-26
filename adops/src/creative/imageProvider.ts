@@ -12,7 +12,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DriveInbox, LocalInbox, type Inbox } from './inbox.ts';
 import sharp from 'sharp';
-import type { Settings } from '../config.ts';
+import { DEFAULT_MJ_PARAMS, type Settings } from '../config.ts';
 import type { Ratio } from '../types.ts';
 import { request, requestJson, sleep } from '../util/http.ts';
 import { logger } from '../util/log.ts';
@@ -224,7 +224,7 @@ export class HandoffProvider implements ImageProvider {
   /** 人に伝える置き場所（Slack 通知で使う） */
   readonly locations = new Map<string, string>();
 
-  constructor(inbox: Inbox, params = '--v 7 --style raw') {
+  constructor(inbox: Inbox, params = DEFAULT_MJ_PARAMS) {
     this.inbox = inbox;
     this.params = params;
   }
