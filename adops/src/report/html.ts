@@ -6,7 +6,7 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import type { Catalog } from '../config.ts';
 import type { State } from '../types.ts';
-import { ANGLE_LABELS, type Angle } from '../types.ts';
+import { ANGLE_LABELS, FORMAT_LABEL, type Angle } from '../types.ts';
 import { groupBy, totals, windowed } from '../optimize/stats.ts';
 import { addDays } from '../util/id.ts';
 import { escapeXml } from '../creative/compose.ts';
@@ -51,7 +51,7 @@ export function renderReport(state: State, catalog: Catalog, dataDir: string, to
   <div class="meta">
     <span class="tag">${STATUS_LABEL[c.status] ?? c.status}</span>
     <span class="tag">${ANGLE_LABELS[c.angle]}</span>
-    <span class="tag">${c.format === 'video' ? '動画' : '画像'}</span>
+    <span class="tag">${FORMAT_LABEL[c.format]}</span>
     ${c.explore ? '<span class="tag x">探索</span>' : ''}
     ${c.layout ? `<span class="tag">${({ band: '帯', card: 'カード', bold: '給与ドン' } as Record<string, string>)[c.layout] ?? c.layout}</span>` : ''}
   </div>

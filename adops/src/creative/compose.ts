@@ -115,19 +115,8 @@ export function overlaySvg(o: OverlayInput): string {
   const bandY = H - bandH;
 
   // バッジ（上部の黄色いピル）
-  let bx = pad;
-  const by = pad;
   const badgeSize = Math.round(W * (wide ? 0.026 : 0.036));
-  const badges = o.badges
-    .slice(0, 3)
-    .map((b) => {
-      const w = Math.round(textUnits(b) * badgeSize + badgeSize * 1.2);
-      const svg = `<rect x="${bx}" y="${by}" rx="${badgeSize * 0.9}" width="${w}" height="${badgeSize * 1.8}" fill="${c.accent}"/>
-<text x="${bx + w / 2}" y="${by + badgeSize * 1.27}" font-family="${FONT_FAMILY}" font-size="${badgeSize}" font-weight="900" fill="${c.background}" text-anchor="middle">${escapeXml(b)}</text>`;
-      bx += w + badgeSize * 0.5;
-      return svg;
-    })
-    .join('\n');
+  const badges = badgesSvg(o.badges, pad, pad, badgeSize, brand, W - pad);
 
   const textX = pad;
   const mainY = bandY + pad * 0.8 + main.size * 0.95;
@@ -155,12 +144,17 @@ ${brand.mandatoryText ? textBlock([brand.mandatoryText], W - pad, footerY, Math.
 export type Layout = 'band' | 'card' | 'bold';
 export const LAYOUTS: Layout[] = ['band', 'card', 'bold'];
 
-function badgesSvg(badges: string[], x: number, y: number, size: number, brand: Brand): string {
+function badgesSvg(badges: string[], x: number, y: number, size: number, brand: Brand, maxRight = Infinity): string {
   let bx = x;
   return badges
     .slice(0, 3)
     .map((b) => {
       const w = Math.round(textUnits(b) * size + size * 1.2);
+      // 画面からはみ出すバッジは載せない（途中で切れた文字は誤解のもと）
+      if (bx + w > maxRight) {
+        bx = Infinity;
+        return '';
+      }
       const svg = `<rect x="${bx}" y="${y}" rx="${size * 0.9}" width="${w}" height="${size * 1.8}" fill="${brand.colors.accent}"/>
 <text x="${bx + w / 2}" y="${y + size * 1.27}" font-family="${FONT_FAMILY}" font-size="${size}" font-weight="900" fill="${brand.colors.background}" text-anchor="middle">${escapeXml(b)}</text>`;
       bx += w + size * 0.5;
@@ -196,7 +190,7 @@ export function cardSvg(o: OverlayInput): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
 <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" rx="${Math.round(W * 0.03)}" fill="#ffffff" opacity="0.94"/>
 <rect x="${cardX}" y="${cardY}" width="${Math.max(8, Math.round(W * 0.012))}" height="${cardH}" rx="4" fill="${c.accent}"/>
-${badgesSvg(o.badges, cardX, cardY - badgeSize * 2.4, badgeSize, brand)}
+${badgesSvg(o.badges, cardX, cardY - badgeSize * 2.4, badgeSize, brand, W - pad)}
 ${parts.join('\n')}
 ${brand.mandatoryText ? textBlock([brand.mandatoryText], W - pad, H - pad * 0.35, Math.round(footerSize * 0.8), c.text, { weight: 400, anchor: 'end' }) : ''}
 </svg>`;
@@ -223,7 +217,7 @@ export function boldSvg(o: OverlayInput & { pay: string }): string {
 </defs>
 <rect x="0" y="0" width="${W}" height="${topH * 1.35}" fill="url(#top)"/>
 ${textBlock(payF.lines, pad, pad + payF.size * 0.95, payF.size, c.accent, { stroke: c.background, strokeW: payF.size * 0.06 })}
-${badgesSvg(o.badges, pad, pad + payF.size * 1.25, Math.round(W * (wide ? 0.024 : 0.032)), brand)}
+${badgesSvg(o.badges, pad, pad + payF.size * 1.25, Math.round(W * (wide ? 0.024 : 0.032)), brand, W - pad)}
 <rect x="0" y="${H - mainH - pad}" width="${W}" height="${mainH + pad}" fill="url(#bot)"/>
 ${textBlock(main.lines, pad, H - mainH + main.size * 0.6, main.size, c.text, { stroke: c.background, strokeW: main.size * 0.06, lineHeight: 1.25 })}
 ${o.footer ? textBlock([o.footer], pad, H - pad * 0.5, footerSize, c.text, { weight: 500 }) : ''}

@@ -3,7 +3,8 @@
  */
 
 export type Platform = 'meta' | 'google';
-export type Format = 'image' | 'video';
+export type Format = 'image' | 'video' | 'carousel';
+export const FORMAT_LABEL: Record<Format, string> = { image: '画像', video: '動画', carousel: 'カルーセル' };
 export type Ratio = '1:1' | '4:5' | '9:16' | '1.91:1';
 
 /** 訴求軸。分析・改善はこの単位で勝ち負けを学習する。 */
@@ -100,6 +101,8 @@ export interface Policy {
   briefsPerCycle: number;
   /** 動画を作る割合（0〜1） */
   videoShare: number;
+  /** カルーセル（Meta・Instagram 向けの複数枚画像）を作る割合（0〜1。既定 0） */
+  carouselShare?: number;
   /** 新しい訴求軸を試す割合（探索率） */
   exploreShare: number;
   review: { passScore: number; maxRevisions: number };
@@ -199,6 +202,8 @@ export interface Asset {
   width: number;
   height: number;
   durationSec?: number;
+  /** カルーセルのカード番号（0 始まり） */
+  card?: number;
 }
 
 export interface ImageJob {
@@ -267,7 +272,7 @@ export interface Creative {
 }
 
 export interface OrganicPost {
-  kind: 'feed' | 'reels';
+  kind: 'feed' | 'reels' | 'carousel';
   mediaId: string;
   permalink: string;
   postedAt: string;

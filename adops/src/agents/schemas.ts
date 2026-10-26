@@ -15,7 +15,7 @@ export const BriefDraftSchema = z.object({
   }),
   storyboard: z
     .array(z.object({ seconds: z.number(), text: z.string(), visual: z.string() }))
-    .describe('動画のカット構成。画像広告なら空配列'),
+    .describe('動画のカット構成、またはカルーセルのカード（3〜5枚）。画像広告なら空配列'),
   visualConcept: z.string().describe('どんな写真か（日本語で人向けに説明）'),
   imagePrompt: z.string().describe('Midjourney 用の英語プロンプト。文字を含めない情景描写。"no text" を含める。パラメータ(--ar 等)は付けない'),
 });

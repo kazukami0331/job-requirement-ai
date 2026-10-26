@@ -103,7 +103,7 @@ export async function plan(ctx: Ctx): Promise<PlanResult> {
         ...(slot.iterateOf ? { iterateOf: slot.iterateOf } : {}),
         revision: 0,
         createdAt: new Date().toISOString(),
-        storyboard: slot.format === 'video' ? rest.storyboard : [],
+        storyboard: slot.format === 'image' ? [] : rest.storyboard,
       };
       for (;;) {
         const { review } = await reviewBrief(llm, brief, catalog);
@@ -116,7 +116,7 @@ export async function plan(ctx: Ctx): Promise<PlanResult> {
           return;
         }
         const revised = await reviseBrief(llm, brief, review.issues, review.summary, catalog);
-        brief = { ...brief, ...revised, storyboard: brief.format === 'video' ? revised.storyboard : [], revision: brief.revision + 1 };
+        brief = { ...brief, ...revised, storyboard: brief.format === 'image' ? [] : revised.storyboard, revision: brief.revision + 1 };
       }
       const now = new Date().toISOString();
       const creative: Creative = {

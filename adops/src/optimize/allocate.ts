@@ -196,6 +196,9 @@ export function allocateSlots(input: AllocationInput): Slot[] {
     }
   }
 
+  // カルーセルの本数（動画の割り当て後、画像のままの枠から等間隔に選ぶ）
+  const carouselTarget = Math.round(total * (policy.carouselShare ?? 0));
+
   // 動画の本数を全体比率に合わせる（求人が偏らないよう等間隔に割り当て）
   if (videoTarget > 0 && slots.length > 0) {
     const step = slots.length / videoTarget;
@@ -203,6 +206,11 @@ export function allocateSlots(input: AllocationInput): Slot[] {
       const s = slots[Math.min(slots.length - 1, Math.floor(k * step))];
       if (!s.iterateOf) s.format = 'video' as Format; // 改良版は元の形式のまま
     }
+  }
+  const imageSlots = slots.filter((s) => s.format === 'image' && !s.iterateOf);
+  if (carouselTarget > 0 && imageSlots.length > 0) {
+    const step = imageSlots.length / carouselTarget;
+    for (let k = 0; k < Math.min(carouselTarget, imageSlots.length); k++) imageSlots[Math.min(imageSlots.length - 1, Math.floor(k * step + step / 2))].format = 'carousel';
   }
   return slots;
 }

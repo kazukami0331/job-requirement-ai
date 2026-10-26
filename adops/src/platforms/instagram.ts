@@ -87,6 +87,19 @@ export class InstagramClient {
     return this.publishContainer(id);
   }
 
+  /** カルーセル投稿（画像 2〜10 枚）。 */
+  async postCarousel(paths: string[], caption: string): Promise<{ id: string; permalink: string }> {
+    const children: string[] = [];
+    for (const p of paths.slice(0, 10)) {
+      const image_url = await this.publicImageUrl(p);
+      const { id } = await this.call<{ id: string }>('POST', `${this.s.instagramUserId}/media`, { image_url, is_carousel_item: 'true' });
+      children.push(id);
+    }
+    const { id } = await this.call<{ id: string }>('POST', `${this.s.instagramUserId}/media`, { media_type: 'CAROUSEL', children: children.join(','), caption });
+    await this.waitContainer(id);
+    return this.publishContainer(id);
+  }
+
   async postReel(videoPath: string, caption: string, coverAtMs = 1000): Promise<{ id: string; permalink: string }> {
     const container = await this.call<{ id: string; uri?: string }>('POST', `${this.s.instagramUserId}/media`, {
       media_type: 'REELS',

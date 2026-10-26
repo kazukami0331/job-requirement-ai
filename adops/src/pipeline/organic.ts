@@ -16,9 +16,9 @@ import { logger } from '../util/log.ts';
 const log = logger('organic');
 
 /** 投稿候補を良い順に並べる。 */
-export function organicCandidates(ctx: Ctx): { c: Creative; kind: 'feed' | 'reels'; path: string; score: number }[] {
+export function organicCandidates(ctx: Ctx): { c: Creative; kind: 'feed' | 'reels' | 'carousel'; path: string; paths?: string[]; score: number }[] {
   const o = ctx.catalog.policy.organic!;
-  const out: { c: Creative; kind: 'feed' | 'reels'; path: string; score: number }[] = [];
+  const out: { c: Creative; kind: 'feed' | 'reels' | 'carousel'; path: string; paths?: string[]; score: number }[] = [];
   const draft = ctx.catalog.policy.autonomy === 'draft';
   for (const c of ctx.store.creatives({ status: ['produced', 'published', 'paused', 'retired'] })) {
     if (c.organic) continue;
@@ -26,14 +26,17 @@ export function organicCandidates(ctx: Ctx): { c: Creative; kind: 'feed' | 'reel
     if ((c.organicFailures ?? 0) >= 2) continue;
     // draft モードでは、人が管理画面で ON にした（＝人が確認した）広告の素材だけを公開投稿に使う
     if (draft && c.live !== true) continue;
+    const cards = c.assets.filter((a) => a.card !== undefined && existsSync(a.path)).sort((a, b) => a.card! - b.card!);
     const reel = c.assets.find((a) => a.kind === 'video' && a.ratio === '9:16' && existsSync(a.path));
     const feed = c.assets.find((a) => a.kind === 'image' && a.ratio === '4:5' && existsSync(a.path));
-    if (!reel && !feed) continue;
+    if (!reel && !feed && cards.length < 2) continue;
     const t = totals(lastNDays(c.metrics, ctx.today, 14));
     const proven = t.impressions >= 2000 && t.ctr >= o.minAdCtrForRepost;
     // 実績のある素材 > 新しい素材。動画は少し優先（リールは非フォロワーに届きやすい）
-    const score = (proven ? 100 + t.ctr * 10 : 0) + (reel ? 5 : 0) + (c.status === 'produced' ? 1 : 0);
-    out.push({ c, kind: reel ? 'reels' : 'feed', path: (reel ?? feed)!.path, score });
+    // カルーセルと動画は非フォロワーにも届きやすいので少し優先
+    const score = (proven ? 100 + t.ctr * 10 : 0) + (reel || cards.length >= 2 ? 5 : 0) + (c.status === 'produced' ? 1 : 0);
+    if (cards.length >= 2) out.push({ c, kind: 'carousel', path: cards[0].path, paths: cards.map((a) => a.path), score });
+    else out.push({ c, kind: reel ? 'reels' : 'feed', path: (reel ?? feed)!.path, score });
   }
   return out.sort((a, b) => b.score - a.score);
 }
@@ -50,7 +53,7 @@ export async function postOrganic(ctx: Ctx): Promise<string> {
 
   const done: string[] = [];
   let posted = 0;
-  for (const { c, kind, path } of candidates) {
+  for (const { c, kind, path, paths } of candidates) {
     if (posted >= quota) break;
     const brief = ctx.store.state.briefs[c.briefId];
     const job = ctx.catalog.jobs.find((j) => j.id === c.jobId);
@@ -69,7 +72,8 @@ export async function postOrganic(ctx: Ctx): Promise<string> {
         log.info(`[投稿予定] ${c.id} ${kind}\n${caption}`);
         continue;
       }
-      const r = kind === 'reels' ? await ig.postReel(path, caption) : await ig.postImage(path, caption);
+      const r =
+        kind === 'reels' ? await ig.postReel(path, caption) : kind === 'carousel' ? await ig.postCarousel(paths!, caption) : await ig.postImage(path, caption);
       // 公開できたらすぐ記録して保存（次回同じ素材を二重投稿しない）
       c.organic = { kind, mediaId: r.id, permalink: r.permalink, postedAt: new Date().toISOString(), caption, insights: [] };
       ctx.store.save();

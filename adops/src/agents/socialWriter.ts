@@ -23,7 +23,7 @@ const SYSTEM = `あなたはブルーカラー求人に強い人材紹介会社�
 - 給与・待遇は求人情報にある事実だけ。年齢・性別の限定、成果の保証、根拠のない最上級表現、閲覧者の経済状況を断定する表現は禁止
 - 絵文字は控えめ（各段落の頭に1つまで）`;
 
-export async function writeCaption(llm: Llm, brief: CreativeBrief, catalog: Catalog, kind: 'feed' | 'reels', baseHashtags: string[]): Promise<string> {
+export async function writeCaption(llm: Llm, brief: CreativeBrief, catalog: Catalog, kind: 'feed' | 'reels' | 'carousel', baseHashtags: string[]): Promise<string> {
   const job = catalog.jobs.find((j) => j.id === brief.jobId)!;
   const persona = catalog.personas.find((p) => p.id === brief.personaId);
   const s = job.salary;
@@ -32,7 +32,7 @@ export async function writeCaption(llm: Llm, brief: CreativeBrief, catalog: Cata
     tier: 'fast',
     system: SYSTEM,
     prompt: `# 投稿の種類
-${kind === 'reels' ? 'リール（縦動画）' : 'フィード（画像）'}
+${kind === 'reels' ? 'リール（縦動画）' : kind === 'carousel' ? 'カルーセル（複数枚の画像。1枚目で止めて、スワイプを促す）' : 'フィード（画像）'}
 
 # 素材の内容（広告として作ったもの）
 - フック: ${brief.hook}

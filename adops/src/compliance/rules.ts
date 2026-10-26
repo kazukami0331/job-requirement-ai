@@ -273,6 +273,13 @@ function checkBriefFormat(brief: CreativeBrief): ReviewIssue[] {
   if (!/no text/i.test(brief.imagePrompt))
     issues.push({ severity: 'minor', field: 'imagePrompt', problem: '画像プロンプトに "no text" がありません', suggestion: '文字は後から合成するので "no text, no letters" を入れてください' });
 
+  if (brief.format === 'carousel' && (brief.storyboard.length < 3 || brief.storyboard.length > 5))
+    issues.push({ severity: 'major', field: 'storyboard', problem: `カルーセルのカードが ${brief.storyboard.length} 枚です`, suggestion: '3〜5枚にしてください' });
+  if (brief.format === 'carousel')
+    brief.storyboard.forEach((c, i) => {
+      if ([...c.text].length > LIMITS.overlayMain)
+        issues.push({ severity: 'major', field: `storyboard[${i}]`, problem: `カードの文字が長すぎます（${[...c.text].length}字）`, suggestion: `${LIMITS.overlayMain}字以内にしてください` });
+    });
   if (brief.format === 'video' && brief.storyboard.length < 2)
     issues.push({ severity: 'major', field: 'storyboard', problem: '動画なのにシーンが2つ未満です', suggestion: 'フック → 条件 → 行動喚起の3カット以上にしてください' });
   const total = brief.storyboard.reduce((a, s) => a + s.seconds, 0);

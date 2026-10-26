@@ -4,7 +4,7 @@
  */
 import type { Llm } from '../llm/llm.ts';
 import type { Catalog } from '../config.ts';
-import { ANGLE_LABELS, type Angle, type Creative, type CreativeBrief, type Insight } from '../types.ts';
+import { ANGLE_LABELS, FORMAT_LABEL, type Angle, type Format, type Creative, type CreativeBrief, type Insight } from '../types.ts';
 import { groupBy, totals, windowed, type GroupRow } from '../optimize/stats.ts';
 import { addDays } from '../util/id.ts';
 import { InsightSchema } from './schemas.ts';
@@ -37,7 +37,7 @@ export function buildReport(creatives: Creative[], briefs: Record<string, Creati
     .filter((x) => x.t.impressions > 0)
     .sort((a, b) => (a.t.cpa ?? Infinity) - (b.t.cpa ?? Infinity) || b.t.ctr - a.t.ctr);
   const line = (x: (typeof ranked)[number]) =>
-    `- [${ANGLE_LABELS[x.c.angle]} / ${x.c.format === 'video' ? '動画' : '画像'} / ${personaName(x.c.personaId)}] 「${x.b?.overlay.main ?? '?'}」 見出し「${x.b?.headline ?? '?'}」 → 表示 ${x.t.impressions.toLocaleString()}, CTR ${x.t.ctr.toFixed(2)}%, 応募 ${x.t.conversions}${x.t.cpa ? `, 単価 ${Math.round(x.t.cpa).toLocaleString()}円` : ''}${
+    `- [${ANGLE_LABELS[x.c.angle]} / ${FORMAT_LABEL[x.c.format]} / ${personaName(x.c.personaId)}] 「${x.b?.overlay.main ?? '?'}」 見出し「${x.b?.headline ?? '?'}」 → 表示 ${x.t.impressions.toLocaleString()}, CTR ${x.t.ctr.toFixed(2)}%, 応募 ${x.t.conversions}${x.t.cpa ? `, 単価 ${Math.round(x.t.cpa).toLocaleString()}円` : ''}${
       x.c.funnel ? `, 選考: 面接 ${x.c.funnel.interview} / 内定 ${x.c.funnel.offer} / 入社 ${x.c.funnel.hired}` : ''
     }`;
 
@@ -53,7 +53,7 @@ ${groupBy(withData, (c) => c.angle, from, today).map((r) => fmtRow(r, (k) => ANG
 
 ## 形式別
 ${HEADER}
-${groupBy(withData, (c) => c.format, from, today).map((r) => fmtRow(r, (k) => (k === 'video' ? '動画' : '画像'))).join('\n')}
+${groupBy(withData, (c) => c.format, from, today).map((r) => fmtRow(r, (k) => FORMAT_LABEL[k as Format] ?? k)).join('\n')}
 
 ## 画像レイアウト別（band=下部の帯 / card=白いカード / bold=給与を大きく）
 ${HEADER}

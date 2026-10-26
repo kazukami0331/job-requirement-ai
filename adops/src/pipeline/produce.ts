@@ -18,6 +18,7 @@ const log = logger('produce');
 
 /** 画像広告: フィード用(4:5)と縦(9:16)の2本を生成。動画: 縦(9:16)の4候補をカットごとの背景に使う。 */
 export function requiredRatios(c: Creative): Ratio[] {
+  if (c.format === 'carousel') return ['1:1'];
   return c.format === 'image' ? ['4:5', '9:16'] : ['9:16'];
 }
 
@@ -107,7 +108,22 @@ export async function produceOne(ctx: Ctx, c: Creative): Promise<void> {
     return j.paths![j.selected ?? 0];
   };
 
-  if (c.format === 'image') {
+  if (c.format === 'carousel') {
+    // カード: 4候補を順に背景に使い（選ばれた1枚を1枚目に）、最後に条件まとめのカードを付ける
+    const j = c.imageJobs.find((x) => x.ratio === '1:1')!;
+    const ordered = [j.paths![j.selected ?? 0], ...j.paths!.filter((_, i) => i !== (j.selected ?? 0))];
+    const cards = brief.storyboard.slice(0, 5);
+    const total = cards.length + 1;
+    for (const [i, card] of cards.entries()) {
+      const out = join(outDir, `${c.id}_card${i}.jpg`);
+      const cardBrief = { ...brief, overlay: { main: card.text, sub: i === 0 ? `スワイプして見る →  ${i + 1}/${total}` : `${i + 1}/${total}`, badges: i === 0 ? brief.overlay.badges : [] } };
+      const { width, height } = await composeImage(ordered[i % ordered.length], out, '1:1', cardBrief, job, catalog.brand, layout === 'bold' ? 'band' : layout);
+      assets.push({ ratio: '1:1', kind: 'image', path: out, width, height, card: i });
+    }
+    const last = join(outDir, `${c.id}_card${cards.length}.jpg`);
+    const { width, height } = await composeImage(ordered[0], last, '1:1', brief, job, catalog.brand, 'bold');
+    assets.push({ ratio: '1:1', kind: 'image', path: last, width, height, card: cards.length });
+  } else if (c.format === 'image') {
     const plan: [Ratio, Ratio][] = [
       ['4:5', '4:5'],
       ['1:1', '4:5'],
@@ -158,8 +174,8 @@ export async function produceOne(ctx: Ctx, c: Creative): Promise<void> {
     }
   }
 
-  // 完成品の最終チェック（画像は 4:5、動画はサムネイルで）
-  const main = assets.find((a) => a.ratio === '4:5')!;
+  // 完成品の最終チェック（画像は 4:5、動画はサムネイル、カルーセルは1枚目で）
+  const main = assets.find((a) => a.ratio === '4:5') ?? assets[0];
   const qa = await finalQa(ctx.llm, brief, main.kind === 'video' ? main.path.replace(/\.mp4$/, '.jpg') : main.path);
   c.assets = assets;
   c.qa = { score: qa.score, notes: [qa.note, ...qa.problems].filter(Boolean).join(' / '), selectedIndex: c.imageJobs[0]?.selected ?? 0 };

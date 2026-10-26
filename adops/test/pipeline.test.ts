@@ -312,3 +312,32 @@ test('notifyLeads: 直前1時間（朝は夜間分）の応募だけを、氏名
   assert.match(await notifyLeads(ctx, at1035), /1 件/);
   assert.ok(!JSON.stringify(ctx.store.state).includes('090-0000-0000'));
 });
+
+test('カルーセル: 企画→制作でカード画像（＋条件まとめの最終カード）ができ、Meta には child_attachments で入稿する', async () => {
+  const { MetaClient } = await import('../src/platforms/meta.ts');
+  const ctx = ctxWith(offlineLlm(catalog()));
+  ctx.catalog.policy = policy({ briefsPerCycle: 1, videoShare: 0, exploreShare: 0, carouselShare: 1 });
+  ctx.catalog.jobs = [job({ dailyCreativeQuota: 1 })];
+  const rec = await runCycle(ctx, ['plan', 'produce']);
+  assert.ok(rec.steps.every((s) => s.ok), JSON.stringify(rec.steps));
+  const [c] = ctx.store.creatives();
+  assert.equal(c.format, 'carousel');
+  assert.equal(c.status, 'produced', c.statusReason);
+  const cards = c.assets.filter((a) => a.card !== undefined);
+  assert.equal(cards.length, 4); // 3枚 + 条件まとめ
+  assert.ok(cards.every((a) => a.ratio === '1:1'));
+
+  // Meta への入稿内容（HTTP は呼ばずに、送るパラメータだけ確かめる）
+  const client = new MetaClient({ accessToken: 't', adAccountId: '1', pageId: 'p', instagramUserId: '', apiVersion: 'v25.0' }) as any;
+  const sent: any[] = [];
+  client.call = async (_m: string, path: string, params: any) => {
+    sent.push({ path, params });
+    return path.endsWith('adimages') ? { images: { x: { hash: `h${sent.length}` } } } : { id: 'cre1' };
+  };
+  const brief = ctx.store.state.briefs[c.briefId];
+  await client.createCreative(brief, ctx.catalog.jobs[0], c.assets, 'n');
+  const creative = sent.find((x) => x.path.endsWith('adcreatives')).params;
+  const children = creative.object_story_spec.link_data.child_attachments;
+  assert.equal(children.length, 4);
+  assert.equal(creative.object_story_spec.link_data.multi_share_optimized, false);
+});

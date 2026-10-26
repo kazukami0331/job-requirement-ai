@@ -23,7 +23,7 @@ const HOOKS: Record<Angle, (j: { pay: string; perk: string; title: string }) => 
 export function offlineLlm(catalog: Catalog): ScriptedLlm {
   const llm = new ScriptedLlm();
   llm.on('strategist.plan', (req) => {
-    const slots = [...req.prompt.matchAll(/slot (\d+): 求人=([\w-]+) \/ ペルソナ=([\w-]+) \/ 訴求軸=.+?\((\w+)\) \/ 形式=(動画|画像)/g)];
+    const slots = [...req.prompt.matchAll(/slot (\d+): 求人=([\w-]+) \/ ペルソナ=([\w-]+) \/ 訴求軸=.+?\((\w+)\) \/ 形式=(動画|画像|カルーセル)/g)];
     return {
       briefs: slots.map((m) => {
         const [, slot, jobId, , angleRaw, format] = m;
@@ -32,6 +32,7 @@ export function offlineLlm(catalog: Catalog): ScriptedLlm {
         const pay = `${job.salary.type}${formatYen(job.salary.min)}`;
         const [main, sub] = HOOKS[angle]({ pay, perk: job.perks[0] ?? '', title: job.title.slice(0, 14) });
         const isVideo = format === '動画';
+        const isCarousel = format === 'カルーセル';
         return {
           slot: Number(slot),
           hypothesis: `${job.category}の求職者には「${main}」が響く`,
@@ -41,7 +42,13 @@ export function offlineLlm(catalog: Catalog): ScriptedLlm {
           description: job.perks.slice(0, 2).join('・'),
           cta: 'APPLY_NOW',
           overlay: { main: main.slice(0, 16), sub: sub.slice(0, 28), badges: job.perks.slice(0, 3).map((p) => p.slice(0, 10)) },
-          storyboard: isVideo
+          storyboard: isCarousel
+            ? [
+                { seconds: 0, text: main.slice(0, 16), visual: 'worker arriving in the morning' },
+                { seconds: 0, text: 'お昼は仲間とひと息', visual: 'lunch break with coworkers' },
+                { seconds: 0, text: (job.perks[0] ?? sub).slice(0, 16), visual: 'clean dormitory room' },
+              ]
+            : isVideo
             ? [
                 { seconds: 2.5, text: main.slice(0, 16), visual: 'worker smiling at factory entrance' },
                 { seconds: 3, text: `${pay}〜`, visual: 'close up of hands working' },

@@ -5,7 +5,7 @@
  */
 import type { Llm } from '../llm/llm.ts';
 import type { Catalog } from '../config.ts';
-import { ANGLE_LABELS, type Angle, type CreativeBrief, type Format, type Job, type Persona, type ReviewIssue } from '../types.ts';
+import { ANGLE_LABELS, FORMAT_LABEL, type Angle, type CreativeBrief, type Format, type Job, type Persona, type ReviewIssue } from '../types.ts';
 import { formatYen } from '../compliance/rules.ts';
 import { BriefDraftSchema, PlanOutputSchema, type BriefDraft } from './schemas.ts';
 import { HOUSING_HINT, visualHint } from '../creative/visualPresets.ts';
@@ -80,6 +80,9 @@ SNS広告（Meta: Instagram/Facebook、Google: YouTube/ディスプレイ/デマ
   必ず "no text, no letters, no logos" を含め、--ar などのパラメータは付けない。
 - 動画（format=video）は 9:16 縦型で 8〜20 秒。storyboard は「フック → 条件・ベネフィット → 不安解消 → 行動喚起」の流れで3〜5カット。
   各カットの text は画面に出す字幕（全角16字以内）、visual はそのカットの絵（英語可）。画像広告は storyboard を空配列にする。
+  カルーセル（format=carousel）は、storyboard を「カード」として使う: 3〜5枚、各カードの text は画像に載せる文字（全角16字以内）、
+  visual はそのカードの絵、seconds は 0。「1日の流れ（朝→昼→夕方）」「寮の部屋を順に紹介」「よくある不安 Q&A」のように、
+  スワイプしたくなる連続性をつける。最後のカードは求人の条件まとめをシステムが自動で付けるので、条件の羅列はカードに入れなくてよい。
   字幕はそのままナレーションとして読み上げられることがあるので、声に出して自然な話し言葉にする（記号や略語を避ける）。
   visual は Midjourney の4候補から各カットの背景を選ぶ前提なので、1つの情景の別アングル・別の瞬間として書く。
 - 探索枠（explore=true）は、過去の勝ちパターンにとらわれず新しい切り口を大胆に試す。
@@ -175,7 +178,7 @@ ${ctx.activeHooks.length ? ctx.activeHooks.map((h) => `- ${h}`).join('\n') : '- 
 ${slots
   .map(
     (s) =>
-      `- slot ${s.slot}: 求人=${s.jobId} / ペルソナ=${s.personaId} / 訴求軸=${ANGLE_LABELS[s.angle]}(${s.angle}) / 形式=${s.format === 'video' ? '動画(9:16)' : '画像'} / ${s.explore ? '探索枠' : '活用枠'}${
+      `- slot ${s.slot}: 求人=${s.jobId} / ペルソナ=${s.personaId} / 訴求軸=${ANGLE_LABELS[s.angle]}(${s.angle}) / 形式=${s.format === 'video' ? '動画(9:16)' : s.format === 'carousel' ? 'カルーセル(1:1 を3〜5枚)' : '画像'} / ${s.explore ? '探索枠' : '活用枠'}${
         s.angle === 'housing' ? `\n  （寮訴求なので画像は住まいを見せる案も検討: ${HOUSING_HINT}）` : ''
       }${(() => {
         const src = s.iterateOf ? ctx.iterateSources?.[s.iterateOf] : undefined;
@@ -209,7 +212,7 @@ export async function reviseBrief(llm: Llm, brief: CreativeBrief, issues: Review
     agent: 'strategist.revise',
     system: STRATEGIST_SYSTEM,
     prompt: `次の広告企画がレビューで差し戻されました。指摘をすべて解消した改訂版を返してください。
-訴求軸（${ANGLE_LABELS[angle]}）と形式（${format === 'video' ? '動画' : '画像'}）は変えないでください。良い部分は残してください。
+訴求軸（${ANGLE_LABELS[angle]}）と形式（${FORMAT_LABEL[format]}）は変えないでください。良い部分は残してください。
 
 # 求人情報
 ${describeJob(job)}

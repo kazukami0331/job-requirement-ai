@@ -43,7 +43,9 @@ export async function publish(ctx: Ctx): Promise<PublishSummary> {
     }
     const wantMeta = Boolean(ctx.meta && job.placements.meta?.adsetIds?.length) && (!retrying || c.pendingPlatforms!.includes('meta'));
     // P-MAX は停止状態で入れられないので、draft モードでは対象外（デマンド ジェネレーションだけ）
-    const googleTargets = (job.placements.google?.adGroupIds?.length ?? 0) + (active ? job.placements.google?.assetGroupIds?.length ?? 0 : 0);
+    // カルーセルは Meta だけ（Google には同じ形式が無いので入れない）
+    const googleTargets =
+      c.format === 'carousel' ? 0 : (job.placements.google?.adGroupIds?.length ?? 0) + (active ? job.placements.google?.assetGroupIds?.length ?? 0 : 0);
     const wantGoogle =
       Boolean(ctx.google && googleTargets > 0) &&
       (!retrying || c.pendingPlatforms!.includes('google'));

@@ -5,7 +5,7 @@
  */
 import type { Llm } from '../llm/llm.ts';
 import type { Catalog } from '../config.ts';
-import { ANGLE_LABELS, type CreativeBrief, type Review, type ReviewIssue } from '../types.ts';
+import { ANGLE_LABELS, FORMAT_LABEL, type CreativeBrief, type Review, type ReviewIssue } from '../types.ts';
 import { checkBrief, formatYen, hasBlocker } from '../compliance/rules.ts';
 import { ReviewOutputSchema } from './schemas.ts';
 
@@ -61,7 +61,7 @@ export async function reviewBrief(llm: Llm, brief: CreativeBrief, catalog: Catal
 ${persona.name}: ${persona.summary}
 動機: ${persona.motivations.join(' / ')} / 不安: ${persona.pains.join(' / ')}
 
-# 企画（訴求軸: ${ANGLE_LABELS[brief.angle]} / 形式: ${brief.format === 'video' ? '縦動画' : '画像'} / 改訂 ${brief.revision} 回目）
+# 企画（訴求軸: ${ANGLE_LABELS[brief.angle]} / 形式: ${FORMAT_LABEL[brief.format]} / 改訂 ${brief.revision} 回目）
 ${JSON.stringify(
   {
     hypothesis: brief.hypothesis,

@@ -131,6 +131,39 @@ export class MetaClient {
     const isVideo = (feed ?? vertical)!.kind === 'video';
     const ig = this.s.instagramUserId ? { instagram_user_id: this.s.instagramUserId } : {};
 
+    // カルーセル: カード画像を順に child_attachments に並べる
+    const cards = assets.filter((a) => a.card !== undefined).sort((a, b) => a.card! - b.card!);
+    if (brief.format === 'carousel' && cards.length >= 2) {
+      const titles = [...brief.storyboard.map((s) => s.text), brief.headline];
+      const child_attachments = [];
+      for (const [i, a] of cards.entries()) {
+        child_attachments.push({
+          link,
+          image_hash: await this.uploadImage(a.path),
+          name: (titles[i] ?? brief.headline).replace(/\n/g, ' ').slice(0, 40),
+          description: brief.description.slice(0, 30),
+          call_to_action: { type: brief.cta, value: ctaValue },
+        });
+      }
+      const res = await this.call<{ id: string }>('POST', `${this.account}/adcreatives`, {
+        name,
+        object_story_spec: {
+          page_id: this.s.pageId,
+          ...ig,
+          link_data: {
+            link,
+            message: brief.primaryText,
+            child_attachments,
+            // カードの順番は物語になっているので、Meta に並べ替えさせない。最後の自動カード（ページ）も付けない
+            multi_share_optimized: false,
+            multi_share_end_card: false,
+            call_to_action: { type: brief.cta, value: ctaValue },
+          },
+        },
+      });
+      return res.id;
+    }
+
     // 配置カスタマイズはフォーム型の広告では使わない（object_story_spec の単一素材で入稿する）
     const usePac = process.env.META_USE_PLACEMENT_CUSTOMIZATION !== 'false' && feed && vertical && !leadFormId;
     if (!usePac) {
