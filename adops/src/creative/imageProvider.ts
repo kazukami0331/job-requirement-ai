@@ -108,7 +108,8 @@ export class MockProvider implements ImageProvider {
 
 /**
  * PiAPI 形式の中継 API（POST /api/v1/task → GET /api/v1/task/{id}）。
- * 別のサービスを使う場合は flavor=generic にして、同じ形の薄いプロキシを用意してください。
+ * PiAPI 自体は Midjourney API の提供終了を告知している（2026年時点）ため、同じ形式の別サービスか、
+ * この形に合わせた薄いプロキシを MJ_API_BASE_URL に指定して使う。
  */
 export class MidjourneyProxyProvider implements ImageProvider {
   readonly name = 'midjourney';
