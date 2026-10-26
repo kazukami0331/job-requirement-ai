@@ -6,7 +6,7 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import type { Catalog } from '../config.ts';
 import type { State } from '../types.ts';
-import { ANGLE_LABELS, FORMAT_LABEL, type Angle } from '../types.ts';
+import { ANGLE_LABELS, FORMAT_LABEL, LANGUAGE_LABEL, type Angle } from '../types.ts';
 import { groupBy, totals, windowed } from '../optimize/stats.ts';
 import { addDays } from '../util/id.ts';
 import { escapeXml } from '../creative/compose.ts';
@@ -129,6 +129,16 @@ ${m.decisions.length ? `<h3>判断してほしいこと</h3><ul>${m.decisions.ma
 <table><thead><tr><th>訴求軸</th><th>本数</th><th>表示</th><th>CTR</th><th>応募</th><th>応募単価</th></tr></thead><tbody>
 ${angleRows.map((r) => `<tr><td>${ANGLE_LABELS[r.key as Angle]}</td><td>${r.count}</td><td>${r.totals.impressions.toLocaleString()}</td><td>${r.totals.ctr.toFixed(2)}%</td><td>${r.totals.conversions}</td><td>${yen(r.totals.cpa)}</td></tr>`).join('')}
 </tbody></table>
+${(() => {
+  // 外国人材向けの広告がある場合だけ、言語別の成績を出す
+  const langOf = (c: (typeof creatives)[number]) => state.briefs[c.briefId]?.language ?? 'ja';
+  if (!creatives.some((c) => langOf(c) !== 'ja')) return '';
+  const rows = groupBy(creatives, langOf, from, today);
+  return `<h2>言語別（7日）</h2>
+<table><thead><tr><th>言語</th><th>本数</th><th>表示</th><th>CTR</th><th>応募</th><th>応募単価</th></tr></thead><tbody>
+${rows.map((r) => `<tr><td>${escapeXml(LANGUAGE_LABEL[r.key] ?? r.key)}</td><td>${r.count}</td><td>${r.totals.impressions.toLocaleString()}</td><td>${r.totals.ctr.toFixed(2)}%</td><td>${r.totals.conversions}</td><td>${yen(r.totals.cpa)}</td></tr>`).join('')}
+</tbody></table>`;
+})()}
 ${(() => {
   const posts = creatives.filter((c) => c.organic).sort((a, b) => (a.organic!.postedAt < b.organic!.postedAt ? 1 : -1)).slice(0, 20);
   if (posts.length === 0) return '';
