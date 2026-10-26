@@ -14,6 +14,7 @@ import { importOutcomes } from './outcomes.ts';
 import { collectSearchMetrics, rotateSearchAds } from './search.ts';
 import { watchComments } from './comments.ts';
 import { checkLandingPages } from './landing.ts';
+import { excludeIrrelevantTerms } from './negatives.ts';
 import { analyze } from '../agents/analyst.ts';
 import { memoToSlack, shouldWriteMemo, writeMemo } from '../agents/strategyMemo.ts';
 import { lastNDays, totals } from '../optimize/stats.ts';
@@ -144,6 +145,8 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
   let searchNote = '';
   await step('search', async () => {
     searchNote = await rotateSearchAds(ctx);
+    const neg = await excludeIrrelevantTerms(ctx).catch((e) => `除外キーワードの判定に失敗: ${(e as Error).message}`);
+    if (neg) searchNote = [searchNote, neg].filter(Boolean).join(' / ');
     return searchNote;
   });
 

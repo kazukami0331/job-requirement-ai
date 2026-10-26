@@ -132,6 +132,15 @@ export class GoogleAdsClient {
     }));
   }
 
+  /** 広告グループに除外キーワード（完全一致）を追加する。 */
+  async addNegativeKeywords(adGroupId: string, terms: string[]): Promise<void> {
+    if (terms.length === 0) return;
+    await this.call(`${this.customer}/adGroupCriteria:mutate`, {
+      operations: terms.map((text) => ({ create: { adGroup: `${this.customer}/adGroups/${Number(adGroupId)}`, negative: true, keyword: { text: text.slice(0, 80), matchType: 'EXACT' } } })),
+      partialFailure: true,
+    });
+  }
+
   /** 広告の配信状態と審査状態（ENABLED/PAUSED と APPROVED/DISAPPROVED 等）。 */
   async adStatuses(adResourceNames: string[]): Promise<Map<string, { status: string; approval: string; topics: string }>> {
     const out = new Map<string, { status: string; approval: string; topics: string }>();

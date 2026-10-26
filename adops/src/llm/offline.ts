@@ -114,6 +114,8 @@ export function offlineLlm(catalog: Catalog): ScriptedLlm {
     decisions: [],
     experiments: [],
   }));
+  // オフラインでは除外しない（求職者の検索を誤って除外しないよう、判断は AI に任せる）
+  llm.on('negativeKeywords', () => ({ terms: [] }));
   llm.on('commentTriage', (req) => {
     const lines = req.prompt.split('# コメント\n')[1]?.split('\n') ?? [];
     return {

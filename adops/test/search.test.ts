@@ -91,3 +91,49 @@ test('rotateSearchAds: DRY RUN では下書きを1日1本だけ作る', async ()
   assert.equal(after[0].status, 'live');
   assert.equal(created.length, 1);
 });
+
+test('excludeIrrelevantTerms: 応募のない求職者以外の検索を、auto では除外し、draft では提案だけ（7日間は繰り返さない）', async () => {
+  const { excludeIrrelevantTerms } = await import('../src/pipeline/negatives.ts');
+  const { ScriptedLlm } = await import('../src/llm/llm.ts');
+  const { mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { StateStore } = await import('../src/store/stateStore.ts');
+  const { MockProvider } = await import('../src/creative/imageProvider.ts');
+  const { makeCtx } = await import('../src/pipeline/context.ts');
+  const { loadSettings } = await import('../src/config.ts');
+  const { policy } = await import('./fixtures.ts');
+  const added: string[] = [];
+  const google = {
+    searchTerms: async () => [
+      { term: 'テスト社 評判', clicks: 9, conversions: 0, impressions: 100 },
+      { term: '製造 求人 豊田', clicks: 12, conversions: 0, impressions: 300 },
+      { term: '寮付き 仕事', clicks: 2, conversions: 0, impressions: 50 },
+    ],
+    addNegativeKeywords: async (_ag: string, terms: string[]) => void added.push(...terms),
+  };
+  const llm = new ScriptedLlm().on('negativeKeywords', () => ({
+    terms: [
+      { term: 'テスト社 評判', exclude: true, reason: '評判の検索' },
+      { term: '製造 求人 豊田', exclude: false, reason: '求職' },
+      { term: '関係ない語', exclude: true, reason: '一覧に無い' },
+    ],
+  }));
+  const mk = (autonomy: 'auto' | 'draft') => {
+    const dir = mkdtempSync(join(tmpdir(), 'adops-neg-'));
+    return makeCtx({
+      settings: { ...loadSettings(), dataDir: dir, slack: { webhookUrl: '' } },
+      catalog: catalog({ jobs: [job({ placements: { google: { searchAdGroupIds: ['55'] } } })], policy: policy({ autonomy }) }),
+      store: new StateStore(dir), llm, images: new MockProvider(), meta: null, google: google as any, dryRun: false, cycleId: 'cy', today: '2026-10-10',
+    });
+  };
+  const auto = mk('auto');
+  assert.match(await excludeIrrelevantTerms(auto), /除外 「テスト社 評判」/);
+  assert.deepEqual(added, ['テスト社 評判']);
+  // 一度入れた語句は再判定しない
+  assert.equal(await excludeIrrelevantTerms(auto), '');
+  const draft = mk('draft');
+  assert.match(await excludeIrrelevantTerms(draft), /除外の提案/);
+  assert.equal(await excludeIrrelevantTerms(draft), '');
+  assert.deepEqual(added, ['テスト社 評判']);
+});
