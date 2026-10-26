@@ -27,7 +27,9 @@ concurrency:
   # 毎時の応募通知は別グループにする（同じグループだと、待機中の緊急停止などを押し出してしまうため）。
   # 応募通知は状態を保存しないので、本体の実行と並行しても状態を上書きし合わない
   group: ${{ github.event.schedule == '30 0-12 * * *' && 'adops-leads' || 'adops' }}
-  cancel-in-progress: false
+  # 緊急停止（control: stop）のときだけ、実行中のサイクルを打ち切ってすぐ止める
+  # （打ち切られた側も「状態を保存」は always() で実行されるので、入稿済みの広告の記録は残る）
+  cancel-in-progress: ${{ github.event.inputs.control == 'stop' }}
 
 permissions:
   contents: write
