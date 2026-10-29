@@ -13,6 +13,7 @@ import {
   recentWeekKeys,
   rejectReasons,
   stagePool,
+  otherCourseTitles,
   shopCourseMatrix,
   weeklyMatrix,
   weeklyHires,
@@ -49,7 +50,7 @@ import { FunnelChart, StagePoolChart, WEEKLY_SERIES_COLORS, WeeklyTrendChart } f
 import { BreakdownTable, WeeklyMatrixTable } from "@/components/dashboard/tables";
 import { CourseFillTable } from "@/components/dashboard/coursefill";
 import { courseFill, shortCourses } from "@/lib/recruiting/coursefill";
-import { BEFORE_SPLIT } from "@/lib/recruiting/course";
+import { OTHER_COURSE } from "@/lib/recruiting/course";
 import { DataMenu } from "@/components/dashboard/DataPanel";
 import { HR_CATEGORY_LABEL, HrSheet, compareWithJobop, crossTab, parseHrSheet, planTargets } from "@/lib/recruiting/hrsheet";
 import { hireDiffDetail } from "@/lib/recruiting/hrdiff";
@@ -100,7 +101,7 @@ const DEFINITIONS: [string, string][] = [
   ["4週平均の応募", "確定した直近4週の平均。集計途中の週は入れません。"],
   [
     "校舎 × コースの応募と採用",
-    "応募はジョブオプ（コースは求人の職種名から判定）、採用は採用チームの採用管理表（分野の列）、目標は不足人数管理表です。分野は IT と CAD だけを拾い、それ以外は Webデザイン。コース分け前の応募と、分野が空欄の採用は「コース不明」にまとめています。",
+    "応募はジョブオプ（コースは求人の職種名から判定）、採用は採用チームの採用管理表（分野の列）、目標は不足人数管理表です。分野は IT と CAD だけを拾い、それ以外は Webデザイン。Pythonの求人はITの枠として数えます。コースを分ける前の求人・事務の求人の応募と、分野が空欄の採用は「コース不明」にまとめています。",
   ],
 ];
 
@@ -387,6 +388,12 @@ export default function DashboardPage() {
   const summary = useMemo(() => kpis(apps, weekKeys, asOf), [apps, weekKeys, asOf]);
   const rows = useMemo(() => breakdown(apps, dimension, weekKeys), [apps, dimension, weekKeys]);
   const matrix = useMemo(() => weeklyMatrix(apps, dimension, 12), [apps, dimension]);
+
+  /** 「その他」に入っている求人の職種名。コース別に見るときだけ使う。 */
+  const otherTitles = useMemo(
+    () => (dimension === "course" ? otherCourseTitles(apps) : []),
+    [apps, dimension]
+  );
   const reasons = useMemo(() => rejectReasons(apps), [apps]);
   /** 校舎 × コースの応募数。どの校舎のどのコースに応募が来ていないかを見る。 */
   const shopCourse = useMemo(() => shopCourseMatrix(apps), [apps]);
@@ -1075,7 +1082,7 @@ export default function DashboardPage() {
                   <li>
                     <strong style={{ color: "var(--text-primary)" }}>応募</strong> … ジョブオプ。コースは求人の職種名から判定します。
                     {shopCourse.splitFrom
-                      ? `コース別に数えられるのは ${j(shopCourse.splitFrom)}〜${j(shopCourse.splitTo!)}（最初に分割求人から応募が来た日から）の${shopCourse.split}件。残りの${shopCourse.totalByCourse[BEFORE_SPLIT]}件は分ける前の求人からの応募なので、推測で割らずに「コース不明」に置いています（分けたあとも掲載が残っていたぶんを含みます）。`
+                      ? `コース別に数えられるのは ${j(shopCourse.splitFrom)}〜${j(shopCourse.splitTo!)}（最初に分割求人から応募が来た日から）の${shopCourse.split}件。残りの${shopCourse.totalByCourse[OTHER_COURSE]}件は、コースを分ける前の求人と、不足人数管理表に枠の無いコース（事務）からの応募です。推測で割らずに「コース不明」に置いています。`
                       : "コース分け後の求人からの応募はまだ無いので、すべて「コース不明」に入っています。"}
                   </li>
                   <li>
@@ -1095,7 +1102,7 @@ export default function DashboardPage() {
                     </li>
                   )}
                   <li>
-                    応募と採用で数えている期間が違うので、コース分け前に応募した人が採用されているコースは
+                    応募と採用で数えている期間が違うので、コースを分ける前に応募した人が採用されているコースは
                     <strong>応募より採用のほうが多く</strong>見えることがあります。
                     {periodFrom ? `対象は${j(periodFrom)}以降の応募` : "対象は全期間の応募"}
                     {hrCross && hrCross.excluded > 0 ? `（期間・対象校舎の条件でExcelの${hrCross.excluded}行を除外）` : ""}
@@ -1154,7 +1161,7 @@ export default function DashboardPage() {
               title={`${DIMENSION_LABEL[dimension]}ごとの選考状況`}
               subtitle={`累計と直近週、そして選考のどこまで進んでいるか。${weekRangeNote}${
                 dimension === "course"
-                  ? " ／ コースは求人の職種名から判定しています。3コースをまとめていた求人からの応募は「コース分け前」です"
+                  ? " ／ コースは求人の職種名から判定しています。どのコースにも当てはまらない求人（3コースをまとめていた頃の求人・講師以外の求人）は「その他」です"
                   : ""
               }`}
               actions={<DimensionSwitch value={dimension} onChange={setDimension} />}
@@ -1166,12 +1173,29 @@ export default function DashboardPage() {
               title={`${DIMENSION_LABEL[dimension]}ごとの週次推移`}
               subtitle={`見出しのボタンで、校舎・コース・雇用形態などに切り替えられます。直近12週まで。色が濃いほど応募が多い週です。右端の計は、この表に出ている週ぶんの合計なので、上の累計応募とは一致しないことがあります。${
                 dimension === "course"
-                  ? "コースは求人の職種名から判定しているので、3コースをまとめていた求人からの応募は「コース分け前」に入ります。"
+                  ? "コースは求人の職種名から判定しています。当てはまらない求人は「その他」に入るので、中身を表の下に出しています。"
                   : ""
               }`}
               actions={<DimensionSwitch value={dimension} onChange={setDimension} />}
             >
-              <WeeklyMatrixTable matrix={matrix} dimensionLabel={DIMENSION_LABEL[dimension]} />
+              <div className="space-y-3">
+                <WeeklyMatrixTable matrix={matrix} dimensionLabel={DIMENSION_LABEL[dimension]} />
+                {otherTitles.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                      「その他」の中身（職種名ごと）。新しいコースの求人がここに入っていたら教えてください。行として分けます。
+                    </p>
+                    <ul className="space-y-0.5 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                      {otherTitles.map((t) => (
+                        <li key={t.title} className="flex justify-between gap-3">
+                          <span>{t.title}</span>
+                          <span className="tabular shrink-0">{t.applied}件</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </Card>
 
             {reasons.length > 0 && (

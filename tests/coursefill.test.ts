@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as XLSX from "xlsx";
 import { shopCourseMatrix } from "@/lib/recruiting/aggregate";
-import { BEFORE_SPLIT } from "@/lib/recruiting/course";
+import { OTHER_COURSE } from "@/lib/recruiting/course";
 import { crossTab, parseHrSheet, planTargets } from "@/lib/recruiting/hrsheet";
 import { courseFill } from "@/lib/recruiting/coursefill";
 import { Application, HiringPlan, PlanCategory, PlanRow, DEFAULT_PLAN_LABELS } from "@/types/recruiting";
@@ -94,7 +94,7 @@ test("同じ校舎の応募と採用が1行に並ぶ（校舎名の表記ゆれ�
   assert.equal(r.byCourse.IT.hired, 1);
   assert.equal(r.byCourse["D/W"].applied, 1);
   assert.equal(r.byCourse["D/W"].hired, 0, "応募はあるが採れていないコースが0で出る");
-  assert.equal(r.byCourse.none.applied, 1, "コース分け前の応募はコース不明に置く");
+  assert.equal(r.byCourse.none.applied, 1, "その他の応募はコース不明に置く");
   assert.equal(r.total.applied, 3);
   assert.equal(r.total.hired, 1);
 });
@@ -169,7 +169,7 @@ test("Excelが無いときは採用を0と言い切らない", () => {
   assert.equal(fill.rows[0].byCourse["D/W"].target, null);
 });
 
-test("コース分け前に応募した人が採用されると、応募より採用が多い列ができる", () => {
+test("コースを分ける前に応募した人が採用されると、応募より採用が多い列ができる", () => {
   const matrix = shopCourseMatrix([app("1", "パソコンスクール講師")]);
   const cross = crossTab(hrSheetOf([{ school: "栄校", course: "CAD", status: "合格" }]));
   const fill = courseFill(matrix, cross, null);
@@ -180,5 +180,5 @@ test("コース分け前に応募した人が採用されると、応募より�
   assert.equal(r.byCourse.none.applied, 1);
   assert.equal(r.total.applied, 1);
   assert.equal(r.total.hired, 1, "合計では応募と採用が食い違わない");
-  assert.equal(BEFORE_SPLIT, "コース分け前");
+  assert.equal(OTHER_COURSE, "その他");
 });

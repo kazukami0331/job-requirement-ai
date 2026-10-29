@@ -1,5 +1,5 @@
 import { ShopCourseMatrix } from "./aggregate";
-import { BEFORE_SPLIT, JobCourse } from "./course";
+import { JobCourse, OTHER_COURSE } from "./course";
 import { HR_CATEGORIES, HrCategory, HrCross, HrTargets } from "./hrsheet";
 import { PLAN_CATEGORIES, SHOP_MASTER, normalizeShopKey } from "./shops";
 
@@ -17,22 +17,31 @@ import { PLAN_CATEGORIES, SHOP_MASTER, normalizeShopKey } from "./shops";
  * - 採用 … 採用チームのExcel。分野の列があるので全期間をコース別に数えられる。
  * - 目標 … 不足人数管理表。不足のあるコースに1名ずつ。
  *
- * 期間が違うので、コース分け前に応募した人が採用されていると
+ * 期間が違うので、コースを分ける前に応募した人が採用されていると
  * そのコースは「応募より採用のほうが多い」状態になりうる。これは誤りではない。
  */
 
-/** ジョブオプのコース名と採用管理表の区分を、1本の列にそろえる */
-const CATEGORY_OF_COURSE: Record<JobCourse, HrCategory> = {
+/**
+ * ジョブオプのコース名と採用管理表の区分を、1本の列にそろえる。
+ *
+ * 不足人数管理表の枠は IT / D/W / C の3つしかない。
+ * Python はプログラミングの求人なので、充足を見るときは IT の枠として数える
+ * （週次推移などの内訳では行を分けて出している）。
+ * 事務は管理表に枠が無いので、どの枠にも入れない（null）。
+ */
+const CATEGORY_OF_COURSE: Record<JobCourse, HrCategory | null> = {
   IT: "IT",
+  Python: "IT",
   Webデザイン: "D/W",
   CAD: "C",
+  事務: null,
 };
 
 /** 店舗マスタに当たる校舎は正式な略称にそろえる（「福岡天神」と「福岡天神校」を1行にする） */
 const MASTER_BY_KEY = new Map(SHOP_MASTER.map((s) => [normalizeShopKey(s.short), s.short]));
 
 export interface CourseFillCell {
-  /** ジョブオプの応募数。「コース不明」の列はコース分け前の求人からの応募。 */
+  /** ジョブオプの応募数。「コース不明」の列は、コース分け前の求人と、枠の無いコース（事務）。 */
   applied: number;
   /** 採用チームのExcelの採用数。「コース不明」の列は分野が未記入の採用。 */
   hired: number;
@@ -100,8 +109,11 @@ export function courseFill(
   for (const m of matrix.rows) {
     const r = row(normalizeShopKey(m.shopShortName), m.shopShortName);
     for (const [course, n] of Object.entries(m.byCourse)) {
-      const cat = course === BEFORE_SPLIT ? "none" : CATEGORY_OF_COURSE[course as JobCourse];
-      if (cat) r.byCourse[cat].applied += n;
+      // 枠の無いコース（事務）と「その他」は、まとめて目標の無い列に置く。
+      // ここで落とすと、行のコース別合計が累計応募と合わなくなる。
+      const cat =
+        course === OTHER_COURSE ? "none" : (CATEGORY_OF_COURSE[course as JobCourse] ?? "none");
+      r.byCourse[cat].applied += n;
     }
     r.total.applied += m.applied;
   }

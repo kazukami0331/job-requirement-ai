@@ -1,7 +1,7 @@
 import { Application, FunnelStage, MergedApplication } from "@/types/recruiting";
 import { ACTIVE_STAGES, FUNNEL_STEPS, STAGES, stageOf } from "./status";
 import { Week, weekOf, weekOfIso, weekRange } from "./week";
-import { BEFORE_SPLIT, JOB_COURSES, courseOfJobTitle } from "./course";
+import { JOB_COURSES, OTHER_COURSE, courseOfJobTitle } from "./course";
 
 export type Dimension = "shopShortName" | "course" | "employmentType" | "media" | "route" | "jobTitle";
 
@@ -325,9 +325,28 @@ export function rejectReasons(apps: MergedApplication[] | Application[]): { reas
     .sort((a, b) => b.count - a.count);
 }
 
+/**
+ * 「その他」に入っている求人の職種名と件数。
+ *
+ * 「その他」は、コースの分からない求人がぜんぶ集まる受け皿になる。
+ * 中身を出しておかないと、新しい求人（事務・Pythonなど）が出たときに
+ * 「コース分け前が増えている」としか見えず、足すべき判定に気付けない。
+ */
+export function otherCourseTitles(apps: Application[]): { title: string; applied: number }[] {
+  const out = new Map<string, number>();
+  for (const app of apps) {
+    if (courseOfJobTitle(app.jobTitle || "") !== OTHER_COURSE) continue;
+    const title = app.jobTitle?.trim() || "(職種名なし)";
+    out.set(title, (out.get(title) ?? 0) + 1);
+  }
+  return [...out.entries()]
+    .map(([title, applied]) => ({ title, applied }))
+    .sort((a, b) => b.applied - a.applied || a.title.localeCompare(b.title, "ja"));
+}
+
 export interface ShopCourseRow {
   shopShortName: string;
-  /** コースごとの応募数。コース分け前も列として持つ。 */
+  /** コースごとの応募数。どのコースにも当てはまらない「その他」も列として持つ。 */
   byCourse: Record<string, number>;
   applied: number;
   /** コース分けして以降の求人からの応募だけの合計 */
@@ -335,7 +354,7 @@ export interface ShopCourseRow {
 }
 
 export interface ShopCourseMatrix {
-  /** 列。IT / Webデザイン / CAD / コース分け前 の順で固定する。 */
+  /** 列。コースの並びは固定で、最後が「その他」。 */
   courses: string[];
   rows: ShopCourseRow[];
   totalByCourse: Record<string, number>;
@@ -358,7 +377,7 @@ export interface ShopCourseMatrix {
  * 「不足しているコースに応募が来ていない」校舎を探すのに使う。
  */
 export function shopCourseMatrix(apps: Application[]): ShopCourseMatrix {
-  const courses = [...JOB_COURSES, BEFORE_SPLIT];
+  const courses = [...JOB_COURSES, OTHER_COURSE];
   const zero = () => Object.fromEntries(courses.map((c) => [c, 0]));
 
   const byShop = new Map<string, ShopCourseRow>();
@@ -380,7 +399,7 @@ export function shopCourseMatrix(apps: Application[]): ShopCourseMatrix {
     row.applied++;
     totalByCourse[course]++;
     applied++;
-    if (course !== BEFORE_SPLIT) {
+    if (course !== OTHER_COURSE) {
       row.split++;
       split++;
       if (!splitFrom || app.receivedDate < splitFrom) splitFrom = app.receivedDate;
