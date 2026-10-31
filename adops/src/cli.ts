@@ -152,7 +152,15 @@ async function main() {
       const ids = String(flags.id ?? '').split(',').map((s) => s.trim()).filter(Boolean);
       if (!ids.length) throw new Error('--id で LP の ID を指定してください（Slack の日次サマリや status に出ます）');
       const msgs: string[] = [];
-      for (const id of ids) msgs.push(command === 'lp-approve' ? approveLp(ctx, id) : retireLp(ctx, id));
+      // 1件の失敗で他の結果（書き出したファイル）と状態が食い違わないよう、1件ずつ処理して必ず保存する
+      for (const id of ids) {
+        try {
+          msgs.push(command === 'lp-approve' ? approveLp(ctx, id) : retireLp(ctx, id));
+        } catch (e) {
+          msgs.push(`:x: ${(e as Error).message}`);
+          process.exitCode = 1;
+        }
+      }
       ctx.store.save();
       console.log(msgs.join('\n'));
       await notifySlack(ctx.settings.slack.webhookUrl, { text: `:page_facing_up: ${msgs.join('\n')}` });

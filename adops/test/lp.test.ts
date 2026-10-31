@@ -126,3 +126,24 @@ test('approveLp: サンプル設定のままなら公開しない。retireLp で
   // 人が終了したものは30日は作り直さない
   assert.equal(await createLps(ctx), '');
 });
+
+test('refreshLps: 作成を止めても・緊急停止中でも募集終了の LP は取り下げ、状態と食い違う公開ファイルは消す', async () => {
+  const { writeFileSync, mkdirSync } = await import('node:fs');
+  const ctx = ctxWith(new ScriptedLlm().on('lpWriter', () => copy()));
+  await createLps(ctx);
+  const [lp] = Object.values(ctx.store.state.lps!);
+  approveLp(ctx, lp.id);
+  // 状態に無いファイル（承認の途中で失敗したなど）
+  mkdirSync(join(ctx.settings.dataDir, 'lp'), { recursive: true });
+  writeFileSync(join(ctx.settings.dataDir, 'lp', 'orphan-abc123.html'), 'x');
+  ctx.catalog.policy.lp = { enabled: false };
+  ctx.store.state.halted = { at: 'now', reason: 'test' };
+  const note = await createLps(ctx);
+  assert.match(note, /orphan-abc123/);
+  assert.ok(!existsSync(join(ctx.settings.dataDir, 'lp', 'orphan-abc123.html')));
+  assert.ok(existsSync(join(ctx.settings.dataDir, 'lp', `${lp.id}.html`)), '公開中のものは残す');
+  ctx.catalog.jobs[0].active = false;
+  await createLps(ctx);
+  assert.equal(lp.status, 'retired');
+  assert.ok(!existsSync(join(ctx.settings.dataDir, 'lp', `${lp.id}.html`)));
+});

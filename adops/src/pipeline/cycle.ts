@@ -36,7 +36,7 @@ export type StepName = 'collect' | 'optimize' | 'analyze' | 'plan' | 'produce' |
 export const ALL_STEPS: StepName[] = ['collect', 'optimize', 'analyze', 'plan', 'produce', 'publish', 'search', 'lp', 'organic', 'report'];
 
 /** 緊急停止中でも動かしてよい段階（実績の取り込み・停止判断・分析・報告だけ） */
-const SAFE_WHEN_HALTED: StepName[] = ['collect', 'optimize', 'analyze', 'report'];
+const SAFE_WHEN_HALTED: StepName[] = ['collect', 'optimize', 'analyze', 'lp', 'report'];
 
 export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Promise<CycleRecord> {
   const { store } = ctx;

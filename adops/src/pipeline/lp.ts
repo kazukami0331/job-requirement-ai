@@ -8,7 +8,7 @@
  * - 募集を終えた求人の LP も公開をやめる
  * 給与・勤務地などの事実は求人情報からそのまま表示し、AI には書かせない。
  */
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Ctx } from './context.ts';
 import type { Hypothesis, Job, LandingPage, LpCopy, ReviewIssue } from '../types.ts';
@@ -98,7 +98,7 @@ export function refreshLps(ctx: Ctx): string[] {
     const dir = lpDir(ctx, lp.status === 'live' ? 'lp' : 'lp-drafts');
     const file = join(dir, `${lp.id}.html`);
     if (reason) {
-      rmSync(file, { force: true });
+      for (const kind of ['lp', 'lp-drafts'] as const) rmSync(join(ctx.settings.dataDir, kind, `${lp.id}.html`), { force: true });
       lp.status = 'retired';
       lp.statusReason = reason;
       lp.retiredAt = new Date().toISOString();
@@ -107,15 +107,29 @@ export function refreshLps(ctx: Ctx): string[] {
     }
     writeFileSync(file, renderLp(lp.copy, job!, ctx.catalog.brand, { slug: lp.id, draft: lp.status === 'draft' }));
   }
+  // 状態と食い違うファイル（公開中でないのに公開フォルダにある・下書きでないのに下書きフォルダにある）は消す
+  const lps = ctx.store.state.lps ?? {};
+  for (const [kind, status] of [['lp', 'live'], ['lp-drafts', 'draft']] as const) {
+    const dir = join(ctx.settings.dataDir, kind);
+    if (!existsSync(dir)) continue;
+    for (const f of readdirSync(dir).filter((x) => x.endsWith('.html'))) {
+      const id = f.slice(0, -5);
+      if (lps[id]?.status !== status) {
+        rmSync(join(dir, f), { force: true });
+        if (kind === 'lp') notes.push(`LP ${id} の公開ファイルを削除（状態が公開中ではないため）`);
+      }
+    }
+  }
   return notes;
 }
 
 /** 足りない LP の下書きを作る（1回の実行で policy.lp.perCycle 本まで）。 */
 export async function createLps(ctx: Ctx): Promise<string> {
   const conf = ctx.catalog.policy.lp;
-  if (!conf?.enabled) return '';
-  const lps = (ctx.store.state.lps ??= {});
+  // 公開中の LP の更新・取り下げは、作成を止めていても緊急停止中でも必ず行う（募集を終えた求人のページを残さない）
   const notes = refreshLps(ctx);
+  if (!conf?.enabled || ctx.store.state.halted) return notes.join(' / ');
+  const lps = (ctx.store.state.lps ??= {});
   const key = (jobId: string, personaId: string, hypothesisId?: string) => `${jobId}|${personaId}|${hypothesisId ?? ''}`;
   const have = new Set(
     Object.values(lps)
@@ -141,7 +155,8 @@ export async function createLps(ctx: Ctx): Promise<string> {
         copy = await writeLp(ctx.llm, t.job, persona, ctx.catalog, t.hypothesis, { copy, issues: serious(issues) });
         issues = checkLpCopy(copy, t.job, ctx.catalog.brand);
       }
-      const id = `${t.job.id}-${newId('').replace(/^_/, '').slice(-6)}`.toLowerCase().replace(/[^a-z0-9-]/g, '');
+      // /lp/<id> と Slack のコマンドで使える形（英小文字・数字・ハイフン、80字以内）
+      const id = `${t.job.id.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 60) || 'job'}-${newId('').slice(-6)}`;
       const now = new Date().toISOString();
       const lp: LandingPage = { id, jobId: t.job.id, personaId: t.personaId, ...(t.hypothesis ? { hypothesisId: t.hypothesis.id } : {}), status: 'draft', copy, issues, createdAt: now, createdOn: ctx.today };
       if (serious(issues).length) {

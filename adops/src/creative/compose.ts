@@ -290,9 +290,11 @@ export async function composeImage(
     const logo = await sharp(brand.logoPath).resize({ width: Math.round(W * 0.18) }).png().toBuffer();
     layers.push({ input: logo, gravity: 'northeast' });
   }
-  const bg = await (await fittedBackground(basePath, W, H)).jpeg({ quality: 90, mozjpeg: true }).toBuffer();
+  // 背景はロスなしで持ち、完成画像と文字なしの背景をそれぞれ1回だけ JPEG にする（二重圧縮で画質を落とさない）
+  const bg = await (await fittedBackground(basePath, W, H)).png().toBuffer();
   await sharp(bg).composite(layers).jpeg({ quality: 90, mozjpeg: true }).toFile(outPath);
-  await writeEditableLayers(outPath, bg, overlay, W, H, { main: brief.overlay.main, sub: brief.overlay.sub, badges: brief.overlay.badges, footer: input.footer ?? '' });
+  const bgJpg = await sharp(bg).jpeg({ quality: 90, mozjpeg: true }).toBuffer();
+  await writeEditableLayers(outPath, bgJpg, overlay, W, H, { main: brief.overlay.main, sub: brief.overlay.sub, badges: brief.overlay.badges, footer: input.footer ?? '' });
   return { width: W, height: H };
 }
 

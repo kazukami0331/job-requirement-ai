@@ -247,6 +247,7 @@ export function validateCatalog(c: Catalog): void {
     const ids = new Set<string>();
     if (!c.rubric.version) errors.push('rubric.json: version は必須（基準を直したら上げる）');
     if (!c.rubric.items?.length) errors.push('rubric.json: items が空です');
+    else if (c.rubric.items.every((it) => it.appliesWhen === 'hypothesis')) errors.push('rubric.json: すべての項目が仮説専用です（仮説の無い企画を採点できません）');
     for (const it of c.rubric.items ?? []) {
       if (!it.id || ids.has(it.id)) errors.push(`rubric.json: 項目 ID が空か重複しています: ${it.id}`);
       ids.add(it.id);
