@@ -11,6 +11,7 @@
  *   node src/cli.ts optimize              停止・予算判断
  *   node src/cli.ts report                レポート再生成
  *   node src/cli.ts status                現在の状態を一覧
+ *   node src/cli.ts export                広告ごとの要素×採点×結果（exports/creatives.csv）と Google 検索広告のテキスト（exports/google-rsa.csv）を書き出す
  *   node src/cli.ts check [--live]        設定の確認（--live で各サービスに読み取りの接続テスト）
  *   node src/cli.ts simulate --days 14    架空の配信データで改善ループを試す（媒体・API キー不要）
  *   node src/cli.ts add-job --file 求人票.txt [--write]  求人票から jobs.json に1件追加
@@ -29,6 +30,7 @@ import { makeCtx, platformClients, type Ctx } from './pipeline/context.ts';
 import { ALL_STEPS, runCycle, type StepName } from './pipeline/cycle.ts';
 import { ffmpegAvailable } from './creative/video.ts';
 import { writeReport } from './report/html.ts';
+import { exportAll } from './pipeline/exports.ts';
 import { ANGLE_LABELS } from './types.ts';
 import { lastNDays, totals } from './optimize/stats.ts';
 import { jstDate, newId } from './util/id.ts';
@@ -136,6 +138,13 @@ async function main() {
     case 'report': {
       const ctx = buildCtx(flags);
       console.log(writeReport(ctx.store.state, ctx.catalog, ctx.store.dir, ctx.today));
+      break;
+    }
+    case 'export': {
+      // --no-google-text で検索広告テキストの作成（AI 費用がかかる）をせずに表だけ出す
+      const ctx = buildCtx(flags);
+      console.log(await exportAll(ctx, { googleText: !flags['no-google-text'] }));
+      ctx.store.save();
       break;
     }
     case 'status': {
@@ -267,7 +276,7 @@ async function main() {
       break;
     }
     default:
-      console.log(`使い方: node src/cli.ts <cycle|plan|produce|publish|collect|optimize|analyze|report|status|check|simulate|add-job|emergency-stop|resume|leads> [--offline] [--steps a,b] [--today YYYY-MM-DD]`);
+      console.log(`使い方: node src/cli.ts <cycle|plan|produce|publish|collect|optimize|analyze|report|status|export|check|simulate|add-job|emergency-stop|resume|leads> [--offline] [--steps a,b] [--today YYYY-MM-DD]`);
   }
 }
 

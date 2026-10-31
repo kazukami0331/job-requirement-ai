@@ -37,6 +37,7 @@ export async function writeRsa(
   catalog: Catalog,
   avoid: string[] = [],
   terms: SearchTerm[] = [],
+  angles: string[] = [],
 ): Promise<{ headlines: string[]; descriptions: string[]; path1: string; path2: string; dropped: string[] }> {
   const s = job.salary;
   const out = await llm.structured({
@@ -53,6 +54,7 @@ ${job.hours ? `- 勤務時間: ${job.hours}` : ''}
 ${job.holidays ? `- 休日: ${job.holidays}` : ''}
 ${job.requirements ? `- 応募条件: ${job.requirements}` : ''}
 
+${angles.length ? `# 社内で検証している打ち出し（見出しの何本かに取り入れる。求人情報の事実に合う範囲で）\n${angles.map((a) => `- ${a}`).join('\n')}\n` : ''}
 ${avoid.length ? `# 既存の広告で使っている見出し（今回は別の言い回しで挑戦する）\n${avoid.map((h) => `- ${h}`).join('\n')}` : ''}
 
 ${

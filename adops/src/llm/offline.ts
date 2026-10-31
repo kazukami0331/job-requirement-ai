@@ -57,6 +57,7 @@ export function offlineLlm(catalog: Catalog): ScriptedLlm {
               ]
             : [],
           visualConcept: `${job.category}の現場で働く人物の自然な写真`,
+          elements: { motif: 'real_person', person: '30代男性・作業服・自然な笑顔', setting: `${job.category}の明るい現場`, palette: '白と青の明るい色調', taste: 'bright', copyTone: 'benefit' },
           imagePrompt: `candid photo of a Japanese ${job.category === '製造' ? 'factory worker' : 'worker'} in safety gear at a clean workplace, natural light, no text, no letters, no logos`,
           // オフラインでは翻訳しない（外国語ペルソナでも日本語のまま。訳は同じ文を入れる）
           ...(foreign && foreign !== 'ja'

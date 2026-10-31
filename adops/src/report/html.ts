@@ -115,6 +115,7 @@ ul{padding-left:20px}
 </style></head><body><main>
 <h1>広告自動運用レポート</h1>
 <p class="muted">${from} 〜 ${today}（直近7日）・自動運用モード: ${catalog.policy.autonomy === 'auto' ? '自動配信' : '下書き入稿（人がONにする）'}</p>
+<p class="muted">ダウンロード: <a href="exports/creatives.csv">広告ごとの要素・採点・結果（CSV）</a> ・ <a href="exports/google-rsa.csv">Google 検索広告のテキスト（Google 広告エディタ用 CSV）</a></p>
 <section class="kpis">
   <div class="kpi"><span class="muted">表示回数</span><b>${all.impressions.toLocaleString()}</b></div>
   <div class="kpi"><span class="muted">クリック率</span><b>${all.ctr.toFixed(2)}%</b></div>

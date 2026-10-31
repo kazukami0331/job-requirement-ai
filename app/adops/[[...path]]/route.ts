@@ -22,6 +22,8 @@ const TYPES: Record<string, string> = {
   png: "image/png",
   mp4: "video/mp4",
   json: "application/json; charset=utf-8",
+  csv: "text/csv; charset=utf-8",
+  svg: "image/svg+xml",
 };
 
 function safeEqual(a: string, b: string): boolean {
@@ -47,7 +49,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ path?: s
   const { path = [] } = await params;
   const rel = path.length ? path.join("/") : "report.html";
   // 状態ブランチの中の、レポートと素材だけを返す（state.json などは返さない）
-  if (rel.includes("..") || !(rel === "report.html" || /^assets\/[\w.-]+\/[\w.-]+\.(jpg|jpeg|png|mp4)$/.test(rel))) {
+  if (rel.includes("..") || !(rel === "report.html" || /^assets\/[\w.-]+\/[\w.-]+\.(jpg|jpeg|png|mp4|svg)$/.test(rel) || /^exports\/[\w-]+\.csv$/.test(rel))) {
     return new Response("not found", { status: 404 });
   }
   const repo = process.env.ADOPS_GITHUB_REPO;
@@ -64,6 +66,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ path?: s
   if (rel === "report.html") {
     const html = (await res.text()).replace("<head>", '<head><base href="/adops/">');
     return new Response(html, { headers: { "content-type": TYPES.html, "cache-control": "no-store" } });
+  }
+  if (ext === "csv") {
+    return new Response(Buffer.from(await res.arrayBuffer()), { headers: { "content-type": TYPES.csv, "content-disposition": `attachment; filename="${rel.split("/").pop()}"`, "cache-control": "no-store" } });
   }
   const type = TYPES[ext] ?? "application/octet-stream";
   const buf = Buffer.from(await res.arrayBuffer());

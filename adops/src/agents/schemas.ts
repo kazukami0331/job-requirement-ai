@@ -18,6 +18,17 @@ export const BriefDraftSchema = z.object({
     .describe('動画のカット構成、またはカルーセルのカード（3〜5枚）。画像広告なら空配列'),
   visualConcept: z.string().describe('どんな写真か（日本語で人向けに説明）'),
   imagePrompt: z.string().describe('Midjourney 用の英語プロンプト。文字を含めない情景描写。"no text" を含める。パラメータ(--ar 等)は付けない'),
+  elements: z
+    .object({
+      motif: z.enum(['real_person', 'illustration', 'character', 'scene_only', 'object']).describe('画像の主役: 実写の人物 / イラスト / キャラクター / 人物なしの情景 / 物（寮の部屋・給与明細など）'),
+      person: z.string().describe('人物を出す場合の年代・性別・服装・表情（例: 40代男性・作業服・穏やかな笑顔）。出さないなら空文字'),
+      setting: z.string().describe('場所（例: 明るい工場のライン / トラックの運転席 / 寮の個室）'),
+      palette: z.string().describe('色味（例: 白と青の明るい色調）'),
+      taste: z.enum(['bright', 'calm', 'energetic', 'warm', 'premium', 'documentary']).describe('テイスト: 明るい / 落ち着いた / 活気 / あたたかい / 上質 / ドキュメンタリー風'),
+      copyTone: z.enum(['empathy', 'benefit', 'question', 'number', 'urgency', 'story']).describe('コピーの型: 共感 / メリット直球 / 問いかけ / 数字 / 急ぎ / ストーリー'),
+    })
+    .optional()
+    .describe('この広告の要素（効いた要素を後で分析するために必ず埋める）'),
   translationJa: z
     .object({
       hook: z.string(),

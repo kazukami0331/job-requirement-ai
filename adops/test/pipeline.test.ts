@@ -726,3 +726,30 @@ test('plan: 入稿されない完成品が溜まりすぎたら新規企画を�
   for (let i = 0; i < n; i++) ctx2.store.state.creatives[`q${i}`] = creative({ id: `q${i}`, status: 'produced', jobId: 'deleted-job' });
   assert.ok((await plan(ctx2)).created.length > 0);
 });
+
+test('export: 広告ごとの要素×採点×結果の CSV と、Google 広告エディタ用の検索広告テキストを書き出す', async () => {
+  const { exportAll, toCsv } = await import('../src/pipeline/exports.ts');
+  const { creative, brief, daily } = await import('./fixtures.ts');
+  const { readFileSync } = await import('node:fs');
+  assert.equal(toCsv([['a,b', 'say "hi"', 1]]), '﻿"a,b","say ""hi""",1\r\n');
+  const ctx = ctxWith(offlineLlm(catalog()));
+  ctx.catalog.rubric = { version: 'v1', items: [{ id: 'stop', label: '止める力', description: 'd' }] };
+  ctx.store.state.briefs.br_1 = brief({ elements: { motif: 'real_person', person: '40代男性', setting: '工場', palette: '青', taste: 'bright', copyTone: 'number' } });
+  ctx.store.state.creatives.c = creative({ id: 'c', briefId: 'br_1', review: { score: 80, scores: { stop: 4 }, rubricVersion: 'v1' }, metrics: daily('2026-10-01', 2, { impressions: 1000, clicks: 20, spend: 2000, conversions: 1 }) });
+  const note = await exportAll(ctx);
+  assert.match(note, /広告 1 本/);
+  const csv = readFileSync(join(ctx.settings.dataDir, 'exports', 'creatives.csv'), 'utf8');
+  const [head, row] = csv.replace('﻿', '').trim().split('\r\n');
+  const cols = head.split(',');
+  const val = (name: string) => row.split(',')[cols.indexOf(name)];
+  assert.equal(val('モチーフ'), '実写の人物');
+  assert.equal(val('コピーの型'), '数字');
+  assert.equal(val('採点:止める力'), '4');
+  assert.equal(val('表示'), '2000');
+  assert.equal(val('応募単価(円)'), '2000');
+  const g = readFileSync(join(ctx.settings.dataDir, 'exports', 'google-rsa.csv'), 'utf8');
+  assert.match(g, /Headline 15/);
+  assert.equal(g.trim().split('\r\n').length, 2, '稼働中の求人1件ぶん');
+  // 30日以内なら作り直さない
+  assert.doesNotMatch(await exportAll(ctx), /新しく作成/);
+});

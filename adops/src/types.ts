@@ -227,6 +227,15 @@ export interface Policy {
   };
 }
 
+export interface CreativeElements {
+  motif: 'real_person' | 'illustration' | 'character' | 'scene_only' | 'object';
+  person: string;
+  setting: string;
+  palette: string;
+  taste: 'bright' | 'calm' | 'energetic' | 'warm' | 'premium' | 'documentary';
+  copyTone: 'empathy' | 'benefit' | 'question' | 'number' | 'urgency' | 'story';
+}
+
 export interface CreativeBrief {
   id: string;
   cycleId: string;
@@ -253,6 +262,8 @@ export interface CreativeBrief {
   iterateOf?: string;
   /** 社内で決めた仮説（config/hypotheses.json）の ID */
   hypothesisId?: string;
+  /** 広告の要素（モチーフ・色味・テイストなど）。効いた要素を後で分析するために記録する */
+  elements?: CreativeElements;
   /** 広告の言語（ペルソナの言語。未設定は日本語） */
   language?: string;
   /** 外国語の広告の日本語訳 */
@@ -454,6 +465,8 @@ export interface State {
   audience?: Record<string, { date: string; frequency?: number; reach?: number; learning?: string }>;
   /** Google 検索キャンペーンの直近7日の予算不足による取りこぼし（0〜1） */
   searchBudget?: { date: string; campaigns: { campaignId: string; name: string; lostToBudget: number; impressionShare: number }[] };
+  /** 手で入稿する用の Google 検索広告のテキスト（求人 ID → 最新の案）。API 連携が無くても Google 広告エディタに貼れる */
+  googleTexts?: Record<string, { createdOn: string; headlines: string[]; descriptions: string[]; path1: string; path2: string; dropped: string[] }>;
   /** 認証情報の確認結果（期限切れが近いなど、人が対応すべきもの） */
   credentials?: { checkedOn: string; alerts: string[] };
   /** 応募ページの死活監視（求人 ID → 直近の確認結果） */

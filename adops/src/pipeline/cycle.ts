@@ -15,6 +15,7 @@ import { collectSearchMetrics, rotateSearchAds } from './search.ts';
 import { watchComments } from './comments.ts';
 import { checkLandingPages } from './landing.ts';
 import { checkCredentials } from './credentials.ts';
+import { exportAll } from './exports.ts';
 import { excludeIrrelevantTerms } from './negatives.ts';
 import { analyze } from '../agents/analyst.ts';
 import { memoToSlack, shouldWriteMemo, writeMemo } from '../agents/strategyMemo.ts';
@@ -174,6 +175,9 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
     // スプレッドシートへの書き出し（設定時のみ。失敗しても報告は続ける）
     const sheet = await exportToSheets(store.state, ctx.catalog, ctx.today).catch((e) => `スプレッドシートへの書き出しに失敗: ${(e as Error).message.slice(0, 200)}`);
     if (!sheet.includes('未設定')) log.info(sheet);
+    // 分析用の表と、手で入稿する用の Google 検索広告テキスト（レポート画面からダウンロードできる）
+    const exported = await exportAll(ctx, { googleText: !store.state.halted }).catch((e) => `書き出しに失敗: ${(e as Error).message.slice(0, 200)}`);
+    log.info(exported);
     await notifySlack(ctx.settings.slack.webhookUrl, summaryMessage(ctx, record, { decisions, planned, produced, published, analyzed, organicNote, searchNote }));
     return path;
   });
