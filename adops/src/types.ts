@@ -102,6 +102,29 @@ export interface Hypothesis {
   active?: boolean;
 }
 
+/**
+ * 自社の採点基準（config/rubric.json）。「ブルーカラー向けに良い広告とは何か」を項目と点数（1〜5）で書いたもの。
+ * レビューは項目ごとに採点し、配信結果と突き合わせて基準そのものも直していく。
+ */
+export interface RubricItem {
+  id: string;
+  label: string;
+  /** 何を見るか */
+  description: string;
+  /** 点数の目安（例: { "1": "…", "3": "…", "5": "…" }） */
+  levels?: Record<string, string>;
+  /** 重み（既定 1） */
+  weight?: number;
+  /** "hypothesis" なら社内の仮説に沿って作った企画だけ採点する */
+  appliesWhen?: 'hypothesis';
+}
+
+export interface Rubric {
+  /** 基準を直したら上げる（採点と実績の突き合わせを版ごとに分けるため） */
+  version: string;
+  items: RubricItem[];
+}
+
 export interface Persona {
   id: string;
   name: string;
@@ -253,6 +276,9 @@ export interface Review {
   issues: ReviewIssue[];
   summary: string;
   createdAt: string;
+  /** 自社の採点基準で採点した場合: 基準の版と、項目ごとの点数（1〜5）の理由 */
+  rubricVersion?: string;
+  rubricNotes?: Record<string, string>;
 }
 
 export type CreativeStatus =
@@ -316,6 +342,8 @@ export interface Creative {
   iterateOf?: string;
   /** 社内で決めた仮説（config/hypotheses.json）の ID */
   hypothesisId?: string;
+  /** 合格したときの採点（配信結果と突き合わせて採点基準を直すために、企画ごとに残す） */
+  review?: { score: number; scores: Record<string, number>; rubricVersion?: string };
   /** 画像の文字レイアウト（band / card / bold）。自動で配分・学習する */
   layout?: string;
   status: CreativeStatus;

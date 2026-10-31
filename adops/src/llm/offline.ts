@@ -86,6 +86,12 @@ export function offlineLlm(catalog: Catalog): ScriptedLlm {
     issues: [],
     summary: '（オフライン）機械チェックのみで判定しました。',
   }));
+  // 自社の採点基準: システムプロンプトの [id] を拾って一律 4 点にする
+  llm.on('reviewer.rubric', (req) => ({
+    rubric: [...req.system.matchAll(/^- \[([\w-]+)\]/gm)].map((m) => ({ id: m[1], score: 4, reason: '（オフライン）' })),
+    issues: [],
+    summary: '（オフライン）機械チェックのみで判定しました。',
+  }));
   llm.on('artJudge.pick', (req) => ({
     candidates: (req.images ?? []).map((_, i) => ({ index: i, score: 70 - i, defects: [] })),
     selectedIndex: 0,

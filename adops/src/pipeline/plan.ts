@@ -130,8 +130,10 @@ export async function plan(ctx: Ctx): Promise<PlanResult> {
       const language = catalog.personas.find((p) => p.id === slot.personaId)?.language;
       if (language && language !== 'ja') brief.language = language;
       else delete brief.translationJa;
+      let passed: Review | undefined;
       for (;;) {
         const { review } = await reviewBrief(llm, brief, catalog);
+        passed = review;
         store.state.reviews.push(review);
         store.state.briefs[brief.id] = brief;
         log.info(`レビュー ${brief.id} rev${brief.revision}: ${review.score}点 → ${review.verdict}（指摘 ${review.issues.length}）`);
@@ -156,6 +158,7 @@ export async function plan(ctx: Ctx): Promise<PlanResult> {
         explore: brief.explore,
         ...(brief.iterateOf ? { iterateOf: brief.iterateOf } : {}),
         ...(brief.hypothesisId ? { hypothesisId: brief.hypothesisId } : {}),
+        ...(passed ? { review: { score: passed.score, scores: passed.scores, ...(passed.rubricVersion ? { rubricVersion: passed.rubricVersion } : {}) } } : {}),
         status: 'planned',
         imageJobs: [],
         assets: [],

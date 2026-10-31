@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ANGLES, type Brand, type Hypothesis, type Job, type Persona, type Placements, type Policy } from './types.ts';
+import { ANGLES, type Brand, type Hypothesis, type Job, type Persona, type Placements, type Policy, type Rubric } from './types.ts';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -197,6 +197,8 @@ export interface Catalog {
   examples?: Examples;
   /** 社内で決めた試したい仮説（任意。config/hypotheses.json） */
   hypotheses?: Hypothesis[];
+  /** 自社の採点基準（任意。config/rubric.json。無ければ標準の5観点で採点） */
+  rubric?: Rubric;
 }
 
 export function loadCatalog(configDir: string): Catalog {
@@ -207,6 +209,7 @@ export function loadCatalog(configDir: string): Catalog {
     policy: readJson<Policy>(configDir, 'policy.json'),
     examples: existsSync(join(configDir, 'examples.json')) ? readJson<Examples>(configDir, 'examples.json') : undefined,
     hypotheses: existsSync(join(configDir, 'hypotheses.json')) ? readJson<Hypothesis[]>(configDir, 'hypotheses.json') : undefined,
+    rubric: existsSync(join(configDir, 'rubric.json')) ? readJson<Rubric>(configDir, 'rubric.json') : undefined,
   };
   validateCatalog(catalog);
   return catalog;
@@ -238,6 +241,17 @@ export function validateCatalog(c: Catalog): void {
     if (!(ANGLES as readonly string[]).includes(h.angle)) errors.push(`仮説 ${h.id}: angle は ${ANGLES.join(' / ')} のいずれか`);
     for (const jid of h.jobIds ?? []) if (!jobIds.has(jid)) errors.push(`仮説 ${h.id}: 未定義の求人 ${jid}`);
     if (!h.title?.trim() || !h.message?.trim()) errors.push(`仮説 ${h.id}: title と message は必須`);
+  }
+  if (c.rubric) {
+    const ids = new Set<string>();
+    if (!c.rubric.version) errors.push('rubric.json: version は必須（基準を直したら上げる）');
+    if (!c.rubric.items?.length) errors.push('rubric.json: items が空です');
+    for (const it of c.rubric.items ?? []) {
+      if (!it.id || ids.has(it.id)) errors.push(`rubric.json: 項目 ID が空か重複しています: ${it.id}`);
+      ids.add(it.id);
+      if (!it.label || !it.description) errors.push(`rubric.json: ${it.id} の label と description は必須`);
+      if (it.weight !== undefined && !(it.weight > 0)) errors.push(`rubric.json: ${it.id} の weight は正の数`);
+    }
   }
   const p = c.policy;
   if (!(p.videoShare >= 0 && p.videoShare <= 1)) errors.push('policy.videoShare は 0〜1');

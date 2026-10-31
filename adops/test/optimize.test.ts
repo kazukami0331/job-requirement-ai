@@ -335,3 +335,35 @@ test('allocateSlots: 社内で決めた仮説があるペルソナは仮説か�
   const [e] = allocateSlots({ catalog: catalog({ hypotheses: fresh, policy: policy({ briefsPerCycle: 1, videoShare: 0, exploreShare: 1, carouselShare: 0 }) }), creatives: [good, bad], today: '2026-10-10', rng: seededRng(3) });
   assert.equal(e.hypothesisId, 'h-new');
 });
+
+test('reviewBrief: 自社の採点基準で項目別に採点し、重みつきで100点満点にする（仮説の項目は仮説に沿った企画だけ）', async () => {
+  const { reviewBrief, rubricScore, rubricItemsFor } = await import('../src/agents/reviewer.ts');
+  const { ScriptedLlm } = await import('../src/llm/llm.ts');
+  const { brief } = await import('./fixtures.ts');
+  const rubric = {
+    version: 'v1',
+    items: [
+      { id: 'stop', label: '止める力', description: 'd' },
+      { id: 'safety', label: '炎上リスク', description: 'd', weight: 2 },
+      { id: 'hypothesis', label: '仮説に忠実', description: 'd', appliesWhen: 'hypothesis' as const },
+    ],
+  };
+  assert.deepEqual(rubricItemsFor(rubric, brief()).map((i) => i.id), ['stop', 'safety']);
+  assert.equal(rubricItemsFor(rubric, brief({ hypothesisId: 'h' })).length, 3);
+  // (5*1 + 4*2) / (5*3) = 13/15
+  assert.equal(rubricScore(rubricItemsFor(rubric, brief()), { stop: 5, safety: 4 }), 87);
+  assert.equal(rubricScore(rubricItemsFor(rubric, brief()), { stop: 5 }), 47, '返ってこない項目は1点');
+
+  let system = '';
+  const llm = new ScriptedLlm().on('reviewer.rubric', (req) => {
+    system = req.system;
+    return { rubric: [{ id: 'stop', score: 7, reason: '強い' }, { id: 'safety', score: 4, reason: '問題なし' }, { id: 'unknown', score: 5, reason: 'x' }], issues: [], summary: 'ok' };
+  });
+  const { review } = await reviewBrief(llm, brief(), catalog({ rubric, policy: policy({ review: { passScore: 75, maxRevisions: 2 } }) }));
+  assert.match(system, /\[stop\] 止める力/);
+  assert.doesNotMatch(system, /\[hypothesis\]/);
+  assert.deepEqual(review.scores, { stop: 5, safety: 4 }, '1〜5に丸め、基準に無い項目は捨てる');
+  assert.equal(review.score, 87);
+  assert.equal(review.rubricVersion, 'v1');
+  assert.equal(review.rubricNotes!.stop, '強い');
+});

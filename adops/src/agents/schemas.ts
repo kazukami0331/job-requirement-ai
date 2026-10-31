@@ -61,6 +61,19 @@ export const ReviewOutputSchema = z.object({
   summary: z.string().describe('制作者へのフィードバック（2〜3文）'),
 });
 
+/** 自社の採点基準（rubric.json）で採点するときの出力。項目は設定で変わるので id 付きの配列で受ける */
+export const RubricReviewSchema = z.object({
+  rubric: z.array(
+    z.object({
+      id: z.string().describe('採点基準の項目 ID'),
+      score: z.number().describe('1-5'),
+      reason: z.string().describe('その点数の理由（1文）'),
+    }),
+  ),
+  issues: ReviewOutputSchema.shape.issues,
+  summary: z.string().describe('制作者へのフィードバック（2〜3文）'),
+});
+
 export const ImageJudgeSchema = z.object({
   candidates: z.array(
     z.object({
