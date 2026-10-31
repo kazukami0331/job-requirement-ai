@@ -12,7 +12,7 @@ import { brand, brief, job } from './fixtures.ts';
 import { googleTexts, fitGoogle } from '../src/platforms/google.ts';
 import { withUtm } from '../src/platforms/meta.ts';
 import { googleWidth } from '../src/compliance/rules.ts';
-import { writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 
 test('wrapJa: 幅で折り返し、句読点を行頭に置かない', () => {
   const lines = wrapJa('寮費0円で今月から月給30万円〜', 8);
@@ -54,6 +54,14 @@ test('composeImage: 全比率を正しいサイズで書き出す', async () => 
     const m = await sharp(out).metadata();
     assert.deepEqual([m.width, m.height], [w, h]);
   }
+  // 文字を直せるように、文字なしの背景・編集できる文字の SVG・文字の一覧も隣に置く
+  const stem = join(dir, 'o_1080x1350');
+  const bg = await sharp(`${stem}.bg.jpg`).metadata();
+  assert.deepEqual([bg.width, bg.height], [1080, 1350]);
+  const svg = readFileSync(`${stem}.layers.svg`, 'utf8');
+  assert.match(svg, /<image href="o_1080x1350\.bg\.jpg"/);
+  assert.match(svg, /<text[^>]*>/);
+  assert.equal(JSON.parse(readFileSync(`${stem}.texts.json`, 'utf8')).main, brief().overlay.main);
 });
 
 test('HandoffProvider: 画像が置かれるまで pending、置かれたら取り込む', async () => {

@@ -66,8 +66,15 @@ export function renderReport(state: State, catalog: Catalog, dataDir: string, to
       : img
         ? `<img src="${escapeXml(relative(dataDir, img.path))}" loading="lazy" alt="">`
         : '<div class="ph">素材なし</div>';
+    // 文字を直せる版（背景と編集できる文字の SVG・文字なしの背景）
+    const layered = !vid && img && 'ratio' in img ? img.path.replace(/\.(jpe?g|png)$/i, '') : '';
+    const edit =
+      layered && existsSync(`${layered}.layers.svg`)
+        ? `<div class="muted">文字を直す: <a href="${escapeXml(relative(dataDir, `${layered}.layers.svg`))}" download>SVG</a> ・ <a href="${escapeXml(relative(dataDir, `${layered}.bg.jpg`))}" download>文字なしの背景</a></div>`
+        : '';
     return `<article class="card s-${c.status}">
   ${media}
+  ${edit}
   <div class="meta">
     <span class="tag">${STATUS_LABEL[c.status] ?? c.status}</span>
     <span class="tag">${ANGLE_LABELS[c.angle]}</span>

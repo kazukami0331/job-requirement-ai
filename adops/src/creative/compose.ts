@@ -6,6 +6,8 @@ import sharp, { type OverlayOptions, type Sharp } from 'sharp';
 import type { Brand, CreativeBrief, Job, Ratio } from '../types.ts';
 import { formatYen } from '../compliance/rules.ts';
 import { ctaText, salaryLine } from './i18n.ts';
+import { writeFileSync } from 'node:fs';
+import { basename } from 'node:path';
 
 export const RATIO_PX: Record<Ratio, [number, number]> = {
   '1:1': [1080, 1080],
@@ -288,11 +290,30 @@ export async function composeImage(
     const logo = await sharp(brand.logoPath).resize({ width: Math.round(W * 0.18) }).png().toBuffer();
     layers.push({ input: logo, gravity: 'northeast' });
   }
-  await (await fittedBackground(basePath, W, H))
-    .composite(layers)
-    .jpeg({ quality: 90, mozjpeg: true })
-    .toFile(outPath);
+  const bg = await (await fittedBackground(basePath, W, H)).jpeg({ quality: 90, mozjpeg: true }).toBuffer();
+  await sharp(bg).composite(layers).jpeg({ quality: 90, mozjpeg: true }).toFile(outPath);
+  await writeEditableLayers(outPath, bg, overlay, W, H, { main: brief.overlay.main, sub: brief.overlay.sub, badges: brief.overlay.badges, footer: input.footer ?? '' });
   return { width: W, height: H };
+}
+
+/**
+ * 人が文字だけ直せるように、文字の無い背景（.bg.jpg）と、背景＋文字（編集できるテキスト）の SVG（.layers.svg）、
+ * 文字の一覧（.texts.json）を完成画像の隣に保存する。SVG は Figma・Illustrator で文字を打ち替えられ、
+ * Canva では背景画像と文字一覧を使って作り直せる。
+ */
+export async function writeEditableLayers(outPath: string, bg: Buffer, overlay: string, W: number, H: number, texts: Record<string, string | string[]>): Promise<void> {
+  const stem = outPath.replace(/\.(jpe?g|png)$/i, '');
+  const bgName = `${basename(stem)}.bg.jpg`;
+  writeFileSync(`${stem}.bg.jpg`, bg);
+  writeFileSync(
+    `${stem}.layers.svg`,
+    `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+<image href="${bgName}" xlink:href="${bgName}" x="0" y="0" width="${W}" height="${H}"/>
+${overlay.replace(/<\?xml[^>]*>/, '')}
+</svg>
+`,
+  );
+  writeFileSync(`${stem}.texts.json`, JSON.stringify({ background: bgName, width: W, height: H, ...texts }, null, 2));
 }
 
 /**
