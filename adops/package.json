@@ -1,0 +1,25 @@
+{
+  "name": "adops",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ブルーカラー人材紹介の集客広告を AI が企画→レビュー→制作→入稿→分析→改善まで自動で回すオーケストレーター",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "adops": "node src/cli.ts",
+    "cycle": "node src/cli.ts cycle",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
+    "sharp": "^0.35.5",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^7.0.2"
+  }
+}

@@ -1,0 +1,5 @@
+node_modules/
+.env
+# 実行ごとに作られる素材・状態（state ブランチに保存する）
+data/
+out/

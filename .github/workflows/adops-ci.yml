@@ -1,0 +1,41 @@
+name: adops CI
+
+on:
+  pull_request:
+    paths: ['adops/**', 'app/api/adops/**', 'app/adops/**', '.github/workflows/adops*.yml']
+  push:
+    branches: [main]
+    paths: ['adops/**']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: adops
+    steps:
+      - uses: actions/checkout@v4
+      - name: ffmpeg と日本語フォント
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-noto-cjk >/dev/null
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: adops/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: オフラインで1サイクル（API キー・媒体なし）
+        run: node src/cli.ts cycle --offline
+
+  slack-route:
+    # Slack 承認ボタンの受け口（Next.js アプリ側）の型チェック
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit -p tsconfig.json

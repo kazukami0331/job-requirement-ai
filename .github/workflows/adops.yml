@@ -1,0 +1,275 @@
+name: adops（広告の自動運用）
+
+# 毎朝 6:00 JST にフルサイクル（実績取込 → 停止判断 → 分析 → 企画・レビュー → 制作 → 入稿 → 報告）。
+# 日中 12:00 / 18:00 JST は実績取込と停止判断だけ（悪い広告に予算を使い続けないため）。
+on:
+  schedule:
+    - cron: '0 21 * * *' # 06:00 JST
+    - cron: '0 3,9 * * *' # 12:00 / 18:00 JST
+    - cron: '30 0-12 * * *' # 9:30〜21:30 JST 毎時: インスタントフォームの応募通知だけ
+  workflow_dispatch:
+    inputs:
+      steps:
+        description: '実行する段階（カンマ区切り。空なら全部）例: plan,produce'
+        required: false
+        default: ''
+      dry_run:
+        description: 'DRY RUN（媒体に書き込まない）'
+        type: boolean
+        default: false
+      control:
+        description: '緊急操作（stop: adops の広告をすべて停止し以後の入稿も止める / resume: 解除）'
+        type: choice
+        options: ['', 'stop', 'resume']
+        default: ''
+      lp_approve:
+        description: '応募ページ（LP）の下書きを承認して公開（ID。カンマ区切りで複数可）'
+        required: false
+        default: ''
+      lp_retire:
+        description: '応募ページ（LP）の公開を終了（ID。カンマ区切りで複数可）'
+        required: false
+        default: ''
+
+concurrency:
+  # 毎時の応募通知は別グループにする（同じグループだと、待機中の緊急停止などを押し出してしまうため）。
+  # 応募通知は状態を保存しないので、本体の実行と並行しても状態を上書きし合わない
+  group: ${{ github.event.schedule == '30 0-12 * * *' && 'adops-leads' || 'adops' }}
+  # 緊急停止（control: stop）のときだけ、実行中のサイクルを打ち切ってすぐ止める
+  # （打ち切られた側も「状態を保存」は always() で実行されるので、入稿済みの広告の記録は残る）
+  cancel-in-progress: ${{ github.event.inputs.control == 'stop' }}
+
+permissions:
+  contents: write
+
+env:
+  STATE_BRANCH: adops-state
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: adops
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 状態を復元（${{ env.STATE_BRANCH }} ブランチ）
+        working-directory: .
+        run: |
+          # 「ブランチが無い」（終了コード 2）だけを初回とみなす。通信・認証エラーで空の状態から始めて上書きしないように
+          rc=0
+          git ls-remote --exit-code --heads origin "$STATE_BRANCH" >/dev/null 2>&1 || rc=$?
+          if [ "$rc" = 0 ]; then
+            git fetch --depth=1 origin "$STATE_BRANCH"
+            mkdir -p adops/data
+            git --work-tree=adops/data checkout "origin/$STATE_BRANCH" -- .
+            git reset -q
+          elif [ "$rc" = 2 ]; then
+            echo "初回実行: 状態ブランチはまだありません"
+          else
+            echo "状態ブランチを確認できませんでした（終了コード $rc）。空の状態で上書きしないよう中止します" >&2
+            exit 1
+          fi
+
+      - name: ffmpeg と日本語フォント
+        # 毎時の応募通知では制作しないので入れない
+        if: github.event.schedule != '30 0-12 * * *'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-noto-cjk fonts-noto-cjk-extra fonts-noto-core >/dev/null
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: adops/package-lock.json
+
+      - run: npm ci
+
+      - name: 段階を決める
+        id: steps
+        env:
+          LP_APPROVE: ${{ github.event.inputs.lp_approve }}
+          LP_RETIRE: ${{ github.event.inputs.lp_retire }}
+        run: |
+          if [ -n "$LP_APPROVE$LP_RETIRE" ]; then
+            echo "steps=report" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.inputs.steps }}" ]; then
+            echo "steps=${{ github.event.inputs.steps }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "30 0-12 * * *" ]; then
+            echo "steps=leads" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 3,9 * * *" ]; then
+            echo "steps=collect,optimize,report" >> "$GITHUB_OUTPUT"
+          else
+            echo "steps=collect,optimize,analyze,plan,produce,publish,search,lp,organic,report" >> "$GITHUB_OUTPUT"
+          fi
+
+      # 応募通知の「どこまで通知したか」（状態ブランチには保存しないのでキャッシュに置く）
+      - name: 応募通知の位置を復元
+        if: steps.steps.outputs.steps == 'leads'
+        uses: actions/cache/restore@v4
+        with:
+          path: adops/data/leads-cursor.json
+          key: adops-leads-${{ github.run_id }}
+          restore-keys: adops-leads-
+
+      - name: 実行
+        env:
+          LP_APPROVE: ${{ github.event.inputs.lp_approve }}
+          LP_RETIRE: ${{ github.event.inputs.lp_retire }}
+          ADOPS_LP_BASE_URL: ${{ vars.ADOPS_LP_BASE_URL }}
+          ADOPS_DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && 'true' || vars.ADOPS_DRY_RUN || 'true' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ADOPS_MODEL: ${{ vars.ADOPS_MODEL }}
+          ADOPS_FAST_MODEL: ${{ vars.ADOPS_FAST_MODEL }}
+          ADOPS_EFFORT: ${{ vars.ADOPS_EFFORT }}
+          GEMINI_IMAGE_COUNT: ${{ vars.GEMINI_IMAGE_COUNT }}
+          GOOGLE_ADS_API_VERSION: ${{ vars.GOOGLE_ADS_API_VERSION }}
+          META_API_VERSION: ${{ vars.META_API_VERSION }}
+          META_USE_PLACEMENT_CUSTOMIZATION: ${{ vars.META_USE_PLACEMENT_CUSTOMIZATION }}
+          MJ_API_FLAVOR: ${{ vars.MJ_API_FLAVOR }}
+          MJ_PARAMS: ${{ vars.MJ_PARAMS }}
+          ADOPS_LOG_LEVEL: ${{ vars.ADOPS_LOG_LEVEL }}
+          ADOPS_MAX_LLM_USD: ${{ vars.ADOPS_MAX_LLM_USD }}
+          ADOPS_MAX_LLM_USD_DAILY: ${{ vars.ADOPS_MAX_LLM_USD_DAILY }}
+          ADOPS_DAILY_SPEND_CAP: ${{ vars.ADOPS_DAILY_SPEND_CAP }}
+          ADOPS_MONTHLY_SPEND_CAP: ${{ vars.ADOPS_MONTHLY_SPEND_CAP }}
+          ADOPS_MAX_FREQUENCY: ${{ vars.ADOPS_MAX_FREQUENCY }}
+          IMAGE_PROVIDER: ${{ vars.IMAGE_PROVIDER || 'handoff' }}
+          MJ_API_BASE_URL: ${{ vars.MJ_API_BASE_URL }}
+          MJ_API_KEY: ${{ secrets.MJ_API_KEY }}
+          MJ_VIDEO_ENABLED: ${{ vars.MJ_VIDEO_ENABLED }}
+          MJ_INBOX: ${{ vars.MJ_INBOX }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_IMAGE_MODEL: ${{ vars.GEMINI_IMAGE_MODEL }}
+          IMAGE_FALLBACK_AFTER_HOURS: ${{ vars.IMAGE_FALLBACK_AFTER_HOURS }}
+          IMAGE_EXPLORE_PROVIDER: ${{ vars.IMAGE_EXPLORE_PROVIDER }}
+          ADOPS_LP_CHECK: ${{ vars.ADOPS_LP_CHECK }}
+          ADOPS_META_ENHANCEMENTS: ${{ vars.ADOPS_META_ENHANCEMENTS }}
+          ADOPS_BUDGET_COOLDOWN_DAYS: ${{ vars.ADOPS_BUDGET_COOLDOWN_DAYS }}
+          ADOPS_ANALYZE_EVERY_DAYS: ${{ vars.ADOPS_ANALYZE_EVERY_DAYS }}
+          ADOPS_TTS_RATE: ${{ vars.ADOPS_TTS_RATE }}
+          DRIVE_INBOX_FOLDER_ID: ${{ vars.DRIVE_INBOX_FOLDER_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          META_AD_ACCOUNT_ID: ${{ vars.META_AD_ACCOUNT_ID }}
+          META_PAGE_ID: ${{ vars.META_PAGE_ID }}
+          META_INSTAGRAM_USER_ID: ${{ vars.META_INSTAGRAM_USER_ID }}
+          META_CONVERSION_ACTION_TYPES: ${{ vars.META_CONVERSION_ACTION_TYPES }}
+          GOOGLE_ADS_DEVELOPER_TOKEN: ${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}
+          GOOGLE_ADS_CLIENT_ID: ${{ secrets.GOOGLE_ADS_CLIENT_ID }}
+          GOOGLE_ADS_CLIENT_SECRET: ${{ secrets.GOOGLE_ADS_CLIENT_SECRET }}
+          GOOGLE_ADS_REFRESH_TOKEN: ${{ secrets.GOOGLE_ADS_REFRESH_TOKEN }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          GOOGLE_ADS_CUSTOMER_ID: ${{ vars.GOOGLE_ADS_CUSTOMER_ID }}
+          GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ vars.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}
+          GOOGLE_ADS_CONVERSION_ACTION: ${{ vars.GOOGLE_ADS_CONVERSION_ACTION }}
+          GOOGLE_ADS_LOGO_ASSET: ${{ vars.GOOGLE_ADS_LOGO_ASSET }}
+          GOOGLE_ADS_BUSINESS_NAME: ${{ vars.GOOGLE_ADS_BUSINESS_NAME }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          ADOPS_LEADS_WEBHOOK_URL: ${{ secrets.ADOPS_LEADS_WEBHOOK_URL }}
+          ADOPS_LEADS_WEBHOOK_SECRET: ${{ secrets.ADOPS_LEADS_WEBHOOK_SECRET }}
+          ADOPS_SLACK_APPROVALS: ${{ vars.ADOPS_SLACK_APPROVALS }}
+          ADOPS_REPORT_URL: ${{ vars.ADOPS_REPORT_URL }}
+          ADOPS_WATCH_COMMENTS: ${{ vars.ADOPS_WATCH_COMMENTS }}
+          ADOPS_HIDE_SPAM: ${{ vars.ADOPS_HIDE_SPAM }}
+          ADOPS_APPROVAL_SECRET: ${{ secrets.ADOPS_APPROVAL_SECRET }}
+          ADOPS_TTS: ${{ vars.ADOPS_TTS }}
+          ADOPS_TTS_VOICE: ${{ vars.ADOPS_TTS_VOICE }}
+          ADOPS_OUTCOMES_CSV_URL: ${{ secrets.ADOPS_OUTCOMES_CSV_URL }}
+          ADOPS_SHEET_ID: ${{ vars.ADOPS_SHEET_ID }}
+        run: |
+          if [ "${{ github.event.inputs.control }}" = "stop" ]; then
+            node src/cli.ts emergency-stop --reason "緊急停止（GitHub Actions から手動実行）"
+          elif [ "${{ github.event.inputs.control }}" = "resume" ]; then
+            node src/cli.ts resume
+          elif [ -n "$LP_APPROVE$LP_RETIRE" ]; then
+            # 入力はシェルに展開せず環境変数で渡す
+            if [ -n "$LP_APPROVE" ]; then node src/cli.ts lp-approve --id "$LP_APPROVE"; fi
+            if [ -n "$LP_RETIRE" ]; then node src/cli.ts lp-retire --id "$LP_RETIRE"; fi
+            node src/cli.ts report
+          elif [ "${{ steps.steps.outputs.steps }}" = "leads" ]; then
+            node src/cli.ts leads
+          else
+            node src/cli.ts cycle --steps "${{ steps.steps.outputs.steps }}"
+          fi
+
+      - name: 応募通知の位置を保存
+        # 連携先（CRM）への送信失敗で実行が失敗しても、通知済みの位置と未送信分の位置は保存する（Slack への二重通知を防ぐ）
+        if: ${{ !cancelled() && steps.steps.outputs.steps == 'leads' && hashFiles('adops/data/leads-cursor.json') != '' }}
+        uses: actions/cache/save@v4
+        with:
+          path: adops/data/leads-cursor.json
+          key: adops-leads-${{ github.run_id }}
+
+      - name: 素材とレポートを保存（14日）
+        if: always() && steps.steps.outputs.steps != 'leads'
+        uses: actions/upload-artifact@v4
+        with:
+          name: adops-${{ github.run_id }}
+          path: |
+            adops/data/report.html
+            adops/data/assets/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: 状態を保存（${{ env.STATE_BRANCH }} ブランチ。履歴を持たない最新スナップショット）
+        # 毎時の応募通知は状態を読むだけなので保存しない
+        if: always() && steps.steps.outputs.steps != 'leads'
+        working-directory: adops/data
+        run: |
+          [ -f state.json ] || { echo "state.json がないので保存しません"; exit 0; }
+          REMOTE="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          tmp_state=""
+          rc=0
+          git ls-remote --exit-code --heads "$REMOTE" "$STATE_BRANCH" >/dev/null 2>&1 || rc=$?
+          if [ "$rc" != 0 ] && [ "$rc" != 2 ]; then echo "状態ブランチを確認できないため保存を中止します（終了コード $rc）" >&2; exit 1; fi
+          # 実行中に人が inbox にアップロードした画像を取りこぼさない（上書き保存の前に取り込む）
+          if [ "$rc" = 0 ]; then
+            tmp=$(mktemp -d)
+            git clone -q --depth=1 --branch "$STATE_BRANCH" "$REMOTE" "$tmp"
+            # 毎朝のフル実行の直前の状態を ${STATE_BRANCH}-prev に残す（誤った状態を保存してしまったときの戻し先。
+            # 日中の実行では上書きしないので、少なくとも半日前の状態が残る）
+            case "${{ steps.steps.outputs.steps }}" in
+              *plan*) git -C "$tmp" push -qf "$REMOTE" "HEAD:refs/heads/${STATE_BRANCH}-prev" || echo "前回の状態のバックアップに失敗（続行）" ;;
+            esac
+            if [ -f "$tmp/state.json" ]; then tmp_state="$RUNNER_TEMP/remote_state.json"; cp "$tmp/state.json" "$tmp_state"; fi
+            if [ -d "$tmp/inbox" ]; then
+              mkdir -p inbox
+              for d in "$tmp"/inbox/*/; do
+                [ -d "$d" ] || continue
+                name=$(basename "$d")
+                case "$name" in *.imported) continue ;; esac
+                # 今回の実行で取り込み済み（.imported）なら不要。それ以外はファイル単位で足す（PROMPT.txt だけのフォルダにも追加される）
+                [ -e "inbox/$name.imported" ] && continue
+                # 画像審査で全て却下して捨てたフォルダ（.rejected-*）は取り込み直さない
+                compgen -G "inbox/$name.rejected-*" >/dev/null && continue
+                mkdir -p "inbox/$name"
+                cp -rn "$d". "inbox/$name/"
+              done
+            fi
+            rm -rf "$tmp"
+          fi
+          # 復元した状態より広告の記録が減っていたら保存しない（復元の失敗などで空の状態を上書きするのを防ぐ）
+          if [ -f "$tmp_state" ]; then
+            node -e 'const [a,b]=process.argv.slice(1).map(f=>Object.keys(JSON.parse(require("fs").readFileSync(f,"utf8")).creatives||{}).length); if (a<b) { console.error(`広告の記録が ${b} → ${a} 本に減っています。保存を中止します`); process.exit(1) }' state.json "$tmp_state"
+          fi
+          git init -q -b "$STATE_BRANCH"
+          git config user.name "adops-bot"
+          git config user.email "adops-bot@users.noreply.github.com"
+          git add -A
+          git commit -qm "adops state $(date -u +%Y-%m-%dT%H:%MZ) run ${{ github.run_id }}"
+          git push -qf "$REMOTE" "HEAD:$STATE_BRANCH"
+
+      # 状態の保存の失敗も知らせるため、最後に置く
+      - name: 実行の失敗を Slack に知らせる
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -n "$SLACK_WEBHOOK_URL" ] || exit 0
+          url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -sS -X POST -H 'content-type: application/json' \
+            --data "{\"text\":\":x: adops の実行が失敗しました（${{ steps.steps.outputs.steps || 'cycle' }}）。ログ: ${url}\"}" \
+            "$SLACK_WEBHOOK_URL" >/dev/null || true

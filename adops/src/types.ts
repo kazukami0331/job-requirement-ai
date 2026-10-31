@@ -1,0 +1,521 @@
+/**
+ * ドメインの型。状態ファイル（data/state.json）にもこの形のまま保存する。
+ */
+
+export type Platform = 'meta' | 'google';
+export type Format = 'image' | 'video' | 'carousel';
+export const FORMAT_LABEL: Record<Format, string> = { image: '画像', video: '動画', carousel: 'カルーセル' };
+export type Ratio = '1:1' | '4:5' | '9:16' | '1.91:1';
+
+/** 訴求軸。分析・改善はこの単位で勝ち負けを学習する。 */
+export const ANGLES = [
+  'pay', // 給与・高収入・日払い
+  'housing', // 寮・社宅・生活費
+  'beginner', // 未経験・学歴不問・研修
+  'stability', // 正社員・長く働ける・賞与
+  'quick_cash', // 短期集中で稼ぐ・入社祝い金
+  'lifestyle', // 休日・残業少・家族時間
+  'team', // 職場の雰囲気・仲間
+  'skill', // 資格取得支援・手に職
+  'pride', // 仕事の誇り・社会インフラを支える
+  'speed', // 即日面接・最短入社・Web完結
+] as const;
+export type Angle = (typeof ANGLES)[number];
+
+export const ANGLE_LABELS: Record<Angle, string> = {
+  pay: '給与・収入',
+  housing: '寮・住まい',
+  beginner: '未経験歓迎',
+  stability: '安定・正社員',
+  quick_cash: '短期で稼ぐ',
+  lifestyle: '休日・働き方',
+  team: '職場の雰囲気',
+  skill: '資格・手に職',
+  pride: '仕事の誇り',
+  speed: 'スピード選考',
+};
+
+export interface Salary {
+  type: '月給' | '日給' | '時給' | '年収';
+  min: number;
+  max?: number;
+  /** 例: 「残業代別途」「月収例 32万円（残業20h含む）」 */
+  note?: string;
+}
+
+/** 集客したい求人（または求人群）。config/jobs.json で管理する。 */
+export interface Job {
+  id: string;
+  active: boolean;
+  title: string;
+  category: string;
+  location: string;
+  employmentType: string;
+  salary: Salary;
+  perks: string[];
+  hours?: string;
+  holidays?: string;
+  requirements?: string;
+  /** 対象ペルソナ ID */
+  personas: string[];
+  landingUrl: string;
+  /** 応募フォームの URL（任意）。adops が作る LP の応募ボタンの行き先。無ければ landingUrl */
+  applyUrl?: string;
+  /** 1日に作る新規クリエイティブの上限（求人ごと） */
+  dailyCreativeQuota?: number;
+  /** この求人の目標応募単価（円）。無ければ policy.json の guardrails.targetCpa（職種で採用の価値が違う場合に） */
+  targetCpa?: number;
+  /** 今月の応募の目標件数。達したら新しい広告は作らない（配信中の広告はそのまま。翌月に再開） */
+  monthlyApplicationTarget?: number;
+  /** 媒体ごとの入稿先。キャンペーン・広告セットは人が作り、AIは広告（素材）を回す。 */
+  placements: Placements;
+  /**
+   * ペルソナごとの入稿先（ペルソナ ID → 入稿先）。外国語のペルソナは、ここに専用の広告セット（言語・地域で絞ったもの）が
+   * ないと入稿しない（日本語の広告セットに外国語の広告を混ぜないため）。
+   */
+  placementsByPersona?: Record<string, Placements>;
+}
+
+export interface Placements {
+  /** leadFormId を指定すると、LP ではなく Meta のインスタントフォーム（リード獲得）で応募を受ける */
+  meta?: { adsetIds: string[]; leadFormId?: string };
+  google?: { assetGroupIds?: string[]; adGroupIds?: string[]; searchAdGroupIds?: string[] };
+}
+
+/**
+ * 社内で決めた「試したい仮説」（config/hypotheses.json）。戦略と検証の設計は人が行い、
+ * AI はこの仮説に沿って表現（コピー・画像・LP）を作る。どの仮説に多く配分するかは成績で学習する。
+ */
+export interface Hypothesis {
+  id: string;
+  /** 対象のペルソナ */
+  personaId: string;
+  /** 対象の求人（省略時はそのペルソナを持つすべての求人） */
+  jobIds?: string[];
+  /** 訴求軸（集計の軸） */
+  angle: Angle;
+  /** 仮説を一言で（例: 50代には「体力仕事ではない」と伝えると応募が増える） */
+  title: string;
+  /** AI に渡す具体的な打ち出し方・言ってほしいこと */
+  message: string;
+  /** 避けたい表現など（任意） */
+  avoid?: string[];
+  /** false で配分しない（検証を終えた仮説など） */
+  active?: boolean;
+}
+
+/**
+ * 自社の採点基準（config/rubric.json）。「ブルーカラー向けに良い広告とは何か」を項目と点数（1〜5）で書いたもの。
+ * レビューは項目ごとに採点し、配信結果と突き合わせて基準そのものも直していく。
+ */
+export interface RubricItem {
+  id: string;
+  label: string;
+  /** 何を見るか */
+  description: string;
+  /** 点数の目安（例: { "1": "…", "3": "…", "5": "…" }） */
+  levels?: Record<string, string>;
+  /** 重み（既定 1） */
+  weight?: number;
+  /** "hypothesis" なら社内の仮説に沿って作った企画だけ採点する */
+  appliesWhen?: 'hypothesis';
+}
+
+export interface Rubric {
+  /** 基準を直したら上げる（採点と実績の突き合わせを版ごとに分けるため） */
+  version: string;
+  items: RubricItem[];
+}
+
+export interface Persona {
+  id: string;
+  name: string;
+  summary: string;
+  motivations: string[];
+  pains: string[];
+  /** よく見る媒体・時間帯など */
+  media: string[];
+  /** 響く言葉・NGな言葉 */
+  vocabulary?: { use?: string[]; avoid?: string[] };
+  /** 広告を書く言語（既定 ja）。外国人材向けに vi / en / pt / id / tl / ne / zh / my など */
+  language?: string;
+}
+
+export const LANGUAGE_LABEL: Record<string, string> = {
+  ja: '日本語',
+  en: '英語',
+  vi: 'ベトナム語',
+  pt: 'ポルトガル語',
+  id: 'インドネシア語',
+  tl: 'タガログ語',
+  ne: 'ネパール語',
+  zh: '中国語（簡体字）',
+  my: 'ミャンマー語',
+  es: 'スペイン語',
+};
+
+/** 日本語訳（外国語で書いた広告のレビュー・法令チェック用） */
+export interface TranslationJa {
+  hook: string;
+  headline: string;
+  primaryText: string;
+  description: string;
+  main: string;
+  sub: string;
+  badges: string[];
+  /** 動画のカット・カルーセルのカードの文字の訳（storyboard と同じ順） */
+  storyboard?: string[];
+}
+
+export interface Brand {
+  name: string;
+  tone: string;
+  colors: { primary: string; accent: string; text: string; background: string };
+  /** 画像に必ず入れる表記（例: 許可番号） */
+  mandatoryText?: string;
+  logoPath?: string;
+  /** 社内ルールとして追加で避ける表現 */
+  bannedPhrases: string[];
+  /** 生成画像のスタイル指定（Midjourney に毎回付ける） */
+  visualStyle: string;
+}
+
+export interface Policy {
+  /** draft: 停止状態で入稿して人が ON にする / auto: 審査を通れば配信開始まで自動 */
+  autonomy: 'draft' | 'auto';
+  /** 1サイクルで新しく企画する本数（全求人合計） */
+  briefsPerCycle: number;
+  /** 動画を作る割合（0〜1） */
+  videoShare: number;
+  /** 配分の報酬: applications（応募数・既定）か interviews（選考結果の面接数。データが貯まってから） */
+  rewardMetric?: 'applications' | 'interviews';
+  /** カルーセル（Meta・Instagram 向けの複数枚画像）を作る割合（0〜1。既定 0） */
+  carouselShare?: number;
+  /** 新しい訴求軸を試す割合（探索率） */
+  exploreShare: number;
+  review: { passScore: number; maxRevisions: number };
+  /** Instagram のオーガニック投稿（広告素材の転用） */
+  organic?: {
+    enabled: boolean;
+    /** 1日の投稿数の上限 */
+    postsPerDay: number;
+    /** 毎回付けるハッシュタグ */
+    baseHashtags: string[];
+    /** 広告で成果が出た素材を優先して投稿する（CTR の下限 %） */
+    minAdCtrForRepost: number;
+    /** 投稿先（既定は instagram だけ）。facebook はページ投稿、youtube は縦動画を公開ショートとして投稿 */
+    channels?: ('instagram' | 'facebook' | 'youtube')[];
+  };
+  /** 画像1枚あたりの Midjourney 生成候補の中から選ぶ枚数 */
+  imageCandidates: number;
+  guardrails: {
+    /** 停止判定に使う最低インプレッション数 */
+    minImpressions: number;
+    /** CTR がこの値（%）を下回り、かつ中央値の何割未満なら停止 */
+    ctrFloorPct: number;
+    ctrRelativeFloor: number;
+    /** 目標応募単価（円）。超えたら停止候補 */
+    targetCpa: number;
+    /** 応募ゼロのまま目標CPAの何倍使ったら停止するか */
+    zeroConversionSpendMultiple: number;
+    /** 勝ちクリエイティブを伸ばすときの広告セット日予算の増加率と上限（円） */
+    budgetStepPct: number;
+    maxDailyBudget: number;
+    /** 1広告セットあたりの同時配信数の上限（入れ過ぎると学習が分散する） */
+    maxActivePerAdset: number;
+    /** 疲弊判定: 配信開始からこの日数を超え、直近CTRが初期の何割まで落ちたら入れ替え */
+    fatigueDays: number;
+    fatigueCtrRatio: number;
+  };
+  /** 応募ページ（LP）の自動作成。enabled で有効、perCycle は1回の実行で作る下書きの上限（既定 2） */
+  lp?: { enabled: boolean; perCycle?: number };
+}
+
+/** 応募ページ（LP）の文章。事実（給与・勤務地など）はページ側で求人情報から表示する */
+export interface LpCopy {
+  heroTitle: string;
+  heroSub: string;
+  heroBadges: string[];
+  empathyTitle: string;
+  empathyBody: string;
+  points: { title: string; body: string }[];
+  faq: { q: string; a: string }[];
+  ctaText: string;
+  closing: string;
+}
+
+/** adops が作った応募ページ。下書き → 人が承認 → 公開（/lp/<id>）。 */
+export interface LandingPage {
+  /** URL に使う ID（英小文字・数字・ハイフン） */
+  id: string;
+  jobId: string;
+  personaId: string;
+  hypothesisId?: string;
+  status: 'draft' | 'live' | 'retired' | 'rejected';
+  statusReason?: string;
+  copy: LpCopy;
+  issues: ReviewIssue[];
+  createdAt: string;
+  createdOn: string;
+  approvedAt?: string;
+  retiredAt?: string;
+}
+
+export interface CreativeElements {
+  motif: 'real_person' | 'illustration' | 'character' | 'scene_only' | 'object';
+  person: string;
+  setting: string;
+  palette: string;
+  taste: 'bright' | 'calm' | 'energetic' | 'warm' | 'premium' | 'documentary';
+  copyTone: 'empathy' | 'benefit' | 'question' | 'number' | 'urgency' | 'story';
+}
+
+export interface CreativeBrief {
+  id: string;
+  cycleId: string;
+  jobId: string;
+  personaId: string;
+  angle: Angle;
+  format: Format;
+  /** 探索枠（新しい訴求軸の試行）かどうか */
+  explore: boolean;
+  hypothesis: string;
+  hook: string;
+  headline: string;
+  primaryText: string;
+  description: string;
+  cta: 'APPLY_NOW' | 'LEARN_MORE' | 'SIGN_UP' | 'CONTACT_US';
+  overlay: { main: string; sub: string; badges: string[] };
+  /** 動画の場合のシーン構成（各カットの表示テキスト） */
+  storyboard: { seconds: number; text: string; visual: string }[];
+  visualConcept: string;
+  /** Midjourney 用プロンプト（パラメータは付けない。比率等はシステム側で付与） */
+  imagePrompt: string;
+  revision: number;
+  createdAt: string;
+  iterateOf?: string;
+  /** 社内で決めた仮説（config/hypotheses.json）の ID */
+  hypothesisId?: string;
+  /** 広告の要素（モチーフ・色味・テイストなど）。効いた要素を後で分析するために記録する */
+  elements?: CreativeElements;
+  /** 広告の言語（ペルソナの言語。未設定は日本語） */
+  language?: string;
+  /** 外国語の広告の日本語訳 */
+  translationJa?: TranslationJa;
+}
+
+export interface ReviewIssue {
+  severity: 'blocker' | 'major' | 'minor';
+  field: string;
+  problem: string;
+  suggestion: string;
+}
+
+export interface Review {
+  briefId: string;
+  revision: number;
+  reviewer: 'rules' | 'ai';
+  score: number;
+  scores: Record<string, number>;
+  verdict: 'pass' | 'revise' | 'reject';
+  issues: ReviewIssue[];
+  summary: string;
+  createdAt: string;
+  /** 自社の採点基準で採点した場合: 基準の版と、項目ごとの点数（1〜5）の理由 */
+  rubricVersion?: string;
+  rubricNotes?: Record<string, string>;
+}
+
+export type CreativeStatus =
+  | 'planned'
+  | 'rejected'
+  | 'awaiting_images' // 手渡しモードで人の Midjourney 生成待ち
+  | 'produced'
+  | 'qa_failed'
+  | 'published'
+  | 'paused'
+  | 'retired'
+  | 'failed';
+
+export interface Asset {
+  ratio: Ratio;
+  kind: Format;
+  path: string;
+  width: number;
+  height: number;
+  durationSec?: number;
+  /** カルーセルのカード番号（0 始まり） */
+  card?: number;
+}
+
+export interface ImageJob {
+  ratio: Ratio;
+  provider: string;
+  jobId?: string;
+  prompt: string;
+  requestedAt: string;
+  /** 生成済みの候補画像 */
+  paths?: string[];
+  /** 画像審査で選ばれた候補 */
+  selected?: number;
+  /** 生成待ちの状況（手渡しモードでは画像の置き場所） */
+  note?: string;
+  /** Midjourney Video などで作った動画クリップ */
+  clip?: string | null;
+}
+
+export interface DailyMetric {
+  date: string;
+  platform: Platform;
+  impressions: number;
+  clicks: number;
+  spend: number;
+  conversions: number;
+  /** 動画の3秒再生・ThruPlay 等 */
+  videoViews?: number;
+}
+
+export interface Creative {
+  id: string;
+  briefId: string;
+  jobId: string;
+  personaId: string;
+  angle: Angle;
+  format: Format;
+  explore: boolean;
+  /** 勝ち広告の改良版の場合、元の企画 ID */
+  iterateOf?: string;
+  /** 社内で決めた仮説（config/hypotheses.json）の ID */
+  hypothesisId?: string;
+  /** 合格したときの採点（配信結果と突き合わせて採点基準を直すために、企画ごとに残す） */
+  review?: { score: number; scores: Record<string, number>; rubricVersion?: string };
+  /** 画像の文字レイアウト（band / card / bold）。自動で配分・学習する */
+  layout?: string;
+  status: CreativeStatus;
+  statusReason?: string;
+  /** 比率ごとの画像生成依頼（画像広告は 4:5 と 9:16、動画は 9:16 の背景を作る） */
+  imageJobs: ImageJob[];
+  assets: Asset[];
+  qa?: { score: number; notes: string; selectedIndex: number };
+  /** 媒体側で実際に配信中か（collect で同期。下書き入稿で人がまだ ON にしていなければ false） */
+  live?: boolean;
+  platformRefs: {
+    meta?: { adIds: string[]; creativeIds: string[]; status?: string; previewUrl?: string; storyId?: string; igMediaId?: string };
+    google?: { assetResourceNames: string[]; linkedTo: string[]; youtubeVideoId?: string; status?: string };
+  };
+  metrics: DailyMetric[];
+  createdAt: string;
+  publishedAt?: string;
+  updatedAt: string;
+  organic?: OrganicPost;
+  /** Instagram 投稿に失敗した回数（一定回数で候補から外す） */
+  organicFailures?: number;
+  /** 一部の媒体だけ入稿に失敗したとき、再試行する媒体と回数 */
+  pendingPlatforms?: Platform[];
+  publishRetries?: number;
+  /** 選考結果（ATS / スプレッドシートから取り込み）。広告経由の応募者がどこまで進んだか */
+  funnel?: { applied: number; interview: number; offer: number; hired: number; updatedAt: string };
+}
+
+export interface OrganicPost {
+  kind: 'feed' | 'reels' | 'carousel';
+  mediaId: string;
+  permalink: string;
+  postedAt: string;
+  caption: string;
+  /** Instagram 以外の投稿先 */
+  facebookPostId?: string;
+  youtubeVideoId?: string;
+  insights: { date: string; reach: number; views: number; likes: number; comments: number; saved: number; shares: number }[];
+}
+
+export interface Insight {
+  date: string;
+  summary: string;
+  learnings: string[];
+  nextActions: string[];
+  angleRanking: { angle: Angle; note: string }[];
+}
+
+export interface Decision {
+  date: string;
+  creativeId?: string;
+  adsetId?: string;
+  action: 'pause' | 'activate' | 'scale_budget' | 'retire' | 'keep';
+  reason: string;
+  applied: boolean;
+  detail?: Record<string, unknown>;
+}
+
+export interface CycleRecord {
+  id: string;
+  startedAt: string;
+  finishedAt?: string;
+  dryRun: boolean;
+  steps: { name: string; ok: boolean; note: string; ms: number }[];
+  llmCostUsd: number;
+}
+
+export interface LlmUsage {
+  date: string;
+  agent: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  costUsd: number;
+}
+
+/** Google 検索広告（レスポンシブ検索広告）。画像素材と別に管理する */
+export interface SearchAd {
+  id: string;
+  jobId: string;
+  adGroupId: string;
+  resourceName?: string;
+  headlines: string[];
+  descriptions: string[];
+  path1?: string;
+  path2?: string;
+  status: 'draft' | 'live' | 'paused' | 'failed';
+  statusReason?: string;
+  metrics: DailyMetric[];
+  createdAt: string;
+  /** 作成した日（日本時間の YYYY-MM-DD） */
+  createdOn: string;
+}
+
+export interface State {
+  version: 1;
+  searchAds?: Record<string, SearchAd>;
+  /** コメント監視でどこまで見たか（投稿 ID → UNIX 秒） */
+  commentCursor?: Record<string, number>;
+  /** 緊急停止中（解除するまで企画・制作・入稿・投稿をしない） */
+  halted?: { at: string; reason: string };
+  /** 日予算の上限による停止を人が解除した日（日本時間）。その日は上限で止めない */
+  spendCapWaivedOn?: string;
+  /** 月の広告費の上限による停止を人が解除した月（YYYY-MM）。その月は月の上限で止めない */
+  monthlyCapWaivedFor?: string;
+  /** Meta 広告セットの直近7日のフリークエンシーとリーチ（広告セット ID → 確認した日の値） */
+  audience?: Record<string, { date: string; frequency?: number; reach?: number; learning?: string }>;
+  /** Google 検索キャンペーンの直近7日の予算不足による取りこぼし（0〜1） */
+  searchBudget?: { date: string; campaigns: { campaignId: string; name: string; lostToBudget: number; impressionShare: number }[] };
+  /** adops が作った応募ページ（LP ID → LP） */
+  lps?: Record<string, LandingPage>;
+  /** 手で入稿する用の Google 検索広告のテキスト（求人 ID → 最新の案）。API 連携が無くても Google 広告エディタに貼れる */
+  googleTexts?: Record<string, { createdOn: string; headlines: string[]; descriptions: string[]; path1: string; path2: string; dropped: string[] }>;
+  /** 認証情報の確認結果（期限切れが近いなど、人が対応すべきもの） */
+  credentials?: { checkedOn: string; alerts: string[] };
+  /** 応募ページの死活監視（求人 ID → 直近の確認結果） */
+  landing?: Record<string, { ok: boolean | null; status: number; note: string; checkedAt: string; since?: string; failCount?: number }>;
+  /** Google 検索広告に入れた除外キーワード（広告グループ ID → 語句） */
+  negatives?: Record<string, { term: string; reason: string; addedOn: string; applied: boolean; keep?: boolean }[]>;
+  /** 週次の戦略メモ */
+  memos?: { date: string; headline: string; findings: string[]; decisions: { topic: string; recommendation: string; why: string }[]; experiments: string[] }[];
+  briefs: Record<string, CreativeBrief>;
+  reviews: Review[];
+  creatives: Record<string, Creative>;
+  insights: Insight[];
+  decisions: Decision[];
+  cycles: CycleRecord[];
+  llmUsage: LlmUsage[];
+}
