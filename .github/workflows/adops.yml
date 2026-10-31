@@ -22,6 +22,14 @@ on:
         type: choice
         options: ['', 'stop', 'resume']
         default: ''
+      lp_approve:
+        description: '応募ページ（LP）の下書きを承認して公開（ID。カンマ区切りで複数可）'
+        required: false
+        default: ''
+      lp_retire:
+        description: '応募ページ（LP）の公開を終了（ID。カンマ区切りで複数可）'
+        required: false
+        default: ''
 
 concurrency:
   # 毎時の応募通知は別グループにする（同じグループだと、待機中の緊急停止などを押し出してしまうため）。
@@ -80,15 +88,20 @@ jobs:
 
       - name: 段階を決める
         id: steps
+        env:
+          LP_APPROVE: ${{ github.event.inputs.lp_approve }}
+          LP_RETIRE: ${{ github.event.inputs.lp_retire }}
         run: |
-          if [ -n "${{ github.event.inputs.steps }}" ]; then
+          if [ -n "$LP_APPROVE$LP_RETIRE" ]; then
+            echo "steps=report" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.inputs.steps }}" ]; then
             echo "steps=${{ github.event.inputs.steps }}" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event.schedule }}" = "30 0-12 * * *" ]; then
             echo "steps=leads" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event.schedule }}" = "0 3,9 * * *" ]; then
             echo "steps=collect,optimize,report" >> "$GITHUB_OUTPUT"
           else
-            echo "steps=collect,optimize,analyze,plan,produce,publish,search,organic,report" >> "$GITHUB_OUTPUT"
+            echo "steps=collect,optimize,analyze,plan,produce,publish,search,lp,organic,report" >> "$GITHUB_OUTPUT"
           fi
 
       # 応募通知の「どこまで通知したか」（状態ブランチには保存しないのでキャッシュに置く）
@@ -102,6 +115,9 @@ jobs:
 
       - name: 実行
         env:
+          LP_APPROVE: ${{ github.event.inputs.lp_approve }}
+          LP_RETIRE: ${{ github.event.inputs.lp_retire }}
+          ADOPS_LP_BASE_URL: ${{ vars.ADOPS_LP_BASE_URL }}
           ADOPS_DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && 'true' || vars.ADOPS_DRY_RUN || 'true' }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ADOPS_MODEL: ${{ vars.ADOPS_MODEL }}
@@ -168,6 +184,11 @@ jobs:
             node src/cli.ts emergency-stop --reason "緊急停止（GitHub Actions から手動実行）"
           elif [ "${{ github.event.inputs.control }}" = "resume" ]; then
             node src/cli.ts resume
+          elif [ -n "$LP_APPROVE$LP_RETIRE" ]; then
+            # 入力はシェルに展開せず環境変数で渡す
+            if [ -n "$LP_APPROVE" ]; then node src/cli.ts lp-approve --id "$LP_APPROVE"; fi
+            if [ -n "$LP_RETIRE" ]; then node src/cli.ts lp-retire --id "$LP_RETIRE"; fi
+            node src/cli.ts report
           elif [ "${{ steps.steps.outputs.steps }}" = "leads" ]; then
             node src/cli.ts leads
           else

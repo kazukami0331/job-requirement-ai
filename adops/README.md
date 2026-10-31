@@ -102,6 +102,7 @@ Node.js 22.18 以上（TypeScript をそのまま実行します）、`ffmpeg`�
 
 - `jobs.json` — 集客したい求人。求人票のテキストがあれば `node src/cli.ts add-job --file 求人票.txt --write` で
   Claude が事実だけを抜き出して追加します（`active: false` で入るので、確認してから `true` に）。**給与・待遇はここに書いた事実だけが広告に使われます**（書いていない待遇を広告に出すとレビューで止まります）。
+  応募フォームの URL があれば `applyUrl` に書きます（adops が作る LP の応募ボタンの行き先）。
   `placements` に入稿先（Meta の広告セット ID、Google の広告グループ ID / アセットグループ ID）を書きます。
 - `personas.json` — 狙う求職者像（動機・不安・響く言葉）。`"language": "vi"` のように言語を付けると、そのペルソナ向けの広告は
   その言語（ベトナム語・英語・ポルトガル語・インドネシア語など）で書き、日本語訳も一緒に作ります（外国人材の集客用）。
@@ -133,6 +134,19 @@ Node.js 22.18 以上（TypeScript をそのまま実行します）、`ffmpeg`�
 | `guardrails.maxDailyBudget` | 自動で増やす日予算の上限（円） |
 | `guardrails.maxActivePerAdset` | 1求人あたりの同時配信数の上限（入れすぎると学習が分散） |
 | `guardrails.fatigueDays` / `fatigueCtrRatio` | 広告疲れの判定（配信から何日以上、初週比でCTRが何割まで落ちたら入替） |
+
+### 応募ページ（LP）の自動作成
+
+`policy.json` の `"lp": { "enabled": true, "perCycle": 2 }` で、稼働中の求人 × ペルソナ（× 社内の仮説）ごとに応募ページを作ります（外国語のペルソナは対象外）。
+- 文章（共感・選ぶ理由・よくある質問など）は Claude が書き、**給与・勤務地・勤務時間・休日・待遇は `jobs.json` からそのまま表示**します（事実を AI に書かせない）。
+  広告と同じ法令チェック（年齢・性別の限定、求人に無い待遇、給与、誇張、社内NG）を通らない文章は1回直させ、それでも駄目なら却下します。
+- 作ったものは**下書き**です。Slack の日次サマリに確認用リンク（`/adops/lp-drafts/<ID>.html`、レポートと同じパスワード）が届くので、
+  見て良ければ Slack で `/adops lp <ID>`（または Actions の `lp_approve`、`node src/cli.ts lp-approve --id <ID>`）で公開します。
+  公開先は `https://<Vercel のドメイン>/lp/<ID>`（`ADOPS_LP_BASE_URL` で変更可）。やめるときは `/adops lp-off <ID>`。
+- 応募ボタンの行き先は `jobs.json` の `applyUrl`（応募フォーム。無ければ `landingUrl`）。広告の utm と LP の ID を引き継ぐので、どの LP から応募が来たか分かります。
+- 公開中の LP は毎回、最新の求人情報で作り直します。求人情報が変わって文章と合わなくなったり、募集を終えたりしたら自動で公開をやめます。
+- 広告の飛び先にするときは、`jobs.json` の `landingUrl` を LP の URL に変えてください（自動では差し替えません）。
+- サンプル設定（社名未記入・example.com）のままでは公開できません。
 
 ### 書き出し（分析と手作業の入稿用）
 
@@ -234,7 +248,7 @@ GitHub の Variables に `ADOPS_REPORT_URL=https://<Vercel のドメイン>/adop
 | 種類 | 名前 |
 |---|---|
 | Secrets | `ADOPS_APPROVAL_SECRET` `GEMINI_API_KEY` `GOOGLE_SERVICE_ACCOUNT_JSON` `ADOPS_OUTCOMES_CSV_URL` `ANTHROPIC_API_KEY` `META_ACCESS_TOKEN` `META_APP_SECRET` `GOOGLE_ADS_DEVELOPER_TOKEN` `GOOGLE_ADS_CLIENT_ID` `GOOGLE_ADS_CLIENT_SECRET` `GOOGLE_ADS_REFRESH_TOKEN` `YOUTUBE_REFRESH_TOKEN` `MJ_API_KEY` `SLACK_WEBHOOK_URL` `ADOPS_LEADS_WEBHOOK_URL` `ADOPS_LEADS_WEBHOOK_SECRET` |
-| Variables | `ADOPS_DRY_RUN`（`false` で本番）`IMAGE_PROVIDER` `META_AD_ACCOUNT_ID` `META_PAGE_ID` `META_INSTAGRAM_USER_ID` `META_CONVERSION_ACTION_TYPES` `GOOGLE_ADS_CUSTOMER_ID` `GOOGLE_ADS_LOGIN_CUSTOMER_ID` `GOOGLE_ADS_CONVERSION_ACTION` `GOOGLE_ADS_LOGO_ASSET` `GOOGLE_ADS_BUSINESS_NAME` `ADOPS_MODEL` `MJ_API_BASE_URL` `MJ_VIDEO_ENABLED` `MJ_INBOX` `DRIVE_INBOX_FOLDER_ID` `ADOPS_MAX_LLM_USD` `ADOPS_SLACK_APPROVALS` `ADOPS_TTS` `ADOPS_TTS_VOICE` `GEMINI_IMAGE_MODEL` `IMAGE_FALLBACK_AFTER_HOURS` `ADOPS_WATCH_COMMENTS` `ADOPS_HIDE_SPAM` `ADOPS_REPORT_URL` `ADOPS_SHEET_ID` `ADOPS_DAILY_SPEND_CAP` `ADOPS_MONTHLY_SPEND_CAP` `ADOPS_MAX_FREQUENCY` `ADOPS_LP_CHECK` `ADOPS_MAX_LLM_USD_DAILY` `IMAGE_EXPLORE_PROVIDER` `ADOPS_META_ENHANCEMENTS` `ADOPS_BUDGET_COOLDOWN_DAYS` `ADOPS_ANALYZE_EVERY_DAYS` `ADOPS_TTS_RATE` |
+| Variables | `ADOPS_DRY_RUN`（`false` で本番）`IMAGE_PROVIDER` `META_AD_ACCOUNT_ID` `META_PAGE_ID` `META_INSTAGRAM_USER_ID` `META_CONVERSION_ACTION_TYPES` `GOOGLE_ADS_CUSTOMER_ID` `GOOGLE_ADS_LOGIN_CUSTOMER_ID` `GOOGLE_ADS_CONVERSION_ACTION` `GOOGLE_ADS_LOGO_ASSET` `GOOGLE_ADS_BUSINESS_NAME` `ADOPS_MODEL` `MJ_API_BASE_URL` `MJ_VIDEO_ENABLED` `MJ_INBOX` `DRIVE_INBOX_FOLDER_ID` `ADOPS_MAX_LLM_USD` `ADOPS_SLACK_APPROVALS` `ADOPS_TTS` `ADOPS_TTS_VOICE` `GEMINI_IMAGE_MODEL` `IMAGE_FALLBACK_AFTER_HOURS` `ADOPS_WATCH_COMMENTS` `ADOPS_HIDE_SPAM` `ADOPS_REPORT_URL` `ADOPS_SHEET_ID` `ADOPS_DAILY_SPEND_CAP` `ADOPS_MONTHLY_SPEND_CAP` `ADOPS_MAX_FREQUENCY` `ADOPS_LP_BASE_URL` `ADOPS_LP_CHECK` `ADOPS_MAX_LLM_USD_DAILY` `IMAGE_EXPLORE_PROVIDER` `ADOPS_META_ENHANCEMENTS` `ADOPS_BUDGET_COOLDOWN_DAYS` `ADOPS_ANALYZE_EVERY_DAYS` `ADOPS_TTS_RATE` |
 
 本番前に、手元で `.env` を作って `node src/cli.ts check --live` を実行すると、Claude・Meta（広告アカウント・各広告セット・Instagram）・
 Google 広告（アカウント・広告グループがデマンド ジェネレーションか）・ドライブの設定を読み取りだけで確認できます。

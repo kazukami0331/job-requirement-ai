@@ -93,6 +93,25 @@ export function offlineLlm(catalog: Catalog): ScriptedLlm {
     issues: [],
     summary: '（オフライン）機械チェックのみで判定しました。',
   }));
+  llm.on('lpWriter', (req) => {
+    const title = req.prompt.match(/- 職種: (.+?)（/)?.[1] ?? 'お仕事';
+    const place = req.prompt.match(/- 勤務地: (.+)/)?.[1] ?? '';
+    return {
+      heroTitle: `${title.slice(0, 16)}の仲間を募集`,
+      heroSub: `${place}で働きませんか。まずは気軽にご相談ください`,
+      heroBadges: [],
+      empathyTitle: '今の働き方、このままでいいですか',
+      empathyBody: '収入や働く時間に悩んでいる方も、まずは話を聞くところから始められます。',
+      points: [
+        { title: '仕事内容が分かりやすい', body: '募集要項に仕事内容と条件をまとめています。' },
+        { title: '応募はスマホで完了', body: '下のボタンから応募できます。' },
+        { title: '分からないことは相談できる', body: '面接で気になることを何でも聞いてください。' },
+      ],
+      faq: [{ q: '未経験でも大丈夫ですか？', a: '応募条件をご確認のうえ、面接・お問い合わせでご確認ください。' }],
+      ctaText: 'まずは応募してみる',
+      closing: '少しでも気になったら、まずはお気軽にご応募ください。',
+    };
+  });
   llm.on('artJudge.pick', (req) => ({
     candidates: (req.images ?? []).map((_, i) => ({ index: i, score: 70 - i, defects: [] })),
     selectedIndex: 0,

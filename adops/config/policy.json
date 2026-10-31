@@ -36,5 +36,9 @@
     "maxActivePerAdset": 6,
     "fatigueDays": 14,
     "fatigueCtrRatio": 0.6
+  },
+  "lp": {
+    "enabled": true,
+    "perCycle": 2
   }
 }

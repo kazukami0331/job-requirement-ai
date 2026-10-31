@@ -59,6 +59,8 @@ export interface Job {
   /** 対象ペルソナ ID */
   personas: string[];
   landingUrl: string;
+  /** 応募フォームの URL（任意）。adops が作る LP の応募ボタンの行き先。無ければ landingUrl */
+  applyUrl?: string;
   /** 1日に作る新規クリエイティブの上限（求人ごと） */
   dailyCreativeQuota?: number;
   /** この求人の目標応募単価（円）。無ければ policy.json の guardrails.targetCpa（職種で採用の価値が違う場合に） */
@@ -225,6 +227,38 @@ export interface Policy {
     fatigueDays: number;
     fatigueCtrRatio: number;
   };
+  /** 応募ページ（LP）の自動作成。enabled で有効、perCycle は1回の実行で作る下書きの上限（既定 2） */
+  lp?: { enabled: boolean; perCycle?: number };
+}
+
+/** 応募ページ（LP）の文章。事実（給与・勤務地など）はページ側で求人情報から表示する */
+export interface LpCopy {
+  heroTitle: string;
+  heroSub: string;
+  heroBadges: string[];
+  empathyTitle: string;
+  empathyBody: string;
+  points: { title: string; body: string }[];
+  faq: { q: string; a: string }[];
+  ctaText: string;
+  closing: string;
+}
+
+/** adops が作った応募ページ。下書き → 人が承認 → 公開（/lp/<id>）。 */
+export interface LandingPage {
+  /** URL に使う ID（英小文字・数字・ハイフン） */
+  id: string;
+  jobId: string;
+  personaId: string;
+  hypothesisId?: string;
+  status: 'draft' | 'live' | 'retired' | 'rejected';
+  statusReason?: string;
+  copy: LpCopy;
+  issues: ReviewIssue[];
+  createdAt: string;
+  createdOn: string;
+  approvedAt?: string;
+  retiredAt?: string;
 }
 
 export interface CreativeElements {
@@ -465,6 +499,8 @@ export interface State {
   audience?: Record<string, { date: string; frequency?: number; reach?: number; learning?: string }>;
   /** Google 検索キャンペーンの直近7日の予算不足による取りこぼし（0〜1） */
   searchBudget?: { date: string; campaigns: { campaignId: string; name: string; lostToBudget: number; impressionShare: number }[] };
+  /** adops が作った応募ページ（LP ID → LP） */
+  lps?: Record<string, LandingPage>;
   /** 手で入稿する用の Google 検索広告のテキスト（求人 ID → 最新の案）。API 連携が無くても Google 広告エディタに貼れる */
   googleTexts?: Record<string, { createdOn: string; headlines: string[]; descriptions: string[]; path1: string; path2: string; dropped: string[] }>;
   /** 認証情報の確認結果（期限切れが近いなど、人が対応すべきもの） */

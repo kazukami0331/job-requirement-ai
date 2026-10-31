@@ -220,6 +220,7 @@ export async function POST(req: Request) {
 
 /**
  * /adops stop | resume — GitHub Actions の adops ワークフローを緊急操作として起動する。
+ * /adops lp <ID> | lp-off <ID> — 応募ページ（LP）の下書きを承認して公開する / 公開を終了する（数分で反映）。
  * 必要な環境変数: ADOPS_GITHUB_REPO、ADOPS_GITHUB_TOKEN（Contents: Read-only と Actions: Read and write の両方。承認の安全確認と共用）、ADOPS_SLACK_APPROVERS。
  */
 async function slashCommand(form: URLSearchParams): Promise<Response> {
@@ -227,9 +228,14 @@ async function slashCommand(form: URLSearchParams): Promise<Response> {
   const userId = form.get("user_id") ?? "";
   const approvers = (process.env.ADOPS_SLACK_APPROVERS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   if (!approvers.includes(userId)) return reply("この操作をする権限がありません（ADOPS_SLACK_APPROVERS）。");
-  const sub = (form.get("text") ?? "").trim().toLowerCase();
-  if (sub !== "stop" && sub !== "resume") {
-    return reply("使い方: `/adops stop`（adops の広告をすべて停止し、新しい入稿も止める） / `/adops resume`（解除）");
+  const [sub = "", ...args] = (form.get("text") ?? "").trim().toLowerCase().split(/\s+/);
+  const lpIds = args.join(",").split(",").filter(Boolean);
+  const isLp = sub === "lp" || sub === "lp-off";
+  if (isLp && (!lpIds.length || !lpIds.every((id) => /^[a-z0-9-]{3,80}$/.test(id)))) {
+    return reply("使い方: `/adops lp <LP の ID>`（下書きを承認して公開） / `/adops lp-off <LP の ID>`（公開を終了）。ID は日次サマリに出ています。");
+  }
+  if (!isLp && sub !== "stop" && sub !== "resume") {
+    return reply("使い方: `/adops stop`（adops の広告をすべて停止し、新しい入稿も止める） / `/adops resume`（解除） / `/adops lp <ID>`（LP を公開） / `/adops lp-off <ID>`（LP の公開を終了）");
   }
   const repo = process.env.ADOPS_GITHUB_REPO;
   const token = process.env.ADOPS_GITHUB_TOKEN;
@@ -237,7 +243,10 @@ async function slashCommand(form: URLSearchParams): Promise<Response> {
   const res = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/adops.yml/dispatches`, {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28", "content-type": "application/json" },
-    body: JSON.stringify({ ref: process.env.ADOPS_GITHUB_REF || "main", inputs: { control: sub } }),
+    body: JSON.stringify({
+      ref: process.env.ADOPS_GITHUB_REF || "main",
+      inputs: isLp ? { [sub === "lp" ? "lp_approve" : "lp_retire"]: lpIds.join(",") } : { control: sub },
+    }),
   });
   if (!res.ok) return reply(`ワークフローを起動できませんでした（GitHub ${res.status}）。Actions の画面から実行してください。`);
   after(() =>
@@ -246,9 +255,13 @@ async function slashCommand(form: URLSearchParams): Promise<Response> {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         response_type: "in_channel",
-        text: sub === "stop" ? `:octagonal_sign: <@${userId}> が adops の緊急停止を実行しました（数分で全広告が止まります）` : `:arrow_forward: <@${userId}> が adops の緊急停止を解除しました`,
+        text: isLp
+          ? `:page_facing_up: <@${userId}> が応募ページ ${lpIds.join(", ")} の${sub === "lp" ? "公開" : "公開終了"}を実行しました（数分で反映。結果は Slack に届きます）`
+          : sub === "stop"
+            ? `:octagonal_sign: <@${userId}> が adops の緊急停止を実行しました（数分で全広告が止まります）`
+            : `:arrow_forward: <@${userId}> が adops の緊急停止を解除しました`,
       }),
     }).then(() => undefined, () => undefined),
   );
-  return reply(sub === "stop" ? "緊急停止を開始しました。数分後に Slack に結果が届きます。" : "解除を開始しました。");
+  return reply(isLp ? "受け付けました。数分後に Slack に結果が届きます。" : sub === "stop" ? "緊急停止を開始しました。数分後に Slack に結果が届きます。" : "解除を開始しました。");
 }

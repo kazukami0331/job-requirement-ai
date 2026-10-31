@@ -16,6 +16,7 @@ import { watchComments } from './comments.ts';
 import { checkLandingPages } from './landing.ts';
 import { checkCredentials } from './credentials.ts';
 import { exportAll } from './exports.ts';
+import { createLps, lpPreviewUrl, lpUrl } from './lp.ts';
 import { excludeIrrelevantTerms } from './negatives.ts';
 import { analyze } from '../agents/analyst.ts';
 import { memoToSlack, shouldWriteMemo, writeMemo } from '../agents/strategyMemo.ts';
@@ -31,8 +32,8 @@ import { logger } from '../util/log.ts';
 
 const log = logger('cycle');
 
-export type StepName = 'collect' | 'optimize' | 'analyze' | 'plan' | 'produce' | 'publish' | 'search' | 'organic' | 'report';
-export const ALL_STEPS: StepName[] = ['collect', 'optimize', 'analyze', 'plan', 'produce', 'publish', 'search', 'organic', 'report'];
+export type StepName = 'collect' | 'optimize' | 'analyze' | 'plan' | 'produce' | 'publish' | 'search' | 'lp' | 'organic' | 'report';
+export const ALL_STEPS: StepName[] = ['collect', 'optimize', 'analyze', 'plan', 'produce', 'publish', 'search', 'lp', 'organic', 'report'];
 
 /** 緊急停止中でも動かしてよい段階（実績の取り込み・停止判断・分析・報告だけ） */
 const SAFE_WHEN_HALTED: StepName[] = ['collect', 'optimize', 'analyze', 'report'];
@@ -153,6 +154,12 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
     return searchNote;
   });
 
+  let lpNote = '';
+  await step('lp', async () => {
+    lpNote = await createLps(ctx);
+    return lpNote;
+  });
+
   let organicNote = '';
   await step('organic', async () => {
     organicNote = await postOrganic(ctx);
@@ -178,7 +185,7 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
     // 分析用の表と、手で入稿する用の Google 検索広告テキスト（レポート画面からダウンロードできる）
     const exported = await exportAll(ctx, { googleText: !store.state.halted }).catch((e) => `書き出しに失敗: ${(e as Error).message.slice(0, 200)}`);
     log.info(exported);
-    await notifySlack(ctx.settings.slack.webhookUrl, summaryMessage(ctx, record, { decisions, planned, produced, published, analyzed, organicNote, searchNote }));
+    await notifySlack(ctx.settings.slack.webhookUrl, summaryMessage(ctx, record, { decisions, planned, produced, published, analyzed, organicNote, searchNote, lpNote }));
     return path;
   });
   // report の結果も記録に残す
@@ -197,7 +204,7 @@ function handoffWaiting(ctx: Ctx): Creative[] {
 function summaryMessage(
   ctx: Ctx,
   record: CycleRecord,
-  r: { decisions: Decision[]; planned: PlanResult; produced: { produced: number; waiting: number; failed: number }; published: PublishSummary; analyzed: boolean; organicNote: string; searchNote: string },
+  r: { decisions: Decision[]; planned: PlanResult; produced: { produced: number; waiting: number; failed: number }; published: PublishSummary; analyzed: boolean; organicNote: string; searchNote: string; lpNote: string },
 ) {
   const { store, today } = ctx;
   const t7 = totals(store.creatives().flatMap((c) => lastNDays(c.metrics, today, 7)));
@@ -210,6 +217,8 @@ function summaryMessage(
   if (waitingImages && ctx.images.name === 'handoff') todo.push(`Midjourney で画像を作る（${waitingImages} 本。下にプロンプト）`);
   if (ctx.catalog.policy.autonomy === 'draft' && !ctx.dryRun && r.published.published.length) todo.push(`入稿した ${r.published.published.length} 本を確認して配信開始（Slack の承認ボタンか管理画面）`);
   for (const a of store.state.credentials?.alerts ?? []) todo.push(a);
+  const lpDrafts = Object.values(store.state.lps ?? {}).filter((l) => l.status === 'draft').length;
+  if (lpDrafts) todo.push(`応募ページ（LP）の下書き ${lpDrafts} 本を確認して承認する`);
   const lpBad = ctx.catalog.jobs.filter((j) => store.state.landing?.[j.id]?.ok === false).length;
   if (lpBad) todo.push(`応募ページを直す（${lpBad} 求人）`);
   const memo = store.state.memos?.at(-1);
@@ -289,6 +298,15 @@ function summaryMessage(
     }
   }
   if (r.organicNote) lines.push(`*Instagram 投稿* ${r.organicNote}`);
+  // 応募ページ（LP）: 承認待ちの下書きと、今回の動き
+  const drafts = Object.values(store.state.lps ?? {}).filter((l) => l.status === 'draft');
+  if (r.lpNote || drafts.length) {
+    lines.push(`*応募ページ（LP）* ${r.lpNote || `公開中 ${Object.values(store.state.lps ?? {}).filter((l) => l.status === 'live').length} 本`}`);
+    for (const l of drafts.slice(0, 5)) {
+      const h = l.hypothesisId ? ctx.catalog.hypotheses?.find((x) => x.id === l.hypothesisId) : undefined;
+      lines.push(`• 下書き \`${l.id}\`（${ctx.catalog.jobs.find((j) => j.id === l.jobId)?.title ?? l.jobId}${h ? `・${h.title}` : ''}）<${lpPreviewUrl(l.id)}|確認する> → 承認は \`/adops lp ${l.id}\`（公開先 ${lpUrl(l.id)}）`);
+    }
+  }
   lines.push('', `AI費用 $${record.llmCostUsd}${process.env.ADOPS_REPORT_URL ? `｜<${process.env.ADOPS_REPORT_URL}|レポートを開く>` : ''}`);
   const text = lines.join('\n');
   // 今日入稿した広告のプレビュー画像（Meta の CDN の公開 URL があるもの）を最大3枚
