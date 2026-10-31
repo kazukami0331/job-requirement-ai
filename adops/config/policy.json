@@ -1,7 +1,7 @@
 {
   "autonomy": "draft",
   "briefsPerCycle": 6,
-  "videoShare": 0.4,
+  "videoShare": 0,
   "carouselShare": 0.15,
   "exploreShare": 0.3,
   "review": {
