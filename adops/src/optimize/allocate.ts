@@ -7,7 +7,7 @@
  * 報酬は「1000インプレッションあたりの応募」を主に使い、応募が少ない間はクリック率で代用する。
  */
 import { allPlacements, placementsFor, type Catalog } from '../config.ts';
-import { ANGLES, type Angle, type Creative, type Format, type Job, type SearchAd } from '../types.ts';
+import { ANGLES, type Angle, type Creative, type Format, type Hypothesis, type Job, type SearchAd } from '../types.ts';
 import type { Slot } from '../agents/strategist.ts';
 import type { Totals } from './stats.ts';
 import { angleTotals, totals } from './stats.ts';
@@ -206,6 +206,7 @@ export function allocateSlots(input: AllocationInput): Slot[] {
     const jobCreatives = creatives.filter((c) => c.jobId === job.id);
     const personaUse = new Map(job.personas.map((p) => [p, jobCreatives.filter((c) => c.personaId === p).length]));
     const usedThisCycle = new Set<Angle>();
+    const usedHyps = new Set<string>();
     // 改良版を作る価値のある勝ち広告（応募3件以上・目標単価以内で、疲弊で入れ替えたか配信10日以上。まだ改良版が無いもの）
     const iterated = new Set(creatives.map((c) => c.iterateOf).filter(Boolean));
     const winners = jobCreatives
@@ -226,6 +227,28 @@ export function allocateSlots(input: AllocationInput): Slot[] {
       // ペルソナは使用回数の少ない順に回す（言語ごとの学習を使うため、訴求軸より先に決める）
       const personaId = [...personaUse.entries()].sort((x, y) => x[1] - y[1])[0][0];
       personaUse.set(personaId, personaUse.get(personaId)! + 1);
+      // 社内で決めた仮説があるペルソナは、仮説の中から選ぶ（何を試すかは人が決め、どれに多く配分するかを成績で学習する）
+      const hyps = (catalog.hypotheses ?? []).filter((h) => h.active !== false && h.personaId === personaId && (!h.jobIds?.length || h.jobIds.includes(job.id)));
+      if (hyps.length) {
+        const fresh = hyps.filter((h) => !usedHyps.has(h.id));
+        const pool = fresh.length ? fresh : hyps;
+        const lang = langOf(personaId);
+        const hypStats = (id: string) =>
+          totals(creatives.filter((c) => c.jobId === job.id && c.hypothesisId === id && langOf(c.personaId) === lang).flatMap((c) => c.metrics.filter((m) => m.date >= from && m.date <= today)));
+        let h: Hypothesis;
+        if (explore) {
+          h = pool.map((x) => ({ x, imp: hypStats(x.id).impressions, r: rng() })).sort((a, b) => a.imp - b.imp || a.r - b.r)[0].x;
+        } else {
+          h = pool.map((x) => {
+            const { a, b } = posterior(hypStats(x.id));
+            return { x, v: betaSample(a, b, rng) };
+          }).sort((a, b) => b.v - a.v)[0].x;
+        }
+        usedHyps.add(h.id);
+        usedThisCycle.add(h.angle);
+        slots.push({ slot: slotNo++, jobId: job.id, personaId, angle: h.angle, format: 'image', explore, hypothesisId: h.id });
+        continue;
+      }
       const { stats, post } = learnFor(langOf(personaId));
       let angle: Angle;
       if (explore) {

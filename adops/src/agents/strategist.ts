@@ -19,6 +19,8 @@ export interface Slot {
   explore: boolean;
   /** 勝ち広告の改良版を作る場合、元の企画 ID */
   iterateOf?: string;
+  /** 社内で決めた仮説（config/hypotheses.json）に沿って作る場合、その ID */
+  hypothesisId?: string;
 }
 
 export interface PlanningContext {
@@ -184,6 +186,11 @@ ${slots
       `- slot ${s.slot}: 求人=${s.jobId} / ペルソナ=${s.personaId} / 訴求軸=${ANGLE_LABELS[s.angle]}(${s.angle}) / 形式=${s.format === 'video' ? '動画(9:16)' : s.format === 'carousel' ? 'カルーセル(1:1 を3〜5枚)' : '画像'} / ${s.explore ? '探索枠' : '活用枠'}${
         s.angle === 'housing' ? `\n  （寮訴求なので画像は住まいを見せる案も検討: ${HOUSING_HINT}）` : ''
       }${(() => {
+        const h = s.hypothesisId ? catalog.hypotheses?.find((x) => x.id === s.hypothesisId) : undefined;
+        return h
+          ? `\n  （社内で決めた検証仮説「${h.title}」。打ち出し方: ${h.message}${h.avoid?.length ? `。避ける: ${h.avoid.join('、')}` : ''}。この仮説を検証できるよう、打ち出しに忠実に作る）`
+          : '';
+      })()}${(() => {
         const src = s.iterateOf ? ctx.iterateSources?.[s.iterateOf] : undefined;
         return src
           ? `\n  （勝ち広告の改良版。元: フック「${src.hook}」/ 画像の文字「${src.overlayMain}」/ 絵「${src.visualConcept}」/ CTR ${src.ctr.toFixed(2)}%${src.cpa ? `・応募単価 ${Math.round(src.cpa)}円` : ''}。見る人が飽きてきたので、訴求の核は残してフックの言い回しと絵を変える）`
@@ -210,7 +217,7 @@ export async function planBriefs(llm: Llm, slots: Slot[], catalog: Catalog, ctx:
 export async function reviseBrief(llm: Llm, brief: CreativeBrief, issues: ReviewIssue[], reviewSummary: string, catalog: Catalog): Promise<BriefDraft> {
   const job = catalog.jobs.find((j) => j.id === brief.jobId)!;
   const persona = catalog.personas.find((p) => p.id === brief.personaId)!;
-  const { id, cycleId, jobId, personaId, angle, format, explore, revision, createdAt, ...draft } = brief;
+  const { id, cycleId, jobId, personaId, angle, format, explore, revision, createdAt, hypothesisId, ...draft } = brief;
   return llm.structured({
     agent: 'strategist.revise',
     system: STRATEGIST_SYSTEM,

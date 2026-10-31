@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Brand, Job, Persona, Placements, Policy } from './types.ts';
+import { ANGLES, type Brand, type Hypothesis, type Job, type Persona, type Placements, type Policy } from './types.ts';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -195,6 +195,8 @@ export interface Catalog {
   policy: Policy;
   /** 人が選んだお手本（任意。config/examples.json） */
   examples?: Examples;
+  /** 社内で決めた試したい仮説（任意。config/hypotheses.json） */
+  hypotheses?: Hypothesis[];
 }
 
 export function loadCatalog(configDir: string): Catalog {
@@ -204,6 +206,7 @@ export function loadCatalog(configDir: string): Catalog {
     brand: readJson<Brand>(configDir, 'brand.json'),
     policy: readJson<Policy>(configDir, 'policy.json'),
     examples: existsSync(join(configDir, 'examples.json')) ? readJson<Examples>(configDir, 'examples.json') : undefined,
+    hypotheses: existsSync(join(configDir, 'hypotheses.json')) ? readJson<Hypothesis[]>(configDir, 'hypotheses.json') : undefined,
   };
   validateCatalog(catalog);
   return catalog;
@@ -226,6 +229,15 @@ export function validateCatalog(c: Catalog): void {
     }
     if (j.targetCpa !== undefined && !(j.targetCpa > 0)) errors.push(`${j.id}: targetCpa は正の数（円）`);
     if (j.monthlyApplicationTarget !== undefined && !(j.monthlyApplicationTarget > 0)) errors.push(`${j.id}: monthlyApplicationTarget は 1 以上の数（目標なしなら項目ごと消す）`);
+  }
+  const hypIds = new Set<string>();
+  for (const h of c.hypotheses ?? []) {
+    if (!h.id || hypIds.has(h.id)) errors.push(`仮説の ID が空か重複しています: ${h.id}`);
+    hypIds.add(h.id);
+    if (!personaIds.has(h.personaId)) errors.push(`仮説 ${h.id}: 未定義のペルソナ ${h.personaId}`);
+    if (!(ANGLES as readonly string[]).includes(h.angle)) errors.push(`仮説 ${h.id}: angle は ${ANGLES.join(' / ')} のいずれか`);
+    for (const jid of h.jobIds ?? []) if (!jobIds.has(jid)) errors.push(`仮説 ${h.id}: 未定義の求人 ${jid}`);
+    if (!h.title?.trim() || !h.message?.trim()) errors.push(`仮説 ${h.id}: title と message は必須`);
   }
   const p = c.policy;
   if (!(p.videoShare >= 0 && p.videoShare <= 1)) errors.push('policy.videoShare は 0〜1');

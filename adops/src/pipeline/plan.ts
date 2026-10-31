@@ -101,7 +101,7 @@ export async function plan(ctx: Ctx): Promise<PlanResult> {
     log.info(`制作待ちが ${backlog} 本あるため新規企画はスキップ`);
     return { created: [], rejected: [] };
   }
-  log.info(`企画 ${slots.length} 枠: ${slots.map((s) => `${s.jobId}/${s.angle}/${s.format}${s.explore ? '*' : ''}`).join(', ')}`);
+  log.info(`企画 ${slots.length} 枠: ${slots.map((s) => `${s.jobId}/${s.hypothesisId ?? s.angle}/${s.format}${s.explore ? '*' : ''}`).join(', ')}`);
   const drafts = await planBriefs(llm, slots, catalog, planningContext(ctx, slots));
 
   const result: PlanResult = { created: [], rejected: [] };
@@ -121,6 +121,7 @@ export async function plan(ctx: Ctx): Promise<PlanResult> {
         format: slot.format,
         explore: slot.explore,
         ...(slot.iterateOf ? { iterateOf: slot.iterateOf } : {}),
+        ...(slot.hypothesisId ? { hypothesisId: slot.hypothesisId } : {}),
         revision: 0,
         createdAt: new Date().toISOString(),
         storyboard: slot.format === 'image' ? [] : rest.storyboard,
@@ -154,6 +155,7 @@ export async function plan(ctx: Ctx): Promise<PlanResult> {
         format: brief.format,
         explore: brief.explore,
         ...(brief.iterateOf ? { iterateOf: brief.iterateOf } : {}),
+        ...(brief.hypothesisId ? { hypothesisId: brief.hypothesisId } : {}),
         status: 'planned',
         imageJobs: [],
         assets: [],

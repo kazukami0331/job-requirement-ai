@@ -311,3 +311,27 @@ test('decide: 求人ごとの目標応募単価（targetCpa）で停止を判断
   const strict = decide({ creatives: [c], policy: policy(), today: '2026-10-07', adsetsByJob: new Map(), targetCpaByJob: new Map([['factory', 5000]]) });
   assert.ok(strict.some((d) => d.action === 'pause' && /目標 5,000円/.test(d.reason)));
 });
+
+test('allocateSlots: 社内で決めた仮説があるペルソナは仮説から選び、成績の良い仮説に寄る', () => {
+  const hypotheses = [
+    { id: 'h-good', personaId: 'p1', angle: 'pay' as const, title: '良い仮説', message: 'm' },
+    { id: 'h-bad', personaId: 'p1', angle: 'team' as const, title: '悪い仮説', message: 'm' },
+    { id: 'h-off', personaId: 'p1', angle: 'skill' as const, title: '終了', message: 'm', active: false },
+    { id: 'h-other-job', personaId: 'p1', angle: 'speed' as const, title: '別求人', message: 'm', jobIds: ['other'] },
+  ];
+  const cat = catalog({ hypotheses, policy: policy({ briefsPerCycle: 1, videoShare: 0, exploreShare: 0, carouselShare: 0 }) });
+  const good = creative({ id: 'g', hypothesisId: 'h-good', metrics: daily('2026-10-01', 7, { impressions: 5000, clicks: 100, spend: 5000, conversions: 5 }) });
+  const bad = creative({ id: 'b', hypothesisId: 'h-bad', metrics: daily('2026-10-01', 7, { impressions: 5000, clicks: 10, spend: 5000, conversions: 0 }) });
+  const counts = new Map<string, number>();
+  for (let seed = 1; seed <= 40; seed++) {
+    const [s] = allocateSlots({ catalog: cat, creatives: [good, bad], today: '2026-10-10', rng: seededRng(seed) });
+    assert.ok(s.hypothesisId === 'h-good' || s.hypothesisId === 'h-bad', '停止中・別求人の仮説は選ばない');
+    assert.equal(s.angle, s.hypothesisId === 'h-good' ? 'pay' : 'team');
+    counts.set(s.hypothesisId!, (counts.get(s.hypothesisId!) ?? 0) + 1);
+  }
+  assert.ok((counts.get('h-good') ?? 0) > 35);
+  // 探索枠はまだ試していない仮説を選ぶ
+  const fresh = [...hypotheses, { id: 'h-new', personaId: 'p1', angle: 'beginner' as const, title: '新しい仮説', message: 'm' }];
+  const [e] = allocateSlots({ catalog: catalog({ hypotheses: fresh, policy: policy({ briefsPerCycle: 1, videoShare: 0, exploreShare: 1, carouselShare: 0 }) }), creatives: [good, bad], today: '2026-10-10', rng: seededRng(3) });
+  assert.equal(e.hypothesisId, 'h-new');
+});

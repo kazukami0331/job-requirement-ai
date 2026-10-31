@@ -80,6 +80,28 @@ export interface Placements {
   google?: { assetGroupIds?: string[]; adGroupIds?: string[]; searchAdGroupIds?: string[] };
 }
 
+/**
+ * 社内で決めた「試したい仮説」（config/hypotheses.json）。戦略と検証の設計は人が行い、
+ * AI はこの仮説に沿って表現（コピー・画像・LP）を作る。どの仮説に多く配分するかは成績で学習する。
+ */
+export interface Hypothesis {
+  id: string;
+  /** 対象のペルソナ */
+  personaId: string;
+  /** 対象の求人（省略時はそのペルソナを持つすべての求人） */
+  jobIds?: string[];
+  /** 訴求軸（集計の軸） */
+  angle: Angle;
+  /** 仮説を一言で（例: 50代には「体力仕事ではない」と伝えると応募が増える） */
+  title: string;
+  /** AI に渡す具体的な打ち出し方・言ってほしいこと */
+  message: string;
+  /** 避けたい表現など（任意） */
+  avoid?: string[];
+  /** false で配分しない（検証を終えた仮説など） */
+  active?: boolean;
+}
+
 export interface Persona {
   id: string;
   name: string;
@@ -206,6 +228,8 @@ export interface CreativeBrief {
   revision: number;
   createdAt: string;
   iterateOf?: string;
+  /** 社内で決めた仮説（config/hypotheses.json）の ID */
+  hypothesisId?: string;
   /** 広告の言語（ペルソナの言語。未設定は日本語） */
   language?: string;
   /** 外国語の広告の日本語訳 */
@@ -290,6 +314,8 @@ export interface Creative {
   explore: boolean;
   /** 勝ち広告の改良版の場合、元の企画 ID */
   iterateOf?: string;
+  /** 社内で決めた仮説（config/hypotheses.json）の ID */
+  hypothesisId?: string;
   /** 画像の文字レイアウト（band / card / bold）。自動で配分・学習する */
   layout?: string;
   status: CreativeStatus;
