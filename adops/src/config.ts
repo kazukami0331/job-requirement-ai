@@ -224,6 +224,7 @@ export function validateCatalog(c: Catalog): void {
     if (jobIds.has(j.id)) errors.push(`求人IDが重複しています: ${j.id}`);
     jobIds.add(j.id);
     if (!j.landingUrl?.startsWith('http')) errors.push(`${j.id}: landingUrl が URL ではありません`);
+    if (j.applyUrl !== undefined && !/^https?:\/\//.test(j.applyUrl)) errors.push(`${j.id}: applyUrl は http(s):// で始まる URL にしてください`);
     if (!j.salary || !(j.salary.min > 0)) errors.push(`${j.id}: salary.min が未設定です（給与の明示は必須）`);
     for (const p of j.personas) if (!personaIds.has(p)) errors.push(`${j.id}: 未定義のペルソナ ${p}`);
     if (j.personas.length === 0) errors.push(`${j.id}: personas が空です`);
