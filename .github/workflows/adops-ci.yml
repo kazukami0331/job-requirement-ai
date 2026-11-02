@@ -2,7 +2,7 @@ name: adops CI
 
 on:
   pull_request:
-    paths: ['adops/**', 'app/api/adops/**', 'app/adops/**', '.github/workflows/adops*.yml']
+    paths: ['adops/**', 'app/api/adops/**', 'app/adops/**', 'app/admin/**', 'app/lp/**', 'lib/adops/**', 'components/admin/**', '.github/workflows/adops*.yml']
   push:
     branches: [main]
     paths: ['adops/**']
@@ -29,7 +29,7 @@ jobs:
         run: node src/cli.ts cycle --offline
 
   slack-route:
-    # Slack 承認ボタンの受け口（Next.js アプリ側）の型チェック
+    # Slack 承認ボタンの受け口・管理画面・LP 公開（Next.js アプリ側）の型チェックとテスト
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,3 +39,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx tsc --noEmit -p tsconfig.json
+      - name: 管理画面の入力チェックのテスト
+        run: node --test lib/adops/*.test.ts
