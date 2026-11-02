@@ -38,6 +38,7 @@ export async function writeRsa(
   avoid: string[] = [],
   terms: SearchTerm[] = [],
   angles: string[] = [],
+  fix?: { headlines: string[]; descriptions: string[]; note: string },
 ): Promise<{ headlines: string[]; descriptions: string[]; path1: string; path2: string; dropped: string[] }> {
   const s = job.salary;
   const out = await llm.structured({
@@ -59,6 +60,13 @@ ${(() => {
   return ds.length ? `# 社内からの指示（必ず守る。求人情報・法令と食い違うときは求人情報・法令を優先）\n${ds.map((d) => `- ${d}`).join('\n')}\n` : '';
 })()}
 ${angles.length ? `# 社内で検証している打ち出し（見出しの何本かに取り入れる。求人情報の事実に合う範囲で）\n${angles.map((a) => `- ${a}`).join('\n')}\n` : ''}
+${
+  fix
+    ? `# 修正の依頼（人から。必ず反映する）
+${fix.note}
+${fix.headlines.length ? `\n# 今の広告文（これを直す。依頼に関係ない見出し・説明文はできるだけそのまま残す）\n見出し:\n${fix.headlines.map((h) => `- ${h}`).join('\n')}\n説明文:\n${fix.descriptions.map((d) => `- ${d}`).join('\n')}\n` : ''}`
+    : ''
+}
 ${avoid.length ? `# 既存の広告で使っている見出し（今回は別の言い回しで挑戦する）\n${avoid.map((h) => `- ${h}`).join('\n')}` : ''}
 
 ${

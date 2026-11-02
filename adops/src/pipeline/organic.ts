@@ -41,6 +41,9 @@ export function organicCandidates(ctx: Ctx): { c: Creative; kind: 'feed' | 'reel
     if ((c.organicFailures ?? 0) >= 2) continue;
     // draft モードでは、人が管理画面で ON にした（＝人が確認した）広告の素材だけを公開投稿に使う
     if (draft && c.live !== true) continue;
+    // 人が選ぶ運用では、人が採用していない広告の素材は公開投稿に使わない
+    if (ctx.catalog.policy.requireHumanSelection && !c.humanApproved && c.status === 'produced') continue;
+    if (c.status === 'rejected') continue;
     const cards = c.assets.filter((a) => a.card !== undefined && existsSync(a.path)).sort((a, b) => a.card! - b.card!);
     const reel = c.assets.find((a) => a.kind === 'video' && a.ratio === '9:16' && existsSync(a.path));
     const feed = c.assets.find((a) => a.kind === 'image' && a.ratio === '4:5' && existsSync(a.path));

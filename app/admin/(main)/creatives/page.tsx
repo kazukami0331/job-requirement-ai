@@ -95,8 +95,10 @@ function RequestForms({ c }: { c: CreativeView }) {
 }
 
 function CreativeCard({ c, b, sub, rubricLabel }: { c: CreativeView; b?: BriefView; sub: string; rubricLabel: (id: string) => string }) {
-  const img = c.assets?.find((a) => a.ratio === "4:5" && a.kind === "image") ?? c.assets?.find((a) => a.kind === "image");
-  const url = assetUrl(img?.path);
+  // 4:5 の完成画像（配信後も残す）を優先し、無ければ（カルーセルなど）サムネイル
+  const img = c.assets?.find((a) => a.ratio === "4:5" && a.kind === "image");
+  const any = c.assets?.find((a) => a.kind === "image");
+  const url = assetUrl(img?.path) ?? assetUrl(any?.path.replace(/[^/]+$/, "thumb.jpg"));
   const e = b?.elements;
   return (
     <div className="grid gap-4 border-b border-slate-100 py-5 last:border-0 md:grid-cols-[240px_1fr]">

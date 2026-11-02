@@ -197,6 +197,11 @@ export async function produceOne(ctx: Ctx, c: Creative): Promise<void> {
     .resize(360, 450, { fit: 'cover' })
     .jpeg({ quality: 70 })
     .toFile(store.thumbPath(c.id));
+  // 人が採用した広告は、作り直し（素材の再合成）で最終チェックに落ちても人の判断を優先する（指摘は残す）
+  if (!qa.pass && c.humanApproved) {
+    store.setStatus(c, 'produced', `最終チェックの指摘（人が採用済み）: ${qa.problems.join(' / ')}`);
+    return;
+  }
   if (!qa.pass) {
     store.setStatus(c, 'qa_failed', `最終チェック不合格: ${qa.problems.join(' / ')}`);
     log.warn(`${c.id}: 最終チェック不合格 ${qa.problems.join(' / ')}`);

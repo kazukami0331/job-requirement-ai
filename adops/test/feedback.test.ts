@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ScriptedLlm } from '../src/llm/llm.ts';
@@ -69,7 +69,12 @@ test('feedback: 修正（コピー）は同じ画像で作り直し、配信中�
   });
   const ctx = ctxWith(llm);
   ctx.store.state.briefs.br_1 = brief();
-  const imageJobs = [{ ratio: '4:5' as const, provider: 'mock', prompt: 'p', requestedAt: 'x', paths: ['/tmp/a.png'], selected: 0 }];
+  const src = join(ctx.settings.dataDir, 'a.png');
+  writeFileSync(src, 'x');
+  const imageJobs = [
+    { ratio: '4:5' as const, provider: 'mock', prompt: 'p', requestedAt: 'x', paths: [src], selected: 0 },
+    { ratio: '9:16' as const, provider: 'mock', prompt: 'p', requestedAt: 'x', paths: [src], selected: 0 },
+  ];
   ctx.store.state.creatives.c1 = creative({ id: 'c1', status: 'produced', imageJobs, humanApproved: { at: 'x' } });
   ctx.store.state.creatives.live = creative({ id: 'live', status: 'published', imageJobs });
   ctx.catalog.feedback = [
@@ -83,12 +88,30 @@ test('feedback: 修正（コピー）は同じ画像で作り直し、配信中�
   const c1 = ctx.store.state.creatives.c1;
   assert.equal(c1.status, 'planned');
   assert.equal(c1.humanApproved, undefined, '直したら選び直す');
-  assert.equal(c1.imageJobs[0].paths![0], '/tmp/a.png', 'コピーだけなら画像はそのまま');
+  assert.equal(c1.imageJobs[0].paths![0], src, 'コピーだけなら画像はそのまま');
   assert.equal(ctx.store.state.briefs.br_1.overlay.main, '40代も活躍中');
   assert.equal(ctx.store.state.creatives.live.status, 'published', '配信中の広告は書き換えない');
   const copies = Object.values(ctx.store.state.creatives).filter((c) => c.variantOf);
   assert.equal(copies.length, 2);
-  assert.ok(copies.every((c) => c.status === 'planned' && c.imageJobs[0]?.paths?.[0] === '/tmp/a.png' && c.briefId !== 'br_1'));
+  // 別の広告は、元の画像を自分の素材フォルダにコピーして使う（元の素材が整理されても消えない）
+  assert.ok(copies.every((c) => c.status === 'planned' && c.imageJobs.length === 2 && c.imageJobs[0].paths![0].includes(c.id) && existsSync(c.imageJobs[0].paths![0]) && c.briefId !== 'br_1'));
+  // 文言だけの修正では、AI が画像の記述を書き換えても元に戻す
+  assert.equal(ctx.store.state.briefs.br_1.imagePrompt, brief().imagePrompt);
+
+  // 元の画像が消えていても、文字なしの背景が残っていればそれで文言違いを作る
+  const { rmSync, mkdirSync: mk } = await import('node:fs');
+  rmSync(src);
+  mk(ctx.store.assetDir('live'), { recursive: true });
+  writeFileSync(join(ctx.store.assetDir('live'), 'live_4x5.bg.jpg'), 'bg');
+  ctx.catalog.feedback.push(fb({ id: 'v2', targetId: 'live', action: 'variant', note: '数字で' }));
+  await applyFeedback(ctx);
+  const v2 = Object.values(ctx.store.state.creatives).find((c) => c.variantOf === 'live' && c.imageJobs.some((j) => j.paths?.[0]?.includes('_src.jpg')));
+  assert.ok(v2, '文字なしの背景から作る');
+  // 却下した広告は直せない
+  ctx.store.state.creatives.rej = creative({ id: 'rej', status: 'rejected' });
+  ctx.catalog.feedback.push(fb({ id: 'm9', targetId: 'rej', action: 'revise', note: 'x' }));
+  await applyFeedback(ctx);
+  assert.equal(ctx.store.state.feedbackDone!.m9.ok, false);
 
   // 画像も直す依頼なら画像は作り直す
   ctx.catalog.feedback.push(fb({ id: 'm3', targetId: 'c1', action: 'revise', note: '工場の中の写真にして', scope: 'image' }));

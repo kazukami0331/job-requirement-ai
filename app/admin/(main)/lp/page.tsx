@@ -1,4 +1,4 @@
-import { dispatch } from "@/lib/adops/github";
+import { dispatch, hasQueuedRun } from "@/lib/adops/github";
 import { loadFeedback, loadHypotheses, loadJobs, loadPersonas, loadPolicy, loadState, submitFeedback } from "@/lib/adops/config";
 import { FeedbackStatus } from "@/components/admin/feedback";
 import { act } from "@/lib/adops/actions";
@@ -14,7 +14,7 @@ async function decide(form: FormData) {
   const op = String(form.get("op") ?? "");
   await act("/admin/lp", op === "approve" ? `${id} の公開を開始しました。数分で反映されます` : `${id} の取り下げを開始しました。数分で反映されます`, async () => {
     if (!ID.test(id) || (op !== "approve" && op !== "retire")) throw new Error("操作が正しくありません");
-    await dispatch(op === "approve" ? { lp_approve: id } : { lp_retire: id });
+    await submitFeedback({ target: "lp", targetId: id, action: op === "approve" ? "approve" : "reject" });
   });
 }
 
@@ -48,7 +48,10 @@ function ReviseForm({ id }: { id: string }) {
 async function createNow() {
   "use server";
   await requireAdmin();
-  await act("/admin/lp", "LP の作成を開始しました。数分で下書きがここに並びます", () => dispatch({ steps: "lp,report" }));
+  await act("/admin/lp", "LP の作成を開始しました。数分で下書きがここに並びます", async () => {
+    if (await hasQueuedRun()) throw new Error("すでに実行が待ち行列にあります。その実行が終わると下書きが並びます");
+    await dispatch({ steps: "lp,report" });
+  });
 }
 
 function publicUrl(id: string): string {

@@ -65,6 +65,17 @@ export async function writeFile(path: string, text: string, sha: string | undefi
   if (!res.ok) throw new GitHubError(res.status, `GitHub に保存できませんでした（${res.status}）。トークンに Contents の書き込み権限があるか確認してください`);
 }
 
+/** adops のワークフローがすでに待ち行列にあるか（あれば、その実行が始まるときに最新の依頼を取り込む）。 */
+export async function hasQueuedRun(): Promise<boolean> {
+  for (const status of ["queued", "pending", "waiting"]) {
+    const res = await gh(`/actions/workflows/adops.yml/runs?status=${status}&per_page=1`);
+    if (!res.ok) return false;
+    const j = (await res.json()) as { total_count?: number };
+    if ((j.total_count ?? 0) > 0) return true;
+  }
+  return false;
+}
+
 /** adops のワークフローを起動する（LP の公開・緊急停止・今すぐ実行）。 */
 export async function dispatch(inputs: Record<string, string>): Promise<void> {
   const res = await gh(`/actions/workflows/adops.yml/dispatches`, {

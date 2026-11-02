@@ -8,7 +8,7 @@
  * 処理した依頼は状態（feedbackDone）に結果を残し、二度処理しない。修正後の広告・LP も、法令チェックとレビューを通ったものだけ残す。
  */
 import type { Ctx } from './context.ts';
-import type { Creative, CreativeBrief, FeedbackRequest, Review, ReviewIssue } from '../types.ts';
+import type { Creative, CreativeBrief, FeedbackRequest, ImageJob, Review, ReviewIssue } from '../types.ts';
 import { reviseBrief } from '../agents/strategist.ts';
 import { reviewBrief } from '../agents/reviewer.ts';
 import { writeLp } from '../agents/lpWriter.ts';
@@ -17,18 +17,39 @@ import { approveLp, checkLpCopy, retireLp } from './lp.ts';
 import { renderLp } from '../lp/html.ts';
 import { newId } from '../util/id.ts';
 import { logger } from '../util/log.ts';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { extname, join } from 'node:path';
+import { requiredRatios } from './produce.ts';
 
 const log = logger('feedback');
 
 const human = (note: string): ReviewIssue => ({ severity: 'major', field: '人からの修正依頼', problem: note, suggestion: `依頼どおりに直す: ${note}` });
 
+type Scope = 'copy' | 'image' | 'both';
+
+const SCOPE_NOTE: Record<Scope, string> = {
+  copy: '（文言だけ直す。画像は今のものを使うので、imagePrompt・visualConcept・elements の絵に関する項目は変えない）',
+  image: '（画像だけ作り直す。hook・headline・primaryText・description・overlay の文言は変えず、imagePrompt・visualConcept・elements を直す）',
+  both: '（文言と画像の両方を直してよい）',
+};
+
+/** 修正の範囲の外の項目は元に戻す（AI が範囲外を書き換えても、画像と企画の記録が食い違わないように）。 */
+function keepOutOfScope(orig: CreativeBrief, b: CreativeBrief, scope: Scope): CreativeBrief {
+  if (scope === 'copy') {
+    return { ...b, imagePrompt: orig.imagePrompt, visualConcept: orig.visualConcept, ...(orig.elements ? { elements: { ...orig.elements, copyTone: b.elements?.copyTone ?? orig.elements.copyTone } } : {}) };
+  }
+  if (scope === 'image') {
+    return { ...b, hook: orig.hook, headline: orig.headline, primaryText: orig.primaryText, description: orig.description, overlay: orig.overlay, cta: orig.cta, storyboard: orig.storyboard, ...(orig.translationJa ? { translationJa: orig.translationJa } : {}), ...(b.elements && orig.elements ? { elements: { ...b.elements, copyTone: orig.elements.copyTone } } : {}) };
+  }
+  return b;
+}
+
 /** 人の依頼を反映し、レビューに通るまで直す（通らなければ例外）。 */
-async function reviseWithReview(ctx: Ctx, brief: CreativeBrief, note: string): Promise<{ brief: CreativeBrief; review: Review }> {
+async function reviseWithReview(ctx: Ctx, brief: CreativeBrief, rawNote: string, scope: Scope): Promise<{ brief: CreativeBrief; review: Review }> {
   const { llm, catalog, store } = ctx;
   const { maxRevisions } = catalog.policy.review;
-  let b: CreativeBrief = { ...brief, ...(await reviseBrief(llm, brief, [human(note)], `人からの修正依頼: ${note}`, catalog)), revision: brief.revision + 1 };
+  const note = `${rawNote}${SCOPE_NOTE[scope]}`;
+  let b: CreativeBrief = keepOutOfScope(brief, { ...brief, ...(await reviseBrief(llm, brief, [human(note)], `人からの修正依頼: ${note}`, catalog)), revision: brief.revision + 1 }, scope);
   b.storyboard = b.format === 'image' ? [] : b.storyboard;
   if (!b.language) delete b.translationJa;
   for (let i = 0; i <= maxRevisions; i++) {
@@ -36,10 +57,33 @@ async function reviseWithReview(ctx: Ctx, brief: CreativeBrief, note: string): P
     store.state.reviews.push(review);
     if (review.verdict === 'pass') return { brief: b, review };
     if (review.verdict === 'reject' || i === maxRevisions) throw new Error(`修正版がレビューを通りませんでした: ${review.issues.filter((x) => x.severity !== 'minor').map((x) => x.problem).join(' / ') || review.summary}`);
-    b = { ...b, ...(await reviseBrief(llm, b, [human(note), ...review.issues], review.summary, catalog)), revision: b.revision + 1 };
+    b = keepOutOfScope(brief, { ...b, ...(await reviseBrief(llm, b, [human(note), ...review.issues], review.summary, catalog)), revision: b.revision + 1 }, scope);
     b.storyboard = b.format === 'image' ? [] : b.storyboard;
   }
   throw new Error('修正版がレビューを通りませんでした');
+}
+
+/**
+ * 文言だけ変える広告に、元の広告の画像を引き継ぐ。選んだ元画像が残っていればそれを、
+ * 消えていれば（配信後に素材を整理したもの）文字なしの背景（4:5）をコピーして使う。どちらも無ければ作り直す（空）。
+ * コピー先は新しい広告の素材フォルダなので、元の広告の素材が整理されても消えない。
+ */
+function reuseImages(ctx: Ctx, from: Creative, toId: string): ImageJob[] {
+  const dir = ctx.store.assetDir(toId);
+  mkdirSync(dir, { recursive: true });
+  const ratios = requiredRatios(from);
+  const bg = join(ctx.store.assetDir(from.id), `${from.id}_4x5.bg.jpg`);
+  const out: ImageJob[] = [];
+  for (const ratio of ratios) {
+    const j = from.imageJobs.find((x) => x.ratio === ratio);
+    const src = j?.paths?.[j.selected ?? 0];
+    const source = src && existsSync(src) ? src : existsSync(bg) ? bg : null;
+    if (!source) return [];
+    const dest = join(dir, `${toId}_${ratio.replace(':', 'x').replace('.', '')}_src${extname(source) || '.jpg'}`);
+    if (source !== dest) copyFileSync(source, dest);
+    out.push({ ratio, provider: j?.provider ?? ctx.images.name, prompt: j?.prompt ?? '', requestedAt: j?.requestedAt ?? new Date().toISOString(), paths: [dest], selected: 0 });
+  }
+  return out;
 }
 
 const reviewSummary = (r: Review) => ({ score: r.score, scores: r.scores, ...(r.rubricVersion ? { rubricVersion: r.rubricVersion } : {}) });
@@ -70,8 +114,9 @@ async function onCreative(ctx: Ctx, f: FeedbackRequest): Promise<string> {
     case 'variant': {
       if (!brief) throw new Error('この広告の企画が見つかりません');
       if (!note) throw new Error('修正の内容を書いてください');
-      const scope = f.action === 'variant' ? 'copy' : (f.scope ?? 'copy');
-      const { brief: revised, review } = await reviseWithReview(ctx, brief, note);
+      if (c.status === 'rejected' || c.status === 'failed') throw new Error(`却下・失敗した広告は直せません（今の状態: ${c.status}）。新しく作るか、別の広告に依頼してください`);
+      const scope: Scope = f.action === 'variant' ? 'copy' : (f.scope ?? 'copy');
+      const { brief: revised, review } = await reviseWithReview(ctx, brief, note, scope);
       notes.push({ date: ctx.today, target: `広告「${brief.overlay.main}」`, kind: 'revise', note });
       // 配信中の広告は書き換えず、修正版を別の広告として作る（文言違いも同じ）
       if (f.action === 'variant' || c.status === 'published' || c.status === 'paused' || c.status === 'retired') {
@@ -92,13 +137,14 @@ async function onCreative(ctx: Ctx, f: FeedbackRequest): Promise<string> {
           review: reviewSummary(review),
           status: 'planned',
           // 同じ画像を使う（文言だけ変える）。画像も変える依頼なら作り直す
-          imageJobs: scope === 'copy' ? c.imageJobs.map((j) => ({ ...j, ...(j.paths ? { paths: [...j.paths] } : {}) })) : [],
+          imageJobs: [],
           assets: [],
           platformRefs: {},
           metrics: [],
           createdAt: now,
           updatedAt: now,
         };
+        if (scope === 'copy') nc.imageJobs = reuseImages(ctx, c, nc.id);
         store.state.creatives[nc.id] = nc;
         return `${f.action === 'variant' ? '文言違い' : '修正版'}の広告 ${nc.id} を作りました（次の制作で画像に文字を載せ直します）`;
       }
@@ -111,6 +157,9 @@ async function onCreative(ctx: Ctx, f: FeedbackRequest): Promise<string> {
       if (scope !== 'copy') {
         await Promise.all(c.imageJobs.map((j) => ctx.images.discard?.(`${c.id}_${j.ratio.replace(':', 'x').replace('.', '')}`)));
         c.imageJobs = [];
+      } else if (!c.imageJobs.every((j) => j.paths?.length && existsSync(j.paths[j.selected ?? 0]))) {
+        // 元の画像が消えていたら、残っている文字なしの背景を使う（無ければ作り直す）
+        c.imageJobs = reuseImages(ctx, c, c.id);
       }
       store.setStatus(c, 'planned', `人の修正依頼を反映（${scope === 'copy' ? 'コピー' : scope === 'image' ? '画像' : 'コピーと画像'}）`);
       return `修正しました（${scope === 'copy' ? '同じ画像に文字を載せ直します' : '画像を作り直します'}）`;
@@ -155,7 +204,10 @@ async function onGoogle(ctx: Ctx, f: FeedbackRequest): Promise<string> {
   const note = (f.note ?? '').trim();
   if (!note) throw new Error('修正の内容を書いてください');
   const cur = ctx.store.state.googleTexts?.[job.id];
-  const r = await writeRsa(ctx.llm, job, ctx.catalog, cur?.headlines ?? [], [], [`人からの修正依頼（最優先で反映する）: ${note}`]);
+  const angles = (ctx.catalog.hypotheses ?? [])
+    .filter((h) => h.active !== false && job.personas.includes(h.personaId) && (!h.jobIds?.length || h.jobIds.includes(job.id)))
+    .map((h) => `${h.title}（${h.message}）`);
+  const r = await writeRsa(ctx.llm, job, ctx.catalog, [], [], angles, cur ? { headlines: cur.headlines, descriptions: cur.descriptions, note } : { headlines: [], descriptions: [], note });
   (ctx.store.state.googleTexts ??= {})[job.id] = { createdOn: ctx.today, ...r };
   (ctx.store.state.humanNotes ??= []).push({ date: ctx.today, target: `検索広告（${job.title}）`, kind: 'revise', note });
   return `作り直しました（見出し ${r.headlines.length} 本・説明文 ${r.descriptions.length} 本${r.dropped.length ? `、チェックで ${r.dropped.length} 本を除外` : ''}）`;

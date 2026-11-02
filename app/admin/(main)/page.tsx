@@ -1,4 +1,4 @@
-import { dispatch } from "@/lib/adops/github";
+import { dispatch, hasQueuedRun } from "@/lib/adops/github";
 import { loadJobs, loadState, type Loaded } from "@/lib/adops/config";
 import type { Job, StateView } from "@/lib/adops/types";
 import { act } from "@/lib/adops/actions";
@@ -9,7 +9,10 @@ import Link from "next/link";
 async function runNow() {
   "use server";
   await requireAdmin();
-  await act("/admin", "実行を開始しました。数分〜数十分で Slack に結果が届きます", () => dispatch({}));
+  await act("/admin", "実行を開始しました。数分〜数十分で Slack に結果が届きます", async () => {
+    if (await hasQueuedRun()) throw new Error("すでに実行が待ち行列にあります（その実行で反映されます）");
+    await dispatch({});
+  });
 }
 
 async function emergency(form: FormData) {

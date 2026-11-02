@@ -51,7 +51,8 @@ function Table({ rows, label = (k: string) => k }: { rows: Row[]; label?: (k: st
 export default async function AnalysisPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
   const days = [7, 28, 90].includes(Number(sp.days)) ? Number(sp.days) : 28;
-  const since = new Date(Date.now() - (days - 1) * 86_400_000).toISOString().slice(0, 10);
+  // 実績の日付は日本時間なので、日本時間の日付で区切る
+  const since = new Date(Date.now() + 9 * 3_600_000 - (days - 1) * 86_400_000).toISOString().slice(0, 10);
   const [state, hyps, rubric] = await Promise.all([loadState(), loadHypotheses(), loadRubric()]);
   const cs = Object.values(state.creatives ?? {});
   const el = (c: CreativeView) => state.briefs?.[c.briefId]?.elements;

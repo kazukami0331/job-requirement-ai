@@ -1,5 +1,8 @@
 /** 管理画面: 設定ファイルの読み込みと保存（GitHub 経由）。 */
-import { configBranch, dispatch, readFile, stateBranch, writeFile } from "./github";
+import { configBranch, dispatch, hasQueuedRun, readFile, stateBranch, writeFile } from "./github";
+
+/** 管理画面からの依頼を処理するときの段階。 */
+export const FEEDBACK_STEPS = "feedback,produce,publish,lp,report";
 import type { Brand, Directive, FeedbackRequest, Hypothesis, Job, Persona, Policy, Reference, Rubric, StateView } from "./types";
 
 export const CONFIG_DIR = "adops/config";
@@ -41,8 +44,11 @@ export async function submitFeedback(req: Omit<FeedbackRequest, "id" | "at">, st
   const item: FeedbackRequest = { ...req, id: `fb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, at: new Date().toISOString() };
   if (item.note) item.note = item.note.slice(0, 1000);
   await saveConfig("feedback.json", [...kept, item], cur.sha, `AI への依頼（${req.target} ${req.targetId}: ${req.action}）`);
-  // 広告の依頼は、反映（制作し直し）と入稿まで続けて行う。LP・検索広告は反映と報告だけ
-  await dispatch({ steps: req.target === "creative" ? "feedback,produce,publish,report" : "feedback,report" });
+  // 依頼はファイルに積んであるので、どの実行が処理しても漏れない。すでに待ち行列に実行があれば起動しない
+  // （新しく起動すると、同じグループで待っている実行＝毎朝の定期実行などを押し出してしまうため）。
+  // 起動するときは、反映 → 作り直し → 入稿 → 報告 まで続けて行う
+  if (await hasQueuedRun()) return;
+  await dispatch({ steps: FEEDBACK_STEPS });
 }
 
 /** 運用の状態（無ければ空。まだ一度も実行していない場合など）。 */

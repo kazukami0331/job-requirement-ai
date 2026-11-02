@@ -99,7 +99,7 @@ jobs:
           elif [ "${{ github.event.schedule }}" = "30 0-12 * * *" ]; then
             echo "steps=leads" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event.schedule }}" = "0 3,9 * * *" ]; then
-            echo "steps=collect,optimize,report" >> "$GITHUB_OUTPUT"
+            echo "steps=collect,feedback,optimize,report" >> "$GITHUB_OUTPUT"
           else
             echo "steps=collect,feedback,optimize,analyze,plan,produce,publish,search,lp,organic,report" >> "$GITHUB_OUTPUT"
           fi
@@ -188,7 +188,8 @@ jobs:
             # 入力はシェルに展開せず環境変数で渡す
             if [ -n "$LP_APPROVE" ]; then node src/cli.ts lp-approve --id "$LP_APPROVE"; fi
             if [ -n "$LP_RETIRE" ]; then node src/cli.ts lp-retire --id "$LP_RETIRE"; fi
-            node src/cli.ts report
+            # 管理画面からの依頼も一緒に反映する（この実行が依頼の起動を押し出した場合に取りこぼさない）
+            node src/cli.ts cycle --steps feedback,produce,publish,report
           elif [ "${{ steps.steps.outputs.steps }}" = "leads" ]; then
             node src/cli.ts leads
           else
