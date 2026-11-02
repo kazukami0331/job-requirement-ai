@@ -6,11 +6,15 @@ export const dynamic = "force-dynamic";
 
 const NAV = [
   ["/admin", "ホーム"],
-  ["/admin/jobs", "求人"],
-  ["/admin/personas", "ペルソナ"],
+  ["/admin/creatives", "広告の確認"],
+  ["/admin/lp", "応募ページ（LP）"],
+  ["/admin/google", "Google テキスト"],
+  ["/admin/analysis", "分析"],
+  ["/admin/directives", "AI への指示"],
   ["/admin/hypotheses", "仮説"],
   ["/admin/rubric", "採点基準"],
-  ["/admin/lp", "応募ページ（LP）"],
+  ["/admin/jobs", "求人"],
+  ["/admin/personas", "ペルソナ"],
   ["/admin/settings", "基本設定"],
 ] as const;
 

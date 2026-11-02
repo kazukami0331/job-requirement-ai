@@ -89,13 +89,84 @@ export interface Policy {
   review: { passScore: number; maxRevisions: number };
   guardrails: { targetCpa: number; maxDailyBudget: number; [k: string]: unknown };
   lp?: { enabled: boolean; perCycle?: number };
+  requireHumanSelection?: boolean;
   [k: string]: unknown;
+}
+
+export interface Directive {
+  id: string;
+  text: string;
+  scope?: ("ads" | "lp" | "google")[];
+  active?: boolean;
+}
+
+export interface Reference {
+  id: string;
+  source: string;
+  text: string;
+  note?: string;
+  active?: boolean;
+}
+
+export interface FeedbackRequest {
+  id: string;
+  at: string;
+  target: "creative" | "lp" | "google";
+  targetId: string;
+  action: "approve" | "reject" | "revise" | "variant";
+  note?: string;
+  scope?: "copy" | "image" | "both";
+}
+
+export interface Metric {
+  date: string;
+  impressions: number;
+  clicks: number;
+  spend: number;
+  conversions: number;
+}
+
+export interface CreativeView {
+  id: string;
+  briefId: string;
+  jobId: string;
+  personaId: string;
+  angle: Angle;
+  format: string;
+  status: string;
+  statusReason?: string;
+  layout?: string;
+  hypothesisId?: string;
+  variantOf?: string;
+  humanApproved?: { at: string; note?: string };
+  review?: { score: number; scores: Record<string, number>; rubricVersion?: string };
+  qa?: { score: number; notes: string };
+  assets?: { ratio: string; kind: string; path: string }[];
+  metrics?: Metric[];
+  createdAt: string;
+  publishedAt?: string;
+}
+
+export interface BriefView {
+  id: string;
+  hook: string;
+  headline: string;
+  primaryText: string;
+  description: string;
+  overlay: { main: string; sub: string; badges: string[] };
+  visualConcept: string;
+  language?: string;
+  translationJa?: { main?: string; headline?: string };
+  elements?: { motif: string; person: string; setting: string; palette: string; taste: string; copyTone: string };
 }
 
 /** 状態ファイル（adops-state ブランチの state.json）のうち、管理画面で表示する部分。 */
 export interface StateView {
   halted?: { at: string; reason: string };
-  creatives?: Record<string, { status: string; jobId: string; metrics?: { date: string; impressions: number; clicks: number; spend: number; conversions: number }[] }>;
+  creatives?: Record<string, CreativeView>;
+  briefs?: Record<string, BriefView>;
+  feedbackDone?: Record<string, { at: string; ok: boolean; result: string }>;
+  googleTexts?: Record<string, { createdOn: string; headlines: string[]; descriptions: string[]; path1: string; path2: string; dropped: string[] }>;
   cycles?: { startedAt: string; steps: { name: string; ok: boolean; note?: string }[]; llmCostUsd?: number }[];
   lps?: Record<
     string,

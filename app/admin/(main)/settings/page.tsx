@@ -55,6 +55,7 @@ async function savePolicy(form: FormData) {
       exploreShare: explore,
       review: { ...p.review, passScore: pass },
       guardrails: { ...p.guardrails, targetCpa: cpa, maxDailyBudget: maxBudget },
+      requireHumanSelection: form.get("requireHumanSelection") === "on",
       lp: { ...p.lp, enabled: form.get("lpEnabled") === "on", perCycle: perCycle ?? p.lp?.perCycle ?? 2 },
     };
     await saveConfig("policy.json", next, cur.sha, "運用の設定を更新");
@@ -95,6 +96,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                 <option value="auto">完全自動（審査を通れば配信開始。予算増も自動）</option>
               </select>
             </Field>
+            <label className="mb-4 flex items-center gap-2 text-sm font-medium">
+              <input type="checkbox" name="requireHumanSelection" defaultChecked={p.requireHumanSelection} /> 人が「広告の確認」で採用したものだけ入稿する（おすすめ）
+            </label>
             <div className="grid gap-x-4 md:grid-cols-3">
               <Field label="1日に作る広告の本数（全求人合計）">
                 <input name="briefsPerCycle" inputMode="numeric" defaultValue={p.briefsPerCycle} className={inputCls} />

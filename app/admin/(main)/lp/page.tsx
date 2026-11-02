@@ -1,8 +1,9 @@
 import { dispatch } from "@/lib/adops/github";
-import { loadHypotheses, loadJobs, loadPersonas, loadPolicy, loadState } from "@/lib/adops/config";
+import { loadFeedback, loadHypotheses, loadJobs, loadPersonas, loadPolicy, loadState, submitFeedback } from "@/lib/adops/config";
+import { FeedbackStatus } from "@/components/admin/feedback";
 import { act } from "@/lib/adops/actions";
 import { requireAdmin } from "@/lib/adops/auth";
-import { Badge, Button, Card, Notice, PageTitle, notices } from "@/components/admin/ui";
+import { Badge, Button, Card, Notice, PageTitle, inputCls, notices } from "@/components/admin/ui";
 
 const ID = /^[a-z0-9-]{3,80}$/;
 
@@ -15,6 +16,33 @@ async function decide(form: FormData) {
     if (!ID.test(id) || (op !== "approve" && op !== "retire")) throw new Error("操作が正しくありません");
     await dispatch(op === "approve" ? { lp_approve: id } : { lp_retire: id });
   });
+}
+
+async function reviseLp(form: FormData) {
+  "use server";
+  await requireAdmin();
+  const id = String(form.get("id") ?? "");
+  const note = String(form.get("note") ?? "").trim();
+  await act("/admin/lp", "修正の依頼を受け付けました。数分で修正した下書きがここに並びます", async () => {
+    if (!ID.test(id)) throw new Error("操作が正しくありません");
+    if (!note) throw new Error("どう直してほしいかを書いてください");
+    await submitFeedback({ target: "lp", targetId: id, action: "revise", note });
+  });
+}
+
+function ReviseForm({ id }: { id: string }) {
+  return (
+    <details className="mt-3 rounded-lg border border-slate-200 p-3">
+      <summary className="cursor-pointer text-sm font-semibold">修正を依頼する</summary>
+      <form action={reviseLp} className="mt-3">
+        <input type="hidden" name="id" value={id} />
+        <textarea name="note" rows={3} required placeholder="例: 最初に寮の写真や設備の話を出して。よくある質問に「家族と住めるか」を入れて" className={inputCls} />
+        <div className="mt-2">
+          <Button variant="secondary">この内容で直してもらう</Button>
+        </div>
+      </form>
+    </details>
+  );
 }
 
 async function createNow() {
@@ -30,7 +58,7 @@ function publicUrl(id: string): string {
 
 export default async function LpPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const n = await notices(searchParams);
-  const [state, jobs, personas, hyps, policy] = await Promise.all([loadState(), loadJobs(), loadPersonas(), loadHypotheses(), loadPolicy()]);
+  const [state, jobs, personas, hyps, policy, feedback] = await Promise.all([loadState(), loadJobs(), loadPersonas(), loadHypotheses(), loadPolicy(), loadFeedback()]);
   const lps = Object.values(state.lps ?? {}).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const job = (id: string) => jobs.value.find((j) => j.id === id)?.title ?? id;
   const persona = (id: string) => personas.value.find((p) => p.id === id)?.name ?? id;
@@ -86,6 +114,7 @@ export default async function LpPage({ searchParams }: { searchParams: Promise<R
                   </form>
                 </div>
                 <p className="mt-3 text-xs text-slate-500">公開先: {publicUrl(l.id)}（広告の飛び先にするなら、求人の「広告の飛び先」をこの URL に変えてください）</p>
+                <ReviseForm id={l.id} />
               </div>
             </div>
           ))}
@@ -110,10 +139,16 @@ export default async function LpPage({ searchParams }: { searchParams: Promise<R
                   <input type="hidden" name="op" value="retire" />
                   <Button variant="secondary">公開をやめる</Button>
                 </form>
+                <div className="w-full">
+                  <ReviseForm id={l.id} />
+                </div>
               </li>
             ))}
           </ul>
         )}
+      </Card>
+      <Card title="修正の依頼の状況">
+        <FeedbackStatus items={feedback.value.filter((f) => f.target === "lp")} state={state} label={(f) => state.lps?.[f.targetId]?.copy.heroTitle ?? f.targetId} />
       </Card>
       {ended.length ? (
         <Card title="終了・却下（最近の10件）">

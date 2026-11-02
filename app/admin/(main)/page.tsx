@@ -38,6 +38,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const conv = m.reduce((a, x) => a + x.conversions, 0);
   const lps = Object.values(state.lps ?? {});
   const drafts = lps.filter((l) => l.status === "draft").length;
+  const toSelect = creatives.filter((c) => (c.status === "produced" && !c.humanApproved) || c.status === "qa_failed").length;
   const last = state.cycles?.at(-1);
   return (
     <>
@@ -61,11 +62,18 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           </div>
         ))}
       </div>
-      {drafts ? (
+      {drafts || toSelect ? (
         <Card title="確認待ち">
-          <p className="text-sm">
-            応募ページ（LP）の下書きが <b>{drafts} 本</b> あります。<Link href="/admin/lp" className="text-blue-700 underline">確認して公開する</Link>
-          </p>
+          {toSelect ? (
+            <p className="mb-1 text-sm">
+              完成した広告が <b>{toSelect} 本</b> あります。<Link href="/admin/creatives" className="text-blue-700 underline">確認して採用・修正を依頼する</Link>
+            </p>
+          ) : null}
+          {drafts ? (
+            <p className="text-sm">
+              応募ページ（LP）の下書きが <b>{drafts} 本</b> あります。<Link href="/admin/lp" className="text-blue-700 underline">確認して公開する</Link>
+            </p>
+          ) : null}
         </Card>
       ) : null}
       <Card title="前回の実行">
