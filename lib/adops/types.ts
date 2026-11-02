@@ -47,6 +47,7 @@ export interface Persona {
   media: string[];
   vocabulary?: { use?: string[]; avoid?: string[] };
   language?: string;
+  visual?: string;
   [k: string]: unknown;
 }
 

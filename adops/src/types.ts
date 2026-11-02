@@ -179,6 +179,11 @@ export interface Persona {
   vocabulary?: { use?: string[]; avoid?: string[] };
   /** 広告を書く言語（既定 ja）。外国人材向けに vi / en / pt / id / tl / ne / zh / my など */
   language?: string;
+  /**
+   * 画像に出す人物（このペルソナの「顔」。例: 40代の日本人男性、短髪、紺の作業服、穏やかな笑顔）。
+   * 決めておくと、広告ごとに人物像がぶれず、見る人が「自分と同じ境遇の人」と重ねやすい
+   */
+  visual?: string;
 }
 
 export const LANGUAGE_LABEL: Record<string, string> = {

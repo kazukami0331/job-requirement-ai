@@ -46,6 +46,9 @@ async function save(form: FormData) {
       };
       if (language && language !== "ja") p.language = language;
       else delete p.language;
+      const visual = String(form.get("visual") ?? "").trim();
+      if (visual) p.visual = visual.slice(0, 300);
+      else delete p.visual;
       if (idx >= 0) list[idx] = p;
       else list.push(p);
       await saveConfig("personas.json", list, personas.sha, `ペルソナ ${id} を${idx >= 0 ? "更新" : "追加"}`);
@@ -93,6 +96,9 @@ export default async function PersonaEdit({ params, searchParams }: { params: Pr
             </Field>
             <Field label="よく見る媒体・時間帯（1行に1つ）">
               <textarea name="media" rows={3} defaultValue={p.media?.join("\n")} className={inputCls} />
+            </Field>
+            <Field label="画像に出す人物（任意・固定）" hint="例: 40代の日本人男性、短髪、紺の作業服、穏やかな笑顔。決めておくと広告ごとに人物像がぶれない">
+              <textarea name="visual" rows={3} defaultValue={p.visual} className={inputCls} />
             </Field>
             <Field label="広告の言語" hint="外国人材向けは vi（ベトナム語）・en・pt・id など。日本語なら ja">
               <input name="language" defaultValue={p.language ?? "ja"} className={inputCls} />

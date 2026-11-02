@@ -367,3 +367,18 @@ test('reviewBrief: 自社の採点基準で項目別に採点し、重みつき�
   assert.equal(review.rubricVersion, 'v1');
   assert.equal(review.rubricNotes!.stop, '強い');
 });
+
+test('buildPlanPrompt: ペルソナの固定の人物像と、社内からの指示・参考広告を渡す', async () => {
+  const { buildPlanPrompt } = await import('../src/agents/strategist.ts');
+  const { persona } = await import('./fixtures.ts');
+  const cat = catalog({
+    personas: [persona({ visual: '40代の日本人男性、紺の作業服' })],
+    directives: [{ id: 'd', text: '急かさない', scope: ['ads'] }, { id: 'e', text: 'LPだけの指示', scope: ['lp'] }, { id: 'f', text: '停止中', active: false }],
+    references: [{ id: 'r', source: '他社A', text: '寮費0円で新生活', note: '具体的' }],
+  });
+  const prompt = buildPlanPrompt([{ slot: 1, jobId: 'factory', personaId: 'p1', angle: 'pay', format: 'image', explore: false }], cat, { learnings: [], winners: [], losers: [], activeHooks: [] });
+  assert.match(prompt, /画像に出す人物（固定[^\n]*40代の日本人男性/);
+  assert.match(prompt, /社内からの指示[\s\S]*急かさない/);
+  assert.doesNotMatch(prompt, /LPだけの指示|停止中/);
+  assert.match(prompt, /他社A: 「寮費0円で新生活」 … 良い点: 具体的/);
+});
