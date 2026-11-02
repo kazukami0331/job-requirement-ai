@@ -11,7 +11,8 @@ export async function act(path: string, okMessage: string, fn: () => Promise<str
   let target: string;
   try {
     const msg = await fn();
-    target = withMessage(typeof msg === "string" && msg.startsWith("/") ? msg : path, "ok", okMessage);
+    // 戻り先は管理画面の中だけ（外部への転送に使われないように）
+    target = withMessage(typeof msg === "string" && /^\/admin(\/|$|\?)/.test(msg) ? msg : path, "ok", okMessage);
   } catch (e) {
     target = withMessage(failPath, "error", (e as Error).message);
   }

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { loadJobs, loadPersonas, saveConfig } from "@/lib/adops/config";
+import { loadHypotheses, loadJobs, loadPersonas, saveConfig } from "@/lib/adops/config";
 import { act, assertValid } from "@/lib/adops/actions";
 import { requireAdmin } from "@/lib/adops/auth";
 import { lines, num, validateJobs } from "@/lib/adops/validate";
@@ -21,6 +21,9 @@ async function save(form: FormData) {
       const idx = original ? list.findIndex((j) => j.id === original) : -1;
       if (original && idx < 0) throw new Error("この求人は見つかりません（ほかの人が削除した可能性があります）");
       if (form.get("delete") === "yes" && idx >= 0) {
+        const hyps = await loadHypotheses();
+        const used = hyps.value.filter((h) => h.jobIds?.includes(original)).map((h) => `仮説「${h.title}」`);
+        if (used.length) throw new Error(`仮説の対象になっているので削除できません（先に仮説から外すか、募集中をオフにしてください）: ${used.join("、")}`);
         list.splice(idx, 1);
         await saveConfig("jobs.json", list, jobs.sha, `求人 ${original} を削除`);
         return;
@@ -35,13 +38,15 @@ async function save(form: FormData) {
       const max = num(form.get("salaryMax"));
       const job: Job = {
         ...(idx >= 0 ? list[idx] : {}),
-        id,
+        // 既存の求人の ID は変えない（広告・LP・仮説が ID で参照しているため）
+        id: idx >= 0 ? original : id,
         active: form.get("active") === "on",
         title: String(form.get("title") ?? "").trim(),
         category: String(form.get("category") ?? "").trim(),
         location: String(form.get("location") ?? "").trim(),
         employmentType: String(form.get("employmentType") ?? "").trim(),
         salary: {
+          ...(idx >= 0 ? list[idx].salary : {}),
           type: String(form.get("salaryType")) as Job["salary"]["type"],
           min: num(form.get("salaryMin")) ?? 0,
           ...(max !== undefined ? { max } : {}),
@@ -59,6 +64,8 @@ async function save(form: FormData) {
         dailyCreativeQuota: num(form.get("dailyCreativeQuota")),
         placements,
       };
+      if (max === undefined) delete job.salary.max;
+      if (!opt("salaryNote")) delete job.salary.note;
       // 空の任意項目は書かない（jobs.json を読みやすく保つ）
       for (const k of Object.keys(job)) if (job[k] === undefined) delete job[k];
       if (idx >= 0) list[idx] = job;

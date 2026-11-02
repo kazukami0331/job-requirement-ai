@@ -10,7 +10,8 @@ async function save(form: FormData) {
   "use server";
   await requireAdmin();
   const original = String(form.get("original") ?? "");
-  const id = String(form.get("id") ?? "").trim();
+  // 既存のペルソナの ID は変えない（求人・仮説・広告が ID で参照しているため）
+  const id = original || String(form.get("id") ?? "").trim();
   await act(
     "/admin/personas",
     "保存しました。次の定期実行から反映されます",

@@ -12,6 +12,8 @@ test("validateJobs: 必須・URL・給与・ペルソナ・重複", () => {
   assert.match(validateJobs([job, job], ["p1"]).join(), /重複/);
   assert.match(validateJobs([{ ...job, id: "Bad ID" }], ["p1"]).join(), /英小文字/);
   assert.match(validateJobs([{ ...job, salary: { min: 300000, max: 200000 } }], ["p1"]).join(), /上限/);
+  assert.match(validateJobs([{ ...job, dailyCreativeQuota: NaN }], ["p1"]).join(), /1日に作る広告/);
+  assert.match(validateJobs([{ ...job, dailyCreativeQuota: 0 }], ["p1"]).join(), /1日に作る広告/);
 });
 
 test("validateHypotheses / validateRubric", () => {

@@ -24,7 +24,9 @@ async function save(form: FormData) {
         return;
       }
       const h: Hypothesis = {
-        id: String(form.get("id") ?? "").trim(),
+        // 画面に無い項目は残す。既存の仮説の ID は変えない（広告の記録が ID で参照しているため）
+        ...(idx >= 0 ? list[idx] : {}),
+        id: idx >= 0 ? original : String(form.get("id") ?? "").trim(),
         personaId: String(form.get("personaId") ?? ""),
         angle: String(form.get("angle") ?? "") as Angle,
         title: String(form.get("title") ?? "").trim(),
@@ -32,9 +34,12 @@ async function save(form: FormData) {
       };
       const jobIds = form.getAll("jobIds").map(String);
       if (jobIds.length) h.jobIds = jobIds;
+      else delete h.jobIds;
       const avoid = lines(form.get("avoid"));
       if (avoid.length) h.avoid = avoid;
+      else delete h.avoid;
       if (form.get("active") !== "on") h.active = false;
+      else delete h.active;
       if (idx >= 0) list[idx] = h;
       else list.push(h);
       assertValid(

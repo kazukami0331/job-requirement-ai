@@ -6,7 +6,11 @@ export const dynamic = "force-dynamic";
 
 async function doLogin(form: FormData) {
   "use server";
-  if (!checkPassword(String(form.get("password") ?? ""))) redirect("/admin/login?error=1");
+  if (!checkPassword(String(form.get("password") ?? ""))) {
+    // 総当たりを遅くする
+    await new Promise((r) => setTimeout(r, 1500));
+    redirect("/admin/login?error=1");
+  }
   await login();
   redirect("/admin");
 }

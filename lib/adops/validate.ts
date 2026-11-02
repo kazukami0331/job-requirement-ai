@@ -3,7 +3,18 @@
  * 保存してから定期実行で失敗するより、保存の時点で止めて画面に理由を出す。
  * このファイルは他のファイルを読み込まない（node --test で単体で試せるように）。
  */
-type AnyJob = { id: string; active?: boolean; title?: string; landingUrl?: string; applyUrl?: string; salary?: { min?: number; max?: number }; personas?: string[]; targetCpa?: number; monthlyApplicationTarget?: number };
+type AnyJob = {
+  id: string;
+  active?: boolean;
+  title?: string;
+  landingUrl?: string;
+  applyUrl?: string;
+  salary?: { min?: number; max?: number };
+  personas?: string[];
+  targetCpa?: number;
+  monthlyApplicationTarget?: number;
+  dailyCreativeQuota?: number;
+};
 type AnyHyp = { id: string; personaId: string; jobIds?: string[]; angle: string; title: string; message: string };
 type AnyRubric = { version?: string; items?: { id: string; label?: string; description?: string; weight?: number; appliesWhen?: string }[] };
 
@@ -27,6 +38,7 @@ export function validateJobs(jobs: AnyJob[], personaIds: string[]): string[] {
     for (const p of j.personas ?? []) if (!personaIds.includes(p)) errors.push(`${name}: 未定義のペルソナ ${p}`);
     if (j.targetCpa !== undefined && !(j.targetCpa > 0)) errors.push(`${name}: 目標応募単価は正の数にしてください`);
     if (j.monthlyApplicationTarget !== undefined && !(j.monthlyApplicationTarget > 0)) errors.push(`${name}: 月の応募目標は1以上にしてください`);
+    if (j.dailyCreativeQuota !== undefined && !(Number.isInteger(j.dailyCreativeQuota) && j.dailyCreativeQuota > 0)) errors.push(`${name}: 1日に作る広告の上限は1以上の整数にしてください`);
   }
   return errors;
 }

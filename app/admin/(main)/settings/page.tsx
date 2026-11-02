@@ -11,13 +11,15 @@ async function saveBrand(form: FormData) {
     const cur = await loadBrand();
     const name = String(form.get("name") ?? "").trim();
     if (!name) throw new Error("社名は必須です");
-    const next = {
+    const mandatoryText = String(form.get("mandatoryText") ?? "").trim();
+    const next: Record<string, unknown> = {
       ...cur.value,
       name,
       tone: String(form.get("tone") ?? "").trim(),
-      mandatoryText: String(form.get("mandatoryText") ?? "").trim(),
+      mandatoryText,
       bannedPhrases: lines(form.get("bannedPhrases")),
     };
+    if (!mandatoryText) delete next.mandatoryText;
     await saveConfig("brand.json", next, cur.sha, "会社の情報を更新");
   });
 }
@@ -53,7 +55,7 @@ async function savePolicy(form: FormData) {
       exploreShare: explore,
       review: { ...p.review, passScore: pass },
       guardrails: { ...p.guardrails, targetCpa: cpa, maxDailyBudget: maxBudget },
-      lp: { enabled: form.get("lpEnabled") === "on", perCycle: perCycle ?? p.lp?.perCycle ?? 2 },
+      lp: { ...p.lp, enabled: form.get("lpEnabled") === "on", perCycle: perCycle ?? p.lp?.perCycle ?? 2 },
     };
     await saveConfig("policy.json", next, cur.sha, "運用の設定を更新");
   });
