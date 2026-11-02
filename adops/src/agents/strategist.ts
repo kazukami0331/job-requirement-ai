@@ -4,7 +4,7 @@
  * このエージェントは「どう表現するか」だけを担う。
  */
 import type { Llm } from '../llm/llm.ts';
-import type { Catalog } from '../config.ts';
+import { directivesFor, type Catalog } from '../config.ts';
 import { ANGLE_LABELS, FORMAT_LABEL, LANGUAGE_LABEL, type Angle, type CreativeBrief, type Format, type Job, type Persona, type ReviewIssue } from '../types.ts';
 import { formatYen } from '../compliance/rules.ts';
 import { BriefDraftSchema, PlanOutputSchema, type BriefDraft } from './schemas.ts';
@@ -38,6 +38,8 @@ export interface PlanningContext {
   frequentIssues?: string[];
   /** 季節・時期の文脈 */
   season?: string;
+  /** 人からの指摘（管理画面での却下の理由・修正の依頼。新しい順） */
+  humanFeedback?: string[];
   /** 改良版の元になる勝ち広告（企画 ID → 内容と成績） */
   iterateSources?: Record<string, { hook: string; overlayMain: string; headline: string; visualConcept: string; ctr: number; cpa: number | null }>;
 }
@@ -128,6 +130,21 @@ function describePersona(p: Persona): string {
     .join('\n');
 }
 
+/** 社内からの全体の指示（管理画面の「AI への指示」）。 */
+export function directivesSection(catalog: Catalog, scope: 'ads' | 'lp' | 'google'): string {
+  const ds = directivesFor(catalog, scope);
+  return ds.length ? `# 社内からの指示（必ず守る。求人情報・法令のルールと食い違うときは、求人情報・法令を優先）\n${ds.map((d) => `- ${d}`).join('\n')}\n` : '';
+}
+
+/** 参考にしたい広告（そのまま真似させない）。 */
+export function referencesSection(catalog: Catalog): string {
+  const rs = (catalog.references ?? []).filter((r) => r.active !== false && r.text?.trim()).slice(0, 10);
+  if (!rs.length) return '';
+  return `# 参考にしたい広告（他社・過去の広告。文言をそのまま使わず、良い点の考え方だけ取り入れる。他社名・他社の数字は使わない）
+${rs.map((r) => `- ${r.source}: 「${r.text.replace(/\s+/g, ' ').slice(0, 300)}」${r.note ? ` … 良い点: ${r.note}` : ''}`).join('\n')}
+`;
+}
+
 export function buildPlanPrompt(slots: Slot[], catalog: Catalog, ctx: PlanningContext): string {
   const jobs = new Map(catalog.jobs.map((j) => [j.id, j]));
   const personas = new Map(catalog.personas.map((p) => [p.id, p]));
@@ -141,6 +158,7 @@ export function buildPlanPrompt(slots: Slot[], catalog: Catalog, ctx: PlanningCo
 ${b.bannedPhrases.length ? `- 社内NG表現: ${b.bannedPhrases.join(' / ')}` : ''}
 - 画像の共通スタイル（imagePrompt に反映）: ${b.visualStyle}
 
+${directivesSection(catalog, 'ads')}
 # 求人情報（ここに書かれた事実以外の待遇・数字は使わない）
 ${usedJobs.map((id) => describeJob(jobs.get(id)!)).join('\n\n')}
 
@@ -158,6 +176,10 @@ ${(() => {
     ...bad.map((e) => `- 悪い例 「${e.hook}」… ${e.why}`),
   ].join('\n');
 })()}
+
+${referencesSection(catalog)}
+# 人からの指摘（管理画面での却下の理由・修正の依頼。同じことを繰り返さない）
+${ctx.humanFeedback?.length ? ctx.humanFeedback.map((n) => `- ${n}`).join('\n') : '- なし'}
 
 # これまでの学び（分析エージェントより）
 ${ctx.learnings.length ? ctx.learnings.map((l) => `- ${l}`).join('\n') : '- まだデータがありません。基本に忠実に。'}
@@ -225,7 +247,7 @@ export async function reviseBrief(llm: Llm, brief: CreativeBrief, issues: Review
     system: STRATEGIST_SYSTEM,
     prompt: `次の広告企画がレビューで差し戻されました。指摘をすべて解消した改訂版を返してください。
 訴求軸（${ANGLE_LABELS[angle]}）と形式（${FORMAT_LABEL[format]}）は変えないでください。良い部分は残してください。
-
+${directivesSection(catalog, 'ads')}
 # 求人情報
 ${describeJob(job)}
 

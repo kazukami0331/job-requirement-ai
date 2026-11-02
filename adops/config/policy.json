@@ -40,5 +40,6 @@
   "lp": {
     "enabled": true,
     "perCycle": 2
-  }
+  },
+  "requireHumanSelection": true
 }

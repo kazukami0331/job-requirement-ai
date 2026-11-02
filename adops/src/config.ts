@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ANGLES, type Brand, type Hypothesis, type Job, type Persona, type Placements, type Policy, type Rubric } from './types.ts';
+import { ANGLES, type Brand, type Directive, type FeedbackRequest, type Hypothesis, type Job, type Persona, type Placements, type Policy, type Reference, type Rubric } from './types.ts';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -199,6 +199,17 @@ export interface Catalog {
   hypotheses?: Hypothesis[];
   /** 自社の採点基準（任意。config/rubric.json。無ければ標準の5観点で採点） */
   rubric?: Rubric;
+  /** 社内から AI への全体の指示（任意。config/directives.json） */
+  directives?: Directive[];
+  /** 参考にしたい広告（任意。config/references.json） */
+  references?: Reference[];
+  /** 管理画面からの依頼（任意。config/feedback.json） */
+  feedback?: FeedbackRequest[];
+}
+
+/** 指定の対象に向けた、有効な全体の指示。 */
+export function directivesFor(c: Catalog, scope: 'ads' | 'lp' | 'google'): string[] {
+  return (c.directives ?? []).filter((d) => d.active !== false && d.text?.trim() && (!d.scope?.length || d.scope.includes(scope))).map((d) => d.text.trim());
 }
 
 export function loadCatalog(configDir: string): Catalog {
@@ -210,6 +221,9 @@ export function loadCatalog(configDir: string): Catalog {
     examples: existsSync(join(configDir, 'examples.json')) ? readJson<Examples>(configDir, 'examples.json') : undefined,
     hypotheses: existsSync(join(configDir, 'hypotheses.json')) ? readJson<Hypothesis[]>(configDir, 'hypotheses.json') : undefined,
     rubric: existsSync(join(configDir, 'rubric.json')) ? readJson<Rubric>(configDir, 'rubric.json') : undefined,
+    directives: existsSync(join(configDir, 'directives.json')) ? readJson<Directive[]>(configDir, 'directives.json') : undefined,
+    references: existsSync(join(configDir, 'references.json')) ? readJson<Reference[]>(configDir, 'references.json') : undefined,
+    feedback: existsSync(join(configDir, 'feedback.json')) ? readJson<FeedbackRequest[]>(configDir, 'feedback.json') : undefined,
   };
   validateCatalog(catalog);
   return catalog;

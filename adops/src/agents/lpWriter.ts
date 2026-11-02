@@ -5,7 +5,7 @@
  */
 import { z } from 'zod';
 import type { Llm } from '../llm/llm.ts';
-import type { Catalog } from '../config.ts';
+import { directivesFor, type Catalog } from '../config.ts';
 import type { Hypothesis, Job, Persona, ReviewIssue } from '../types.ts';
 import { formatYen } from '../compliance/rules.ts';
 
@@ -52,15 +52,20 @@ ${persona.vocabulary?.use?.length ? `- 響く言葉: ${persona.vocabulary.use.jo
   }`;
 }
 
+function directives(catalog: Catalog): string {
+  const ds = directivesFor(catalog, 'lp');
+  return ds.length ? `\n# 社内からの指示（必ず守る。求人情報・法令と食い違うときは求人情報・法令を優先）\n${ds.map((d) => `- ${d}`).join('\n')}\n` : '';
+}
+
 export async function writeLp(llm: Llm, job: Job, persona: Persona, catalog: Catalog, h?: Hypothesis, fix?: { copy: LpCopy; issues: ReviewIssue[] }): Promise<LpCopy> {
   const prompt = fix
-    ? `${describe(job, persona, h)}
+    ? `${describe(job, persona, h)}${directives(catalog)}
 # 前回の文章（JSON）
 ${JSON.stringify(fix.copy, null, 2)}
 
 # チェックで見つかった問題（すべて直す。良い部分は残す）
 ${fix.issues.map((i) => `- [${i.severity}] ${i.field}: ${i.problem} → ${i.suggestion}`).join('\n')}`
-    : `${describe(job, persona, h)}
+    : `${describe(job, persona, h)}${directives(catalog)}
 社名: ${catalog.brand.name} / トーン: ${catalog.brand.tone}
 この求人の応募ページの文章を書いてください。`;
   return llm.structured({ agent: 'lpWriter', system: SYSTEM, prompt, schema: LpCopySchema });

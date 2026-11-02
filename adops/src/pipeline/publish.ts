@@ -33,6 +33,11 @@ export async function publish(ctx: Ctx): Promise<PublishSummary> {
   ];
   for (const c of queue) {
     const retrying = c.status === 'published';
+    // AI がたくさん作り、人が選ぶ: 人が管理画面で採用したものだけ入稿する
+    if (!retrying && catalog.policy.requireHumanSelection && !c.humanApproved) {
+      summary.skipped.push({ creative: c, reason: '人の採用待ち（管理画面の「広告の確認」）' });
+      continue;
+    }
     const brief = store.state.briefs[c.briefId];
     const baseJob = catalog.jobs.find((j) => j.id === c.jobId);
     // ペルソナ別の入稿先があればそちらへ（外国語の広告は専用の広告セットだけに入れる）

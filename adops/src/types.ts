@@ -127,6 +127,46 @@ export interface Rubric {
   items: RubricItem[];
 }
 
+/** 社内から AI への全体の指示（config/directives.json）。企画・LP・検索広告の文章づくりに毎回渡す */
+export interface Directive {
+  id: string;
+  text: string;
+  /** 対象（省略時はすべて） */
+  scope?: ('ads' | 'lp' | 'google')[];
+  active?: boolean;
+}
+
+/** 参考にしたい広告（他社や過去の自社広告。config/references.json）。真似はさせず、良い点だけ取り入れさせる */
+export interface Reference {
+  id: string;
+  /** どこの広告か（例: 他社A の Instagram 広告） */
+  source: string;
+  /** 広告の文言・構成 */
+  text: string;
+  /** 何が良いと思ったか */
+  note?: string;
+  active?: boolean;
+}
+
+/**
+ * 管理画面からの依頼（config/feedback.json）。feedback 段階で1件ずつ処理し、結果を状態に残す。
+ * - creative: approve（採用＝入稿してよい）/ reject（却下）/ revise（修正）/ variant（文言違いを作る）
+ * - lp: revise（修正した下書きを作り直す）/ approve / reject
+ * - google: revise（検索広告のテキストを作り直す）
+ */
+export interface FeedbackRequest {
+  id: string;
+  at: string;
+  target: 'creative' | 'lp' | 'google';
+  /** 広告 ID / LP ID / 求人 ID（google） */
+  targetId: string;
+  action: 'approve' | 'reject' | 'revise' | 'variant';
+  /** 修正の内容・却下の理由など（人の言葉のまま AI に渡す） */
+  note?: string;
+  /** 広告の修正範囲（既定 copy） */
+  scope?: 'copy' | 'image' | 'both';
+}
+
 export interface Persona {
   id: string;
   name: string;
@@ -227,6 +267,8 @@ export interface Policy {
     fatigueDays: number;
     fatigueCtrRatio: number;
   };
+  /** true なら、完成した広告は人が管理画面で「採用」したものだけ入稿する（AI がたくさん作り、人が選ぶ） */
+  requireHumanSelection?: boolean;
   /** 応募ページ（LP）の自動作成。enabled で有効、perCycle は1回の実行で作る下書きの上限（既定 2） */
   lp?: { enabled: boolean; perCycle?: number };
 }
@@ -387,6 +429,10 @@ export interface Creative {
   iterateOf?: string;
   /** 社内で決めた仮説（config/hypotheses.json）の ID */
   hypothesisId?: string;
+  /** 人が管理画面で採用した（policy.requireHumanSelection のとき、これが無いと入稿しない） */
+  humanApproved?: { at: string; note?: string };
+  /** 文言違い・修正版の元の広告 */
+  variantOf?: string;
   /** 合格したときの採点（配信結果と突き合わせて採点基準を直すために、企画ごとに残す） */
   review?: { score: number; scores: Record<string, number>; rubricVersion?: string };
   /** 画像の文字レイアウト（band / card / bold）。自動で配分・学習する */
@@ -499,6 +545,10 @@ export interface State {
   audience?: Record<string, { date: string; frequency?: number; reach?: number; learning?: string }>;
   /** Google 検索キャンペーンの直近7日の予算不足による取りこぼし（0〜1） */
   searchBudget?: { date: string; campaigns: { campaignId: string; name: string; lostToBudget: number; impressionShare: number }[] };
+  /** 管理画面からの依頼の処理結果（依頼 ID → 結果） */
+  feedbackDone?: Record<string, { at: string; ok: boolean; result: string }>;
+  /** 人からの指摘（却下の理由・修正の依頼）。以後の企画で同じことを繰り返さないよう AI に渡す */
+  humanNotes?: { date: string; target: string; kind: 'reject' | 'revise'; note: string }[];
   /** adops が作った応募ページ（LP ID → LP） */
   lps?: Record<string, LandingPage>;
   /** 手で入稿する用の Google 検索広告のテキスト（求人 ID → 最新の案）。API 連携が無くても Google 広告エディタに貼れる */

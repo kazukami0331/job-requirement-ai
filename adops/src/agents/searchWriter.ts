@@ -4,7 +4,7 @@
  */
 import { z } from 'zod';
 import type { Llm } from '../llm/llm.ts';
-import type { Catalog } from '../config.ts';
+import { directivesFor, type Catalog } from '../config.ts';
 import type { Job } from '../types.ts';
 import { checkTexts, formatYen, googleWidth } from '../compliance/rules.ts';
 
@@ -54,6 +54,10 @@ ${job.hours ? `- 勤務時間: ${job.hours}` : ''}
 ${job.holidays ? `- 休日: ${job.holidays}` : ''}
 ${job.requirements ? `- 応募条件: ${job.requirements}` : ''}
 
+${(() => {
+  const ds = directivesFor(catalog, 'google');
+  return ds.length ? `# 社内からの指示（必ず守る。求人情報・法令と食い違うときは求人情報・法令を優先）\n${ds.map((d) => `- ${d}`).join('\n')}\n` : '';
+})()}
 ${angles.length ? `# 社内で検証している打ち出し（見出しの何本かに取り入れる。求人情報の事実に合う範囲で）\n${angles.map((a) => `- ${a}`).join('\n')}\n` : ''}
 ${avoid.length ? `# 既存の広告で使っている見出し（今回は別の言い回しで挑戦する）\n${avoid.map((h) => `- ${h}`).join('\n')}` : ''}
 

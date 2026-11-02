@@ -37,6 +37,10 @@ export function planningContext(ctx: Ctx, slots: Slot[] = []): PlanningContext {
       .slice(-8)
       .map((c) => ({ overlayMain: store.state.briefs[c.briefId]?.overlay.main ?? '', reason: c.statusReason!.replace('媒体審査で不承認: ', '') })),
     frequentIssues: frequentIssues(store.state.reviews.slice(-60)),
+    humanFeedback: (store.state.humanNotes ?? [])
+      .slice(-12)
+      .reverse()
+      .map((n) => `${n.kind === 'reject' ? '却下' : '修正依頼'}: ${n.note}`),
     season: seasonalContext(today),
     iterateSources: Object.fromEntries(
       slots.flatMap((sl) => {

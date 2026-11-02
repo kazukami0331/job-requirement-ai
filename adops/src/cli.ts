@@ -118,6 +118,7 @@ async function main() {
     optimize: ['collect', 'optimize', 'report'],
     analyze: ['collect', 'analyze', 'report'],
     lp: ['lp', 'report'],
+    feedback: ['feedback', 'produce', 'publish', 'report'],
   };
 
   switch (command) {
@@ -134,6 +135,7 @@ async function main() {
     case 'collect':
     case 'optimize':
     case 'lp':
+    case 'feedback':
     case 'analyze': {
       const ctx = buildCtx(flags);
       const rec = await runCycle(ctx, safeSteps(ctx, flags, single[command]));

@@ -16,6 +16,7 @@ import { watchComments } from './comments.ts';
 import { checkLandingPages } from './landing.ts';
 import { checkCredentials } from './credentials.ts';
 import { exportAll } from './exports.ts';
+import { applyFeedback } from './feedback.ts';
 import { createLps, lpPreviewUrl, lpUrl } from './lp.ts';
 import { excludeIrrelevantTerms } from './negatives.ts';
 import { analyze } from '../agents/analyst.ts';
@@ -32,11 +33,11 @@ import { logger } from '../util/log.ts';
 
 const log = logger('cycle');
 
-export type StepName = 'collect' | 'optimize' | 'analyze' | 'plan' | 'produce' | 'publish' | 'search' | 'lp' | 'organic' | 'report';
-export const ALL_STEPS: StepName[] = ['collect', 'optimize', 'analyze', 'plan', 'produce', 'publish', 'search', 'lp', 'organic', 'report'];
+export type StepName = 'collect' | 'feedback' | 'optimize' | 'analyze' | 'plan' | 'produce' | 'publish' | 'search' | 'lp' | 'organic' | 'report';
+export const ALL_STEPS: StepName[] = ['collect', 'feedback', 'optimize', 'analyze', 'plan', 'produce', 'publish', 'search', 'lp', 'organic', 'report'];
 
 /** 緊急停止中でも動かしてよい段階（実績の取り込み・停止判断・分析・報告だけ） */
-const SAFE_WHEN_HALTED: StepName[] = ['collect', 'optimize', 'analyze', 'lp', 'report'];
+const SAFE_WHEN_HALTED: StepName[] = ['collect', 'feedback', 'optimize', 'analyze', 'lp', 'report'];
 
 export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Promise<CycleRecord> {
   const { store } = ctx;
@@ -87,6 +88,8 @@ export async function runCycle(ctx: Ctx, requested: StepName[] = ALL_STEPS): Pro
     const creds = await checkCredentials(ctx);
     return [ads, search, organic, outcomes, comments, landing, creds].filter(Boolean).join(' / ');
   });
+  // 管理画面からの依頼（採用・却下・修正・文言違い・LP や検索広告の修正）を先に反映する
+  await step('feedback', () => applyFeedback(ctx));
   await step('optimize', async () => {
     decisions = await optimize(ctx);
     return `${decisions.length} 件`;
@@ -217,6 +220,10 @@ function summaryMessage(
   if (waitingImages && ctx.images.name === 'handoff') todo.push(`Midjourney で画像を作る（${waitingImages} 本。下にプロンプト）`);
   if (ctx.catalog.policy.autonomy === 'draft' && !ctx.dryRun && r.published.published.length) todo.push(`入稿した ${r.published.published.length} 本を確認して配信開始（Slack の承認ボタンか管理画面）`);
   for (const a of store.state.credentials?.alerts ?? []) todo.push(a);
+  if (ctx.catalog.policy.requireHumanSelection) {
+    const waitingSelection = store.creatives({ status: 'produced' }).filter((c) => !c.humanApproved).length;
+    if (waitingSelection) todo.push(`完成した広告 ${waitingSelection} 本を管理画面で確認して、使うものを採用する`);
+  }
   const lpDrafts = Object.values(store.state.lps ?? {}).filter((l) => l.status === 'draft').length;
   if (lpDrafts) todo.push(`応募ページ（LP）の下書き ${lpDrafts} 本を確認して承認する`);
   const lpBad = ctx.catalog.jobs.filter((j) => store.state.landing?.[j.id]?.ok === false).length;
