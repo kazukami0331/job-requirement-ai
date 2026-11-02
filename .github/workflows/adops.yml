@@ -1,4 +1,6 @@
 name: adops（広告の自動運用）
+# 実行の名前に段階を入れる（管理画面が「依頼を処理する実行がすでに待っているか」を見分けるのに使う）
+run-name: "adops ${{ github.event_name == 'schedule' && format('schedule {0}', github.event.schedule) || (inputs.lp_approve != '' || inputs.lp_retire != '') && 'lp feedback,produce,publish' || inputs.control != '' && format('control {0}', inputs.control) || inputs.steps != '' && inputs.steps || 'cycle' }}"
 
 # 毎朝 6:00 JST にフルサイクル（実績取込 → 停止判断 → 分析 → 企画・レビュー → 制作 → 入稿 → 報告）。
 # 日中 12:00 / 18:00 JST は実績取込と停止判断だけ（悪い広告に予算を使い続けないため）。
@@ -186,8 +188,9 @@ jobs:
             node src/cli.ts resume
           elif [ -n "$LP_APPROVE$LP_RETIRE" ]; then
             # 入力はシェルに展開せず環境変数で渡す
-            if [ -n "$LP_APPROVE" ]; then node src/cli.ts lp-approve --id "$LP_APPROVE"; fi
-            if [ -n "$LP_RETIRE" ]; then node src/cli.ts lp-retire --id "$LP_RETIRE"; fi
+            # 1件失敗しても（理由は Slack に届く）、続けて依頼の反映まで行う
+            if [ -n "$LP_APPROVE" ]; then node src/cli.ts lp-approve --id "$LP_APPROVE" || true; fi
+            if [ -n "$LP_RETIRE" ]; then node src/cli.ts lp-retire --id "$LP_RETIRE" || true; fi
             # 管理画面からの依頼も一緒に反映する（この実行が依頼の起動を押し出した場合に取りこぼさない）
             node src/cli.ts cycle --steps feedback,produce,publish,report
           elif [ "${{ steps.steps.outputs.steps }}" = "leads" ]; then

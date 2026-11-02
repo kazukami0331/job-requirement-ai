@@ -13,11 +13,10 @@
 const API = () => (process.env.ADOPS_GITHUB_API || "https://api.github.com").replace(/\/$/, "");
 
 export class GitHubError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
+  readonly status: number;
+  constructor(status: number, message: string) {
     super(message);
+    this.status = status;
   }
 }
 
@@ -65,13 +64,22 @@ export async function writeFile(path: string, text: string, sha: string | undefi
   if (!res.ok) throw new GitHubError(res.status, `GitHub に保存できませんでした（${res.status}）。トークンに Contents の書き込み権限があるか確認してください`);
 }
 
-/** adops のワークフローがすでに待ち行列にあるか（あれば、その実行が始まるときに最新の依頼を取り込む）。 */
+/**
+ * 依頼の反映（feedback）から制作・入稿まで行う実行が、すでに待ち行列にあるか。
+ * あれば、その実行が始まるときに最新の依頼を取り込むので、新しく起動しない（待っている実行を押し出さないため）。
+ * 実行の名前（ワークフローの run-name）で見分ける: 毎朝のフル実行・管理画面からの依頼・段階なしの手動実行。
+ * 応募通知・日中の停止判断・緊急操作の実行は数えない。
+ */
+export function runHandlesFeedback(title: string): boolean {
+  return /schedule 0 21 \* \* \*|feedback,produce,publish|^adops cycle$/.test(title);
+}
+
 export async function hasQueuedRun(): Promise<boolean> {
   for (const status of ["queued", "pending", "waiting"]) {
-    const res = await gh(`/actions/workflows/adops.yml/runs?status=${status}&per_page=1`);
+    const res = await gh(`/actions/workflows/adops.yml/runs?status=${status}&per_page=20`);
     if (!res.ok) return false;
-    const j = (await res.json()) as { total_count?: number };
-    if ((j.total_count ?? 0) > 0) return true;
+    const j = (await res.json()) as { workflow_runs?: { display_title?: string; name?: string }[] };
+    if ((j.workflow_runs ?? []).some((r) => runHandlesFeedback(r.display_title ?? ""))) return true;
   }
   return false;
 }

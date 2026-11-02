@@ -35,11 +35,31 @@ const SCOPE_NOTE: Record<Scope, string> = {
 
 /** 修正の範囲の外の項目は元に戻す（AI が範囲外を書き換えても、画像と企画の記録が食い違わないように）。 */
 function keepOutOfScope(orig: CreativeBrief, b: CreativeBrief, scope: Scope): CreativeBrief {
+  // 動画・カルーセルのカットは、文字（text）と絵（visual）を範囲ごとに分けて戻す
+  const scenes = (keep: 'text' | 'visual') =>
+    orig.storyboard.length === b.storyboard.length ? b.storyboard.map((s, i) => ({ ...s, [keep]: orig.storyboard[i][keep] })) : keep === 'text' ? orig.storyboard : b.storyboard;
   if (scope === 'copy') {
-    return { ...b, imagePrompt: orig.imagePrompt, visualConcept: orig.visualConcept, ...(orig.elements ? { elements: { ...orig.elements, copyTone: b.elements?.copyTone ?? orig.elements.copyTone } } : {}) };
+    return {
+      ...b,
+      imagePrompt: orig.imagePrompt,
+      visualConcept: orig.visualConcept,
+      storyboard: scenes('visual'),
+      ...(orig.elements ? { elements: { ...orig.elements, copyTone: b.elements?.copyTone ?? orig.elements.copyTone } } : {}),
+    };
   }
   if (scope === 'image') {
-    return { ...b, hook: orig.hook, headline: orig.headline, primaryText: orig.primaryText, description: orig.description, overlay: orig.overlay, cta: orig.cta, storyboard: orig.storyboard, ...(orig.translationJa ? { translationJa: orig.translationJa } : {}), ...(b.elements && orig.elements ? { elements: { ...b.elements, copyTone: orig.elements.copyTone } } : {}) };
+    return {
+      ...b,
+      hook: orig.hook,
+      headline: orig.headline,
+      primaryText: orig.primaryText,
+      description: orig.description,
+      overlay: orig.overlay,
+      cta: orig.cta,
+      storyboard: scenes('text'),
+      ...(orig.translationJa ? { translationJa: orig.translationJa } : {}),
+      ...(b.elements && orig.elements ? { elements: { ...b.elements, copyTone: orig.elements.copyTone } } : {}),
+    };
   }
   return b;
 }
@@ -77,8 +97,9 @@ function reuseImages(ctx: Ctx, from: Creative, toId: string): ImageJob[] {
   for (const ratio of ratios) {
     const j = from.imageJobs.find((x) => x.ratio === ratio);
     const src = j?.paths?.[j.selected ?? 0];
-    const source = src && existsSync(src) ? src : existsSync(bg) ? bg : null;
-    if (!source) return [];
+    // 文字なしの背景は 4:5 なので 4:5 にだけ使う（他の比率に使うと切り取られて人物や余白が欠ける）。無い比率だけ作り直す
+    const source = src && existsSync(src) ? src : ratio === '4:5' && existsSync(bg) ? bg : null;
+    if (!source) continue;
     const dest = join(dir, `${toId}_${ratio.replace(':', 'x').replace('.', '')}_src${extname(source) || '.jpg'}`);
     if (source !== dest) copyFileSync(source, dest);
     out.push({ ratio, provider: j?.provider ?? ctx.images.name, prompt: j?.prompt ?? '', requestedAt: j?.requestedAt ?? new Date().toISOString(), paths: [dest], selected: 0 });

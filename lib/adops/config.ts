@@ -2,7 +2,7 @@
 import { configBranch, dispatch, hasQueuedRun, readFile, stateBranch, writeFile } from "./github";
 
 /** 管理画面からの依頼を処理するときの段階。 */
-export const FEEDBACK_STEPS = "feedback,produce,publish,lp,report";
+export const FEEDBACK_STEPS = "feedback,produce,publish,report";
 import type { Brand, Directive, FeedbackRequest, Hypothesis, Job, Persona, Policy, Reference, Rubric, StateView } from "./types";
 
 export const CONFIG_DIR = "adops/config";

@@ -107,6 +107,7 @@ test('feedback: 修正（コピー）は同じ画像で作り直し、配信中�
   await applyFeedback(ctx);
   const v2 = Object.values(ctx.store.state.creatives).find((c) => c.variantOf === 'live' && c.imageJobs.some((j) => j.paths?.[0]?.includes('_src.jpg')));
   assert.ok(v2, '文字なしの背景から作る');
+  assert.deepEqual(v2!.imageJobs.map((j) => j.ratio), ['4:5'], '背景は 4:5 にだけ使い、9:16 は作り直す');
   // 却下した広告は直せない
   ctx.store.state.creatives.rej = creative({ id: 'rej', status: 'rejected' });
   ctx.catalog.feedback.push(fb({ id: 'm9', targetId: 'rej', action: 'revise', note: 'x' }));
