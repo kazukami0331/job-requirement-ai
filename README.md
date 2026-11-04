@@ -2,6 +2,9 @@
 
 RAが人事担当者に募集求人の要件を聞き出すための対話型サービスです。AIからの質問に答えるだけで、採用背景や求める人材などを言語化できます。
 
+> **広告の自動運用（adops）**: ブルーカラー求人の Meta / Google 広告を AI が企画 → レビュー → 制作（Midjourney＋動画）→ 入稿 → 分析 → 改善まで毎日回す仕組みが `adops/` にあります。
+> 詳しくは [adops/README.md](adops/README.md) を参照してください。
+>
 > このリポジトリにはもう1つ、応募書類の自動判定（Gmail → Google ドライブ → Claude → 通知）を行う
 > Google Apps Script が `gas/` に入っています。セットアップ手順は [gas/README.md](gas/README.md) を参照してください。
 

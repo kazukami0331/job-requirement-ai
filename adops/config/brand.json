@@ -1,0 +1,9 @@
+{
+  "name": "（社名をここに）",
+  "tone": "親しみやすく、具体的で、誇張しない。現場で働く人へのリスペクトを込める。",
+  "colors": { "primary": "#0B3D91", "accent": "#FFC400", "text": "#FFFFFF", "background": "#0A1F44" },
+  "mandatoryText": "",
+  "logoPath": "",
+  "bannedPhrases": ["誰でも簡単", "絶対稼げる", "楽して稼ぐ", "ノルマなし確定"],
+  "visualStyle": "candid documentary photography of real Japanese workers, natural light, clean and safe workplace, workers wearing proper safety gear, warm and trustworthy mood, no text, no logos"
+}

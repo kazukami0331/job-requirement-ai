@@ -1,0 +1,153 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pickSearchLosers, rotateSearchAds } from '../src/pipeline/search.ts';
+import { sanitizeRsa } from '../src/agents/searchWriter.ts';
+import { offlineLlm } from '../src/llm/offline.ts';
+import { StateStore } from '../src/store/stateStore.ts';
+import { MockProvider } from '../src/creative/imageProvider.ts';
+import { makeCtx } from '../src/pipeline/context.ts';
+import { loadSettings } from '../src/config.ts';
+import { catalog, daily, job } from './fixtures.ts';
+import type { SearchAd } from '../src/types.ts';
+
+const ad = (id: string, clicks: number, over: Partial<SearchAd> = {}): SearchAd => ({
+  id,
+  jobId: 'factory',
+  adGroupId: 'g1',
+  resourceName: `customers/1/adGroupAds/1~${id}`,
+  headlines: ['a'],
+  descriptions: ['b'],
+  status: 'live',
+  metrics: daily('2026-10-01', 14, { impressions: 500, clicks, spend: 100, conversions: 0 }),
+  createdAt: '2026-10-01T00:00:00Z',
+  createdOn: '2026-10-01',
+  ...over,
+});
+
+test('pickSearchLosers: 十分な表示と期間がある2本のうち、CTR が7割未満の方を止める', () => {
+  assert.deepEqual(pickSearchLosers([ad('a', 30), ad('b', 10)], '2026-10-15').map((d) => d.adId), ['b']);
+  assert.equal(pickSearchLosers([ad('a', 30), ad('b', 25)], '2026-10-15').length, 0);
+  // 配信から日が浅いものは対象外
+  assert.equal(pickSearchLosers([ad('a', 30), ad('b', 10, { createdOn: '2026-10-10' })], '2026-10-15').length, 0);
+});
+
+test('sanitizeRsa: 文字数超過・法令 NG・重複を落とす', () => {
+  const r = sanitizeRsa(
+    {
+      headlines: ['寮費無料の製造スタッフ', '寮費無料の製造スタッフ', 'とても長い見出しなので上限の全角十五文字を超える', '35歳までの方歓迎', '月給30万円〜'],
+      descriptions: ['未経験歓迎。まずは詳細をご覧ください。', '必ず稼げる仕事です'],
+      path1: '製造 求人/寮付き',
+      path2: '豊田市の工場の求人',
+    },
+    job(),
+    catalog(),
+  );
+  assert.deepEqual(r.headlines, ['寮費無料の製造スタッフ', '月給30万円〜']);
+  assert.deepEqual(r.descriptions, ['未経験歓迎。まずは詳細をご覧ください。']);
+  assert.equal(r.path1, '製造求人寮付き');
+  assert.ok(r.path2.length <= 7);
+  assert.equal(r.dropped.length, 3);
+  // 表示 URL のパスも法令チェックする
+  const r2 = sanitizeRsa({ headlines: [], descriptions: [], path1: '20代限定', path2: '寮付き' }, job(), catalog());
+  assert.equal(r2.path1, '');
+  assert.equal(r2.path2, '寮付き');
+});
+
+test('rotateSearchAds: DRY RUN では下書きを1日1本だけ作る', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'adops-search-'));
+  const cat = catalog({ jobs: [job({ placements: { google: { searchAdGroupIds: ['g1'] } } })] });
+  const ctx = makeCtx({
+    settings: { ...loadSettings(), dataDir: dir },
+    catalog: cat,
+    store: new StateStore(dir),
+    llm: offlineLlm(cat),
+    images: new MockProvider(),
+    meta: null,
+    google: null,
+    dryRun: true,
+    cycleId: 'cy',
+    today: '2026-10-10',
+  });
+  await rotateSearchAds(ctx);
+  await rotateSearchAds(ctx);
+  const ads = Object.values(ctx.store.state.searchAds!);
+  assert.equal(ads.length, 1);
+  assert.equal(ads[0].status, 'draft');
+  assert.ok(ads[0].headlines.length >= 8);
+  // 翌日も DRY RUN なら下書きは増えない
+  ctx.today = '2026-10-11';
+  await rotateSearchAds(ctx);
+  assert.equal(Object.values(ctx.store.state.searchAds!).length, 1);
+  // 本番になったら下書きを捨てて実物を作る
+  const created: string[] = [];
+  ctx.dryRun = false;
+  ctx.google = { createDemandGenAd: async () => (created.push('x'), 'customers/1/adGroupAds/1~9'), adMetrics: async () => new Map() } as any;
+  await rotateSearchAds(ctx);
+  const after = Object.values(ctx.store.state.searchAds!);
+  assert.equal(after.length, 1);
+  assert.equal(after[0].status, 'live');
+  assert.equal(created.length, 1);
+});
+
+test('excludeIrrelevantTerms: 応募のない求職者以外の検索を、auto では除外し、draft では提案だけ（7日間は繰り返さない）', async () => {
+  const { excludeIrrelevantTerms } = await import('../src/pipeline/negatives.ts');
+  const { ScriptedLlm } = await import('../src/llm/llm.ts');
+  const { mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { StateStore } = await import('../src/store/stateStore.ts');
+  const { MockProvider } = await import('../src/creative/imageProvider.ts');
+  const { makeCtx } = await import('../src/pipeline/context.ts');
+  const { loadSettings } = await import('../src/config.ts');
+  const { policy } = await import('./fixtures.ts');
+  const added: string[] = [];
+  const google = {
+    searchTerms: async () => [
+      { term: 'テスト社 評判', clicks: 9, conversions: 0, impressions: 100 },
+      { term: '製造 求人 豊田', clicks: 12, conversions: 0, impressions: 300 },
+      { term: '寮付き 仕事', clicks: 2, conversions: 0, impressions: 50 },
+    ],
+    addNegativeKeywords: async (_ag: string, terms: string[]) => (added.push(...terms), terms),
+  };
+  const llm = new ScriptedLlm().on('negativeKeywords', () => ({
+    terms: [
+      { term: 'テスト社 評判', exclude: true, reason: '評判の検索' },
+      { term: '製造 求人 豊田', exclude: false, reason: '求職' },
+      { term: '関係ない語', exclude: true, reason: '一覧に無い' },
+    ],
+  }));
+  const mk = (autonomy: 'auto' | 'draft') => {
+    const dir = mkdtempSync(join(tmpdir(), 'adops-neg-'));
+    return makeCtx({
+      settings: { ...loadSettings(), dataDir: dir, slack: { webhookUrl: '' } },
+      catalog: catalog({ jobs: [job({ placements: { google: { searchAdGroupIds: ['55'] } } })], policy: policy({ autonomy }) }),
+      store: new StateStore(dir), llm, images: new MockProvider(), meta: null, google: google as any, dryRun: false, cycleId: 'cy', today: '2026-10-10',
+    });
+  };
+  const auto = mk('auto');
+  assert.match(await excludeIrrelevantTerms(auto), /除外 「テスト社 評判」/);
+  assert.deepEqual(added, ['テスト社 評判']);
+  // 一度入れた語句は再判定しない
+  assert.equal(await excludeIrrelevantTerms(auto), '');
+  const draft = mk('draft');
+  assert.match(await excludeIrrelevantTerms(draft), /除外の提案/);
+  assert.equal(await excludeIrrelevantTerms(draft), '');
+  assert.deepEqual(added, ['テスト社 評判']);
+
+  // 通信障害などで追加そのものが失敗したら記録せず、次回また試す
+  const realAdd = google.addNegativeKeywords;
+  let fail = true;
+  google.addNegativeKeywords = async (ag: string, terms: string[]) => {
+    if (fail) throw new Error('network');
+    return realAdd(ag, terms);
+  };
+  const auto2 = mk('auto');
+  added.length = 0;
+  assert.match(await excludeIrrelevantTerms(auto2), /除外の提案/);
+  assert.ok(!(auto2.store.state.negatives?.['55'] ?? []).some((n) => n.term === 'テスト社 評判'));
+  fail = false;
+  assert.match(await excludeIrrelevantTerms(auto2), /除外 「テスト社 評判」/);
+});
