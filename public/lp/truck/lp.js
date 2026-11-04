@@ -10,7 +10,7 @@
   var LP_ID = CFG.lpId || "truck";
   var DEMO = true;
   var API_URL = "/api/lead";
-  var SUBMIT_LABEL = "送信して相談する（無料）";
+  var SUBMIT_LABEL = "送信して申し込む（無料）";
 
   function pushDL(obj){ window.dataLayer = window.dataLayer || []; window.dataLayer.push(obj); }
 
