@@ -1,5 +1,5 @@
 import { Application } from "@/types/recruiting";
-import { CrossOptions, HrSheet, categoryOf, HR_CATEGORY_LABEL } from "./hrsheet";
+import { CrossOptions, HrSheet, categoryOf, decisionOf, HR_CATEGORY_LABEL } from "./hrsheet";
 import { normalizeShopKey } from "./shops";
 
 /**
@@ -29,7 +29,7 @@ export interface DiffRecord {
   course?: string;
   /** Excel側の分野を3区分に寄せたときの名前 */
   courseLabel?: string;
-  /** Excel側のステータス（「合格」など） */
+  /** Excel側の採否（面接結果2。無ければステータス） */
   status?: string;
 }
 
@@ -78,7 +78,7 @@ export function hireDiffDetail(
         receivedDate: r.receivedDate,
         course: r.course,
         courseLabel: HR_CATEGORY_LABEL[categoryOf(r)],
-        status: r.status,
+        status: decisionOf(r),
       });
       excel.set(key, list);
     }

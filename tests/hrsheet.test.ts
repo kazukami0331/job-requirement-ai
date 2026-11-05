@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as XLSX from "xlsx";
-import { HrSheet, compareWithJobop, courseCategory, crossTab, parseHrSheet, planTargets } from "@/lib/recruiting/hrsheet";
+import { HrSheet, compareWithJobop, courseCategory, crossTab, decisionOf, parseHrSheet, planTargets } from "@/lib/recruiting/hrsheet";
 import { DEFAULT_PLAN_LABELS, HiringPlan, PlanCategory, PlanRow } from "@/types/recruiting";
 
 /** テスト用の不足人数マスタの行。使うのは校舎・区分・不足（groupC）・校舎計だけ。 */
@@ -67,7 +67,9 @@ test("氏名・年齢・性別は読み取らない", () => {
   assert.deepEqual(Object.keys(sheet.rows[0]).sort(), [
     "category",
     "course",
+    "decision",
     "hired",
+    "hiredDate",
     "receivedDate",
     "shopShortName",
     "slots",
@@ -264,4 +266,48 @@ test("対象の校舎を絞ると、目標もその校舎だけになる", () =>
   const t = planTargets(plan, (key) => key === "豊田")!;
   assert.deepEqual([...t.byShop.keys()], ["豊田"]);
   assert.equal(t.minHires, 1);
+});
+
+test("採否は「面接結果2」で決める（ステータス列ではない）", () => {
+  // 実ファイルでは、面接結果2が採用なのにステータスが合格になっていない人が23名、
+  // ステータスは合格のまま面接結果2が辞退の人が2名いた。CADが5名と7名で食い違っていた。
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet([
+    { 応募日時: "2026/10/01(木) 10:00", スクール: "栄校", ステータス: "面接実施済", 分野: "CAD", 面接結果2: "採用", "（採用日）": "2026/10/15" },
+    { 応募日時: "2026/10/02(金) 10:00", スクール: "栄校", ステータス: "合格", 分野: "CAD", 面接結果2: "辞退" },
+    { 応募日時: "2026/10/03(土) 10:00", スクール: "栄校", ステータス: "合格", 分野: "IT", 面接結果2: "採用" },
+    { 応募日時: "2026/10/04(日) 10:00", スクール: "栄校", ステータス: "面接調整中", 分野: "IT", 面接結果2: "" },
+  ]);
+  XLSX.utils.book_append_sheet(wb, ws, "元データ");
+  const sheet = parseHrSheet("テスト.xlsx", XLSX.write(wb, { type: "array", bookType: "xlsx" }) as ArrayBuffer);
+
+  assert.equal(sheet.rows[0].hired, true, "ステータスが合格でなくても、面接結果2が採用なら採用");
+  assert.equal(sheet.rows[1].hired, false, "ステータスが合格でも、辞退していれば採用ではない");
+  assert.equal(sheet.rows[2].hired, true);
+  assert.equal(sheet.rows[3].hired, false);
+  assert.equal(sheet.rows.filter((r) => r.hired).length, 2);
+  assert.equal(sheet.rows[0].hiredDate, "2026-10-15", "採用日も読む");
+  assert.equal(decisionOf(sheet.rows[0]), "採用");
+});
+
+test("面接結果2が無い古いファイルは、これまでどおりステータスで見る", () => {
+  const sheet = sheetOf(SAMPLE);
+  assert.equal(sheet.rows.filter((r) => r.hired).length, 4);
+  assert.equal(sheet.rows[0].decision, undefined);
+});
+
+test("採用日は「10/15」のように年が省かれていても読む", () => {
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet([
+    { 応募日時: "2026/10/01(木) 10:00", スクール: "栄校", ステータス: "", 分野: "IT", 面接結果2: "採用", "（採用日）": "10/15" },
+    // 12月に応募して1月に採用。年を足さないと応募より前になってしまう。
+    { 応募日時: "2026/12/20(土) 10:00", スクール: "栄校", ステータス: "", 分野: "IT", 面接結果2: "採用", "（採用日）": "1/8" },
+    { 応募日時: "2026/10/01(木) 10:00", スクール: "栄校", ステータス: "", 分野: "IT", 面接結果2: "採用", "（採用日）": "2026/11/03" },
+  ]);
+  XLSX.utils.book_append_sheet(wb, ws, "元データ");
+  const sheet = parseHrSheet("テスト.xlsx", XLSX.write(wb, { type: "array", bookType: "xlsx" }) as ArrayBuffer);
+
+  assert.equal(sheet.rows[0].hiredDate, "2026-10-15");
+  assert.equal(sheet.rows[1].hiredDate, "2027-01-08", "年またぎは翌年にする");
+  assert.equal(sheet.rows[2].hiredDate, "2026-11-03");
 });

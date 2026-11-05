@@ -15,7 +15,18 @@ import { shortageByShop } from "./plan";
  * どちらが正しいかはこちらでは決められないので、両方を並べて見せる。
  */
 
-/** 採用とみなすステータス。採用チームはここに「合格」と書いている。 */
+/**
+ * 採用の判定。
+ *
+ * **採否が決まるのは「面接結果2」列**（2026-11-05 確認）。
+ * 「ステータス」列は選考の途中経過が残っていて、採否と一致しない。
+ * 実ファイル392行で、ステータスが合格なのは79名、面接結果2が採用なのは100名。
+ * ずれの中身は「面接結果2が採用なのにステータスが合格になっていない」が23名、
+ * 「ステータスは合格のまま、面接結果2が辞退」が2名。CADは5名と7名で食い違っていた。
+ *
+ * 面接結果2が無い古いファイルのために、ステータス側の判定も残しておく。
+ */
+const DECIDED_HIRED = "採用";
 const HIRED = new Set(["合格", "採用"]);
 
 export interface HrRow {
@@ -28,7 +39,12 @@ export interface HrRow {
    * 区分を入れる前に取り込んだデータには無いので、読むときは必ず categoryOf を通す。
    */
   category?: HrCategory;
+  /** 「ステータス」列。選考の途中経過。採否はこれでは決まらない。 */
   status: string;
+  /** 「面接結果2」列。採用 / 不採用 / 辞退 / 不合格。採否はこちらで決まる。 */
+  decision?: string;
+  /** 採用日（YYYY-MM-DD）。「（採用日）」列。読めなければ null。 */
+  hiredDate?: string | null;
   hired: boolean;
   /** 応募日（YYYY-MM-DD）。読めなければ null。 */
   receivedDate: string | null;
@@ -116,6 +132,11 @@ export function courseCategory(raw: string): HrCategory {
  * category が入っていない。取り込み直しを強いると、その間だけ画面が壊れるので、
  * 無ければ分野から作り直す。
  */
+/** 画面に出す採否。面接結果2があればそれ、無ければステータス。 */
+export function decisionOf(row: HrRow): string {
+  return row.decision || row.status;
+}
+
 export function categoryOf(row: HrRow): HrCategory {
   return row.category && HR_CATEGORIES.includes(row.category) ? row.category : courseCategory(row.course);
 }
@@ -126,6 +147,24 @@ function dateOf(raw: string): string | null {
   if (!m) return null;
   const [, y, mo, d] = m;
   return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+}
+
+/**
+ * 採用日。「2026/10/15」とも「10/15」とも書かれている。
+ *
+ * 年が省かれているときは応募日の年を使い、応募日より前になってしまう場合だけ翌年にする
+ * （採用は応募より後なので、12月応募・1月採用のような年またぎを拾うため）。
+ */
+function hiredDateOf(raw: string, receivedDate: string | null): string | null {
+  const full = dateOf(raw);
+  if (full) return full;
+
+  const m = String(raw).match(/^\s*(\d{1,2})[/\-月](\d{1,2})/);
+  if (!m || !receivedDate) return null;
+  const [, mo, d] = m;
+  const year = Number(receivedDate.slice(0, 4));
+  const made = `${year}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  return made >= receivedDate ? made : `${year + 1}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
 }
 
 export function parseHrSheet(fileName: string, buf: ArrayBuffer): HrSheet {
@@ -143,14 +182,19 @@ export function parseHrSheet(fileName: string, buf: ArrayBuffer): HrSheet {
       continue;
     }
     const status = text(r["ステータス"]);
+    const decision = text(r["面接結果2"]);
     const raw = String(r["分野"] ?? "");
+    const receivedDate = dateOf(String(r["応募日時"] ?? ""));
     rows.push({
       shopShortName: shop,
       course: course(raw),
       category: courseCategory(raw),
       status: status || "(未記入)",
-      hired: HIRED.has(status),
-      receivedDate: dateOf(String(r["応募日時"] ?? "")),
+      decision: decision || undefined,
+      hiredDate: hiredDateOf(String(r["（採用日）"] ?? r["採用日"] ?? ""), receivedDate),
+      // 面接結果2が入っていればそれが採否。無い古いファイルだけステータスで見る。
+      hired: decision ? decision === DECIDED_HIRED : HIRED.has(status),
+      receivedDate,
       slots: Object.fromEntries(SLOTS.map((s) => [s, slotMark(r[s])])) as Record<Slot, boolean>,
     });
   }

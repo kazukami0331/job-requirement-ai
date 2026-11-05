@@ -106,7 +106,7 @@ function emptyRow(key: string, shopShortName: string): StaffingRow {
 }
 
 export interface StaffingOptions {
-  /** 応募日がこの日以降の合格者だけ数える */
+  /** 採用日（無ければ応募日）がこの日以降の合格者だけ数える */
   from?: string | null;
   /** 対象の校舎（normalizeShopKey 済みのキーで判定） */
   include?: (key: string) => boolean;
@@ -158,7 +158,9 @@ export function staffing(
 
   for (const h of hrSheet?.rows ?? []) {
     if (!h.hired) continue;
-    if (from && h.receivedDate && h.receivedDate < from) continue;
+    // 「この期間に採った人」なので、採用日があればそれで切る（無ければ応募日）
+    const on = h.hiredDate ?? h.receivedDate;
+    if (from && on && on < from) continue;
     const key = normalizeShopKey(h.shopShortName);
     if (include && !include(key)) continue;
     if (!rows.has(key)) {
