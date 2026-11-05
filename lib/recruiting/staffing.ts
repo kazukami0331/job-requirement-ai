@@ -19,8 +19,11 @@ import { SHOP_MASTER, normalizeShopKey } from "./shops";
 export function placementFieldOf(course: string): PlacementField | null {
   const t = course.replace(/[\s　]/g, "").toUpperCase();
   if (!t || t === "(未記入)") return null;
+  // 講師ではない職種・配置表に枠の無い分野（カウンセラー・Office・英語など）は入れない
+  if (/カウンセラー|カウンセリング/.test(t)) return null;
   if (t.includes("CAD")) return "CAD";
-  if (t.startsWith("IT")) return "IT";
+  // Python はプログラミングの求人なので、充足は IT の枠として数える
+  if (t.startsWith("IT") || t.includes("PYTHON")) return "IT";
   if (/WEB|DTP|デザイン|映像/.test(t)) return "WEB";
   return null;
 }

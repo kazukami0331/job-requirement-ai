@@ -35,6 +35,8 @@ const CATEGORY_OF_COURSE: Record<JobCourse, HrCategory | null> = {
   Webデザイン: "D/W",
   CAD: "C",
   事務: null,
+  // 講師ではない職種。不足人数管理表に枠が無い。
+  カウンセラー: null,
 };
 
 /** 店舗マスタに当たる校舎は正式な略称にそろえる（「福岡天神」と「福岡天神校」を1行にする） */

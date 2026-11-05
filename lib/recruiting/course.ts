@@ -12,7 +12,7 @@
  */
 
 /** 表に出すときのコース名。先頭3つは不足人数マスタの区分と同じ並びにする。 */
-export const JOB_COURSES = ["IT", "Python", "Webデザイン", "CAD", "事務"] as const;
+export const JOB_COURSES = ["IT", "Python", "Webデザイン", "CAD", "事務", "カウンセラー"] as const;
 
 export type JobCourse = (typeof JOB_COURSES)[number];
 
@@ -37,6 +37,7 @@ export const OTHER_COURSE = "その他";
  * - CAD を最初に見る（「CAD・Web」のような名前で取り違えないため）
  * - Python は IT より先（プログラミングの求人だが、行は分けて出す）
  * - 事務 は IT より先（「事務」に OA のような広い語を入れると旧求人を巻き込むので、語は狭く取る）
+ * - カウンセラー は講師ではない職種。六本木オフィスで募集を始めた（2026-11-05 指示）
  */
 export function courseOfJobTitle(jobTitle: string): JobCourse | typeof OTHER_COURSE {
   const t = jobTitle.replace(/[\s　]/g, "").toUpperCase();
@@ -45,6 +46,7 @@ export function courseOfJobTitle(jobTitle: string): JobCourse | typeof OTHER_COU
   if (t.includes("PYTHON")) return "Python";
   if (/WEB|デザイン|DTP|映像/.test(t)) return "Webデザイン";
   if (t.includes("事務")) return "事務";
+  if (/カウンセラー|カウンセリング/.test(t)) return "カウンセラー";
   if (/プログラミング|プログラマ|IT|エンジニア/.test(t)) return "IT";
 
   return OTHER_COURSE;

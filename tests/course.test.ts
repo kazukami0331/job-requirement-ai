@@ -38,6 +38,13 @@ test("事務とPythonの求人は、それぞれのコースにする", () => {
   assert.equal(courseOfJobTitle("医療事務講師"), "事務");
 });
 
+test("カウンセラーの求人は、講師のコースと分けて出す", () => {
+  // 六本木オフィスでカウンセラーの募集を始めた（2026-11-05 指示）
+  assert.equal(courseOfJobTitle("パソコンスクール カウンセラー"), "カウンセラー");
+  assert.equal(courseOfJobTitle("受講カウンセリング担当"), "カウンセラー");
+  assert.equal(courseOfJobTitle("パソコンスクール講師（Python）"), "Python");
+});
+
 test("「事務」を広く取りすぎない（旧求人を巻き込まない）", () => {
   // OA は3コースまとめ時代の求人名に入っているので、事務の判定には使わない
   assert.equal(courseOfJobTitle("スクール講師(OA/パソコンインストラクター)"), OTHER_COURSE);
@@ -103,7 +110,7 @@ test("校舎 × コースの応募数が、どこを足しても合計に戻る"
     { ...app("4", "パソコンスクール講師（プログラミング）"), shopShortName: "梅田校" },
   ]);
 
-  assert.deepEqual(m.courses, ["IT", "Python", "Webデザイン", "CAD", "事務", OTHER_COURSE]);
+  assert.deepEqual(m.courses, ["IT", "Python", "Webデザイン", "CAD", "事務", "カウンセラー", OTHER_COURSE]);
   assert.equal(m.applied, 4);
   assert.equal(m.split, 3, "その他はコース別の小計に入れない");
   assert.equal(

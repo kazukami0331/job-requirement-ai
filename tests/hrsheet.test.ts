@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import * as XLSX from "xlsx";
 import { HrSheet, compareWithJobop, courseCategory, crossTab, decisionOf, parseHrSheet, planTargets } from "@/lib/recruiting/hrsheet";
 import { DEFAULT_PLAN_LABELS, HiringPlan, PlanCategory, PlanRow } from "@/types/recruiting";
+import { placementFieldOf } from "@/lib/recruiting/staffing";
 
 /** テスト用の不足人数マスタの行。使うのは校舎・区分・不足（groupC）・校舎計だけ。 */
 function row(shop: string, category: PlanCategory, groupC: [number, number, number], shortage: number | null): PlanRow {
@@ -330,4 +331,13 @@ test("採用日は「10/15」のように年が省かれていても読む", () 
   assert.equal(sheet.rows[0].hiredDate, "2026-10-15");
   assert.equal(sheet.rows[1].hiredDate, "2027-01-08", "年またぎは翌年にする");
   assert.equal(sheet.rows[2].hiredDate, "2026-11-03");
+});
+
+test("Pythonは IT、カウンセラーは講師の区分に入れない", () => {
+  // 六本木オフィスで Python のコースとカウンセラーの職種を追加した（2026-11-05 指示）
+  assert.equal(courseCategory("Python"), "IT", "プログラミングの求人なのでIT");
+  assert.equal(courseCategory("カウンセラー"), "none", "講師ではないのでコースの区分に入れない");
+  assert.equal(courseCategory("WEBDTP"), "D/W", "ここは変えない");
+  assert.equal(placementFieldOf("Python"), "IT");
+  assert.equal(placementFieldOf("カウンセラー"), null, "配置表に枠が無い");
 });

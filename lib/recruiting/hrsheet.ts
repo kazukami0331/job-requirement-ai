@@ -123,7 +123,8 @@ export const HR_CATEGORY_LABEL: Record<HrCategory, string> = {
   IT: "IT",
   "D/W": "Webデザイン",
   C: "CAD",
-  none: "未記入",
+  // 空欄のほか、講師ではない職種（カウンセラーなど）もここに入る
+  none: "その他・未記入",
 };
 
 /**
@@ -135,11 +136,16 @@ export const HR_CATEGORY_LABEL: Record<HrCategory, string> = {
  *
  * IT と CAD だけを拾い、残りは D/W。空欄だけは寄せずに未記入のまま残す。
  * **WEBDTP と 映像 は Webデザイン でよい**（2026-10-14 確認）。
+ *
+ * ただし講師のコースでないものは D/W に混ぜない。
+ * - Python … プログラミングの求人なので IT（2026-11-05、六本木オフィスで開始）
+ * - カウンセラー … 講師ではないので、どの区分にも入れない
  */
 export function courseCategory(raw: string): HrCategory {
   const t = course(raw).toUpperCase();
   if (t === "(未記入)") return "none";
-  if (t.startsWith("IT")) return "IT";
+  if (/カウンセラー|カウンセリング/.test(t)) return "none";
+  if (t.startsWith("IT") || t.includes("PYTHON")) return "IT";
   if (t.includes("CAD")) return "C";
   return "D/W";
 }
