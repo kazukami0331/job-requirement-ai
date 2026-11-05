@@ -137,9 +137,9 @@ test("対象校舎の絞り込みは、画面と同じ条件で渡せる", () =>
   assert.equal(only.excluded, 4);
 });
 
-test("列は IT / D/W / C / 未記入 の4つで固定する", () => {
+test("列は IT / D/W / C / Office / 事務 / その他・未記入 で固定する", () => {
   const cross = crossTab(sheetOf(SAMPLE));
-  assert.deepEqual(cross.categories, ["IT", "D/W", "C", "none"]);
+  assert.deepEqual(cross.categories, ["IT", "D/W", "C", "Office", "事務", "none"]);
 });
 
 test("分野の末尾の「？」が付いていても IT として数える", () => {
@@ -205,7 +205,7 @@ test("WEBDTP と 映像 は Webデザインに入れる", () => {
   assert.equal(courseCategory("映像"), "D/W");
   assert.equal(courseCategory("WEB"), "D/W");
   assert.equal(courseCategory("DTP"), "D/W");
-  assert.equal(courseCategory("Office"), "D/W");
+  assert.equal(courseCategory("Office"), "Office", "Officeスキルだけの求人は別に数える（2026-11-05 指示）");
 
   assert.equal(courseCategory("IT"), "IT", "ITとCADだけは別の区分");
   assert.equal(courseCategory("CAD"), "C");
@@ -231,7 +231,7 @@ test("コースの目標は、不足のあるコースに1名ずつ置く", () =
   assert.equal(t.byShop.get("豊田")?.byCategory["IT"], 1, "枠が3つあっても1名");
   assert.equal(t.byShop.get("豊田")?.byCategory["C"], 0, "不足が無いコースは0");
   assert.equal(t.byShop.get("梅田")?.byCategory["IT"], 1, "夜だけの不足でも1名");
-  assert.deepEqual(t.totalByCategory, { IT: 2, "D/W": 2, C: 1, none: 0 });
+  assert.deepEqual(t.totalByCategory, { IT: 2, "D/W": 2, C: 1, Office: 0, 事務: 0, none: 0 });
   assert.equal(t.minHires, 5, "校舎の目標は不足のあるコースの数（豊田2＋梅田3）");
   assert.equal(t.slots, 9, "不足の枠数も説明用に持つ");
 });
@@ -340,4 +340,15 @@ test("Pythonは IT、カウンセラーは講師の区分に入れない", () =>
   assert.equal(courseCategory("WEBDTP"), "D/W", "ここは変えない");
   assert.equal(placementFieldOf("Python"), "IT");
   assert.equal(placementFieldOf("カウンセラー"), null, "配置表に枠が無い");
+});
+
+test("Office と 事務 はそれぞれ別の区分にする", () => {
+  // Officeスキルだけの講師求人と、事務のアルバイトを別に開いた（2026-11-05 指示）
+  assert.equal(courseCategory("Office"), "Office");
+  assert.equal(courseCategory("事務"), "事務");
+  assert.equal(courseCategory("事務（Officeスキル）"), "事務", "事務を先に見る");
+  assert.equal(courseCategory("WEBDTP"), "D/W", "ここは変えない");
+  // 配置表には枠が無いので、時間帯の充足には入らない
+  assert.equal(placementFieldOf("Office"), null);
+  assert.equal(placementFieldOf("事務"), null);
 });

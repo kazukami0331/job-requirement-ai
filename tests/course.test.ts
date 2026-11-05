@@ -110,7 +110,7 @@ test("校舎 × コースの応募数が、どこを足しても合計に戻る"
     { ...app("4", "パソコンスクール講師（プログラミング）"), shopShortName: "梅田校" },
   ]);
 
-  assert.deepEqual(m.courses, ["IT", "Python", "Webデザイン", "CAD", "事務", "カウンセラー", OTHER_COURSE]);
+  assert.deepEqual(m.courses, ["IT", "Python", "Webデザイン", "CAD", "Office", "事務", "カウンセラー", OTHER_COURSE]);
   assert.equal(m.applied, 4);
   assert.equal(m.split, 3, "その他はコース別の小計に入れない");
   assert.equal(
@@ -165,4 +165,14 @@ test("「その他」の中身を職種名ごとに出せる", () => {
     { title: "パソコンスクール講師", applied: 2 },
     { title: "パソコンスクール運営企業の人事・採用担当", applied: 1 },
   ]);
+});
+
+test("Officeスキルの求人と事務のアルバイトを分けて数える", () => {
+  // Officeスキルだけの講師求人と、事務のアルバイトを別に開いた（2026-11-05 指示）
+  assert.equal(courseOfJobTitle("パソコンスクール講師（Office）"), "Office");
+  assert.equal(courseOfJobTitle("Officeインストラクター"), "Office");
+  assert.equal(courseOfJobTitle("事務スタッフ（アルバイト）"), "事務");
+  assert.equal(courseOfJobTitle("事務（Officeスキル）"), "事務", "事務を先に見る");
+  // 3コースまとめ時代の求人名を巻き込まない
+  assert.equal(courseOfJobTitle("スクール講師(OA/パソコンインストラクター)"), OTHER_COURSE);
 });

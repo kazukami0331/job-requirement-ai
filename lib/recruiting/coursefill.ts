@@ -34,7 +34,10 @@ const CATEGORY_OF_COURSE: Record<JobCourse, HrCategory | null> = {
   Python: "IT",
   Webデザイン: "D/W",
   CAD: "C",
-  事務: null,
+  // Officeスキルだけの講師求人・事務のアルバイトは、それぞれ別に数える（2026-11-05 指示）。
+  // 不足人数管理表に枠は無いので目標は付かない。
+  Office: "Office",
+  事務: "事務",
   // 講師ではない職種。不足人数管理表に枠が無い。
   カウンセラー: null,
 };
@@ -74,12 +77,8 @@ export interface CourseFill {
 
 const emptyCell = (): CourseFillCell => ({ applied: 0, hired: 0, target: null });
 
-const emptyCourses = (): Record<HrCategory, CourseFillCell> => ({
-  IT: emptyCell(),
-  "D/W": emptyCell(),
-  C: emptyCell(),
-  none: emptyCell(),
-});
+const emptyCourses = (): Record<HrCategory, CourseFillCell> =>
+  Object.fromEntries(HR_CATEGORIES.map((c) => [c, emptyCell()])) as Record<HrCategory, CourseFillCell>;
 
 /**
  * 行は3つの出どころの和集合にする。
@@ -173,8 +172,18 @@ export function courseFill(
     totalRow.remaining += r.remaining;
   }
 
+  /**
+   * 表に出すコースの列。
+   * 目標のある3コース（IT / Webデザイン / CAD）は常に出し、
+   * あとから増えたコース（Office・事務）は、応募か採用があるときだけ出す。
+   * 中身が無い列を並べても読みにくくなるだけなので。
+   */
+  const extra = HR_CATEGORIES.filter(
+    (c) => c !== "none" && !PLAN_CATEGORIES.includes(c as (typeof PLAN_CATEGORIES)[number])
+  ).filter((c) => totalRow.byCourse[c].applied > 0 || totalRow.byCourse[c].hired > 0);
+
   return {
-    courses: PLAN_CATEGORIES,
+    courses: [...PLAN_CATEGORIES, ...extra],
     rows: list,
     totalRow,
     hasHires: cross !== null,

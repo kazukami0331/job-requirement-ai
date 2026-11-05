@@ -20,6 +20,8 @@ function row(
       IT: cell(...(by.IT ?? [0, null])),
       "D/W": cell(...(by["D/W"] ?? [0, null])),
       C: cell(...(by.C ?? [0, null])),
+      Office: cell(),
+      事務: cell(),
       none: cell(),
     },
     total: cell(...total),
