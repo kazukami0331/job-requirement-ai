@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { ReactNode, useMemo, useState } from "react";
 import { GoalRates, GoalWindow, MonthGoal, MonthlyGoals, ShopGoalRow, appliesPerHire } from "@/lib/recruiting/goal";
 import { ratioLabel } from "@/lib/recruiting/format";
 import { UrgentName } from "./tables";
@@ -14,8 +14,8 @@ export type GoalView = GoalMetric | "all";
 
 export const GOAL_METRICS: { key: GoalMetric; label: string; short: string; hint: string }[] = [
   { key: "applied", label: "応募", short: "応募", hint: "その月に受け付けた応募" },
-  { key: "interview", label: "面接設定", short: "面接", hint: "その月に応募した人のうち、面接日が確定した数" },
-  { key: "hire", label: "採用", short: "採用", hint: "その月に応募した人のうち、採用まで進んだ数" },
+  { key: "interview", label: "面接", short: "面接", hint: "その月に面接した数（採用管理表の面接日）" },
+  { key: "hire", label: "採用", short: "採用", hint: "その月に採用が決まった数（採用管理表の採用日）" },
 ];
 
 const GOAL_VIEWS: { key: GoalView; label: string; hint: string }[] = [
@@ -197,6 +197,22 @@ function Cell({ m, view, showLabels = true }: { m: MonthGoal; view: GoalView; sh
  */
 export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
   const { total, months } = goals;
+
+  /**
+   * 目標が無い月（「実績のみ」）のバーの基準。
+   *
+   * 目標で割ると分母が0になり、応募が220件あってもバーが空のままで壊れて見える。
+   * その月どうしを比べられるよう、指標ごとに**いちばん多い月**を満たしたバーにする。
+   * 目標のある月の「目標に対する進み具合」とは意味が違うので、色を分ける。
+   */
+  const peak = useMemo(() => {
+    const out = { applied: 0, interview: 0, hire: 0 } as Record<GoalMetric, number>;
+    for (const m of total?.months ?? []) {
+      for (const g of GOAL_METRICS) out[g.key] = Math.max(out[g.key], pick(m, g.key).actual);
+    }
+    return out;
+  }, [total]);
+
   if (!total) return null;
 
   return (
@@ -220,13 +236,21 @@ export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
             {GOAL_METRICS.map((metric) => {
               const { target, actual, over } = pick(m, metric.key);
               const color = tone(actual, target, m.current ? m.elapsed : 0);
+              // 目標がある月は目標に対する進み具合、無い月は月どうしの比較
+              const top = peak[metric.key];
+              const ratio =
+                target > 0 ? Math.min(actual / target, 1) : top > 0 ? Math.min(actual / top, 1) : 0;
               return (
                 <div key={metric.key} className="grid grid-cols-[3.5rem_1fr_5rem] items-center gap-2">
                   <dt className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
                     {metric.label}
                   </dt>
                   <dd>
-                    <Bar ratio={target > 0 ? Math.min(actual / target, 1) : 0} color={color} />
+                    {/* 目標のある月は進み具合の色、無い月は比較用なので落ち着いた青 */}
+                    <Bar
+                      ratio={ratio}
+                      color={target > 0 ? color : "color-mix(in srgb, var(--series-1) 55%, transparent)"}
+                    />
                   </dd>
                   <dd className="text-right text-xs tabular whitespace-nowrap">
                     <span style={{ color: m.actualOnly ? "var(--text-primary)" : color, fontWeight: 600 }}>
@@ -242,6 +266,10 @@ export function MonthSummary({ goals }: { goals: MonthlyGoals }) {
         </li>
       ))}
       </ul>
+      <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+        バーは、目標のある月は<strong>目標に対する進み具合</strong>（届いていれば緑）。
+        「実績のみ」の月は目標が無いので、<strong>いちばん多い月を満たした長さ</strong>にして月どうしを比べられるようにしています。
+      </p>
     </>
   );
 }
