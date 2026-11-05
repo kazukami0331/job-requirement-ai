@@ -290,6 +290,25 @@ test("採否は「面接結果2」で決める（ステータス列ではない�
   assert.equal(decisionOf(sheet.rows[0]), "採用");
 });
 
+test("I列（ステータス）に「採用」と書かれていても採用にする", () => {
+  // 面接結果2 と ステータス のどちらに書くかが運用で揺れている（2026-11-05 指示）
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet([
+    { 応募日時: "2026/10/01(木) 10:00", スクール: "栄校", ステータス: "採用", 分野: "CAD", 面接結果2: "" },
+    { 応募日時: "2026/10/02(金) 10:00", スクール: "栄校", ステータス: "採用", 分野: "CAD", 面接結果2: "採用" },
+    // 採用のあとで辞退した人。ステータスが採用のままでも数えない。
+    { 応募日時: "2026/10/03(土) 10:00", スクール: "栄校", ステータス: "採用", 分野: "CAD", 面接結果2: "辞退" },
+    { 応募日時: "2026/10/04(日) 10:00", スクール: "栄校", ステータス: "合格", 分野: "CAD", 面接結果2: "不採用" },
+  ]);
+  XLSX.utils.book_append_sheet(wb, ws, "元データ");
+  const sheet = parseHrSheet("テスト.xlsx", XLSX.write(wb, { type: "array", bookType: "xlsx" }) as ArrayBuffer);
+
+  assert.deepEqual(
+    sheet.rows.map((r) => r.hired),
+    [true, true, false, false]
+  );
+});
+
 test("面接結果2が無い古いファイルは、これまでどおりステータスで見る", () => {
   const sheet = sheetOf(SAMPLE);
   assert.equal(sheet.rows.filter((r) => r.hired).length, 4);

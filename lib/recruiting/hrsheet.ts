@@ -24,10 +24,27 @@ import { shortageByShop } from "./plan";
  * ずれの中身は「面接結果2が採用なのにステータスが合格になっていない」が23名、
  * 「ステータスは合格のまま、面接結果2が辞退」が2名。CADは5名と7名で食い違っていた。
  *
- * 面接結果2が無い古いファイルのために、ステータス側の判定も残しておく。
+ * ただし**I列（ステータス）に「採用」と書かれることもある**（2026-11-05 指示）。
+ * どちらか片方にしか書かれていない運用があるので、**どちらかに採用と書いてあれば採用**とする。
+ * 面接結果2が「辞退」「不採用」「不合格」のときだけは、ステータスが合格のままでも採用にしない
+ * （合格のあとで辞退した人が、合格のまま残っているため）。
  */
+/** 面接結果2 が採用で確定 */
 const DECIDED_HIRED = "採用";
+/** 面接結果2 がこれなら、ステータスが何であっても採用ではない */
+const DECIDED_OUT = new Set(["辞退", "不採用", "不合格"]);
+/** ステータス側で採用とみなす書き方 */
 const HIRED = new Set(["合格", "採用"]);
+
+/**
+ * 採否を決める。
+ * 面接結果2 の打ち消し（辞退・不採用・不合格）が最優先。
+ * そのうえで、面接結果2 かステータスのどちらかに採用と書いてあれば採用。
+ */
+function isHired(status: string, decision: string): boolean {
+  if (DECIDED_OUT.has(decision)) return false;
+  return decision === DECIDED_HIRED || HIRED.has(status);
+}
 
 export interface HrRow {
   /** 「栄校」など。ジョブオプ側と突き合わせるときは normalizeShopKey を通す。 */
@@ -192,8 +209,7 @@ export function parseHrSheet(fileName: string, buf: ArrayBuffer): HrSheet {
       status: status || "(未記入)",
       decision: decision || undefined,
       hiredDate: hiredDateOf(String(r["（採用日）"] ?? r["採用日"] ?? ""), receivedDate),
-      // 面接結果2が入っていればそれが採否。無い古いファイルだけステータスで見る。
-      hired: decision ? decision === DECIDED_HIRED : HIRED.has(status),
+      hired: isHired(status, decision),
       receivedDate,
       slots: Object.fromEntries(SLOTS.map((s) => [s, slotMark(r[s])])) as Record<Slot, boolean>,
     });
