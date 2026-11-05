@@ -34,10 +34,12 @@ import {
   listSnapshots,
   loadGoalWindow,
   loadHrSheet,
+  loadPlacement,
   loadPlan,
   loadProjectStart,
   saveGoalWindow,
   saveHrSheet,
+  savePlacement,
   savePlan,
   saveProjectStart,
   saveSnapshot,
@@ -54,6 +56,9 @@ import { OTHER_COURSE } from "@/lib/recruiting/course";
 import { DataMenu } from "@/components/dashboard/DataPanel";
 import { HR_CATEGORY_LABEL, HrSheet, compareWithJobop, crossTab, parseHrSheet, planTargets } from "@/lib/recruiting/hrsheet";
 import { hireDiffDetail } from "@/lib/recruiting/hrdiff";
+import { PlacementSheet, parsePlacementSheet } from "@/lib/recruiting/placement";
+import { staffing } from "@/lib/recruiting/staffing";
+import { SlotSummary, StaffingTable } from "@/components/dashboard/staffing";
 import { HrCategoryNote, HrCompareTable } from "@/components/dashboard/hrsheet";
 import { DEFAULT_RATES, GoalRates, GoalWindow, monthlyGoals } from "@/lib/recruiting/goal";
 import {
@@ -171,6 +176,7 @@ export default function DashboardPage() {
   const [plan, setPlan] = useState<HiringPlan | null>(null);
   // 採用チームが作っている採用管理表（Excel）。コース別の集計に使う。
   const [hrSheet, setHrSheet] = useState<HrSheet | null>(null);
+  const [placement, setPlacement] = useState<PlacementSheet | null>(null);
   const [message, setMessage] = useState<Message>(null);
   const [loading, setLoading] = useState(true);
   const [dimension, setDimension] = useState<Dimension>("shopShortName");
@@ -216,16 +222,18 @@ export default function DashboardPage() {
 
         // 公開データが無いときだけ、同梱してある受領済みデータを入れる
         const seeded = remote?.data ? false : await loadSeedIfEmpty();
-        const [s, p, w, start, hr] = await Promise.all([
+        const [s, p, w, start, hr, pl] = await Promise.all([
           listSnapshots(),
           loadPlan(),
           loadGoalWindow(),
           loadProjectStart(),
           loadHrSheet(),
+          loadPlacement(),
         ]);
         setSnapshots(s);
         setPlan(p);
         setHrSheet(hr);
+        setPlacement(pl);
         // 一度選んだ按分期間は覚えておく。開くたびに目標が割り直されると計画にならない。
         if (w) setGoalWindow(w);
         if (start) setProjectStart(start);
@@ -486,6 +494,18 @@ export default function DashboardPage() {
     return out;
   }, [fill]);
 
+  /**
+   * 委託講師配置表の不足 × 採用管理表の合格者（分野 × 時間帯）。
+   * 採用のゴールはここの不足数が全部0になること。
+   */
+  const staff = useMemo(() => {
+    const shopKey = shopFilter === "すべて" ? null : normalizeShopKey(shopFilter);
+    return staffing(placement, hrSheet, {
+      from: periodFrom,
+      include: (key) => (shopKey ? key === shopKey : true),
+    });
+  }, [placement, hrSheet, periodFrom, shopFilter]);
+
   const handleUploadApplications = useCallback(async (file: File) => {
     try {
       const snapshot = buildSnapshot(file.name, await readFile(file));
@@ -553,14 +573,41 @@ export default function DashboardPage() {
     }
   }, []);
 
+  /**
+   * 委託講師配置表を読み込む。
+   * 採用のゴール（不足数が全部0）はこの表で決まるので、目標はここから取る。
+   */
+  const handleUploadPlacement = useCallback(async (file: File) => {
+    try {
+      const sheet = parsePlacementSheet(file.name, await readFile(file));
+      if (sheet.rows.length === 0) {
+        setMessage({
+          kind: "error",
+          text: "配置表を読み取れませんでした。「一般充足」シートに 校舎名 と IT【平日】のような列があるか確認してください。",
+        });
+        return;
+      }
+      await savePlacement(sheet);
+      setPlacement(sheet);
+      setSection("goal");
+      setMessage({
+        kind: "info",
+        text: `配置表（${sheet.sheetName}）から${sheet.rows.length}校舎を取り込みました。不足数の合計は${sheet.rows.reduce((a, r) => a + r.needHires, 0)}名です。`,
+      });
+    } catch (e) {
+      setMessage({ kind: "error", text: `取り込みに失敗しました: ${e instanceof Error ? e.message : String(e)}` });
+    }
+  }, []);
+
   const handleImportBackup = useCallback(async (file: File) => {
     try {
       const backup = JSON.parse(await file.text());
       const result = await importBackup(backup);
-      const [s, p, hr] = await Promise.all([listSnapshots(), loadPlan(), loadHrSheet()]);
+      const [s, p, hr, pl] = await Promise.all([listSnapshots(), loadPlan(), loadHrSheet(), loadPlacement()]);
       setSnapshots(s);
       setPlan(p);
       setHrSheet(hr);
+      setPlacement(pl);
       setMessage({ kind: "info", text: `${result.snapshots}件のスナップショットを復元しました。` });
     } catch (e) {
       setMessage({ kind: "error", text: `復元に失敗しました: ${e instanceof Error ? e.message : String(e)}` });
@@ -726,6 +773,12 @@ export default function DashboardPage() {
             plan={plan}
             onUploadApplications={handleUploadApplications}
             onUploadPlan={handleUploadPlan}
+            onUploadPlacement={handleUploadPlacement}
+            placementInfo={
+              placement
+                ? { sheetName: placement.sheetName, importedAt: placement.importedAt, rows: placement.rows.length }
+                : null
+            }
             onUploadHrSheet={handleUploadHrSheet}
             hrSheetInfo={
               hrSheet
@@ -1014,8 +1067,78 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* 目標と充足。目標 → 充足（コース別）→ 応募（コース別）の順で、同じ問いを1か所にまとめる。 */}
+          {/* 目標と充足。配置表の不足 → 月次の進捗 → コース別の充足と応募、の順で見る。 */}
           <div className={`space-y-4 sm:space-y-5 ${section === "goal" ? "" : "hidden sm:block"}`}>
+            {/* 採用のゴール。ここの不足数が全部0になれば達成。 */}
+            {staff.hasPlacement ? (
+              <Card
+                title="校舎 × コース × 時間帯の充足（委託講師配置表）"
+                subtitle="各マスは「その枠に入れる合格者 / 不足コマ」。コースが合っていても入れる時間帯が違えばコマは埋まらないので、時間帯まで分けています。残りコマが多い校舎から並びます。"
+              >
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs">
+                    <span style={{ color: "var(--text-secondary)" }}>
+                      不足数（これから採る人数）{" "}
+                      <strong
+                        className="text-sm"
+                        style={{ color: staff.total.needHires === 0 ? "var(--status-good)" : "var(--status-critical)" }}
+                      >
+                        {staff.total.needHires}名
+                      </strong>
+                      {staff.total.needHires === 0 ? "（採用達成）" : " ← これが0になれば採用達成"}
+                    </span>
+                    <span style={{ color: "var(--text-secondary)" }}>
+                      不足コマ {staff.total.total.shortage}
+                      {" → 残り "}
+                      <strong style={{ color: staff.total.total.remaining === 0 ? "var(--status-good)" : "var(--text-primary)" }}>
+                        {staff.total.total.remaining}
+                      </strong>
+                    </span>
+                    <span style={{ color: "var(--text-muted)" }}>
+                      充足と出ている校舎 {staff.rows.filter((r) => r.judgement.includes("充足")).length} / {staff.rows.length}
+                    </span>
+                  </div>
+
+                  <SlotSummary data={staff} />
+                  <StaffingTable data={staff} />
+
+                  <ul className="space-y-1 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                    <li>
+                      <strong style={{ color: "var(--text-primary)" }}>不足コマ</strong> … 委託講師配置表「
+                      {placement?.sheetName ?? "一般充足"}」の 校舎 × 分野 × 時間帯。
+                      <strong>不足数</strong>はそのシートが出している必要人数で、夜と土日の両方が足りないコースは
+                      1人で兼ねられる前提になっています（合計が3コマ以下の校舎は「充足」＝不足数0）。
+                    </li>
+                    <li>
+                      <strong style={{ color: "var(--text-primary)" }}>採用</strong> …{" "}
+                      {staff.hasHires
+                        ? `採用管理表でステータスが「合格」の人を、W〜Y列（平日昼・平日夜・土日）の記入どおりに数えています。1人が複数の時間帯に入れる場合は、その全部に数えます。`
+                        : "採用管理表が未取り込みです。右上の「その他」から取り込むと、どの枠が埋まるかが出ます。"}
+                      {staff.total.hiredWithoutSlots > 0 &&
+                        ` 時間帯の記入が無い合格者が${staff.total.hiredWithoutSlots}名いて、どのコマが埋まるか決められないので数えていません。`}
+                      {staff.total.hiredOutsideFields > 0 &&
+                        ` 配置表に枠の無い分野（Office・英語・未記入など）の合格者が${staff.total.hiredOutsideFields}名います。`}
+                      {staff.unmatchedHires > 0 && ` 配置表に無い校舎の合格者が${staff.unmatchedHires}名います。`}
+                    </li>
+                    <li>
+                      <strong>配置表の不足は、すでに入っている講師を引いたあとの数</strong>として扱っています。
+                      採用した人がまだ配置表に反映されていない前提で「残り」を出しているので、
+                      反映済みの人がいると二重に引きます。ずれていたら教えてください。
+                    </li>
+                  </ul>
+                </div>
+              </Card>
+            ) : (
+              <Card title="校舎 × コース × 時間帯の充足（委託講師配置表）">
+                <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  採用のゴールは、委託講師配置表「一般充足」シートの不足数が全部0になることです。
+                  右上の「その他」→「委託講師配置表（Excel）を取り込む」から選ぶと、
+                  校舎 × コース × 時間帯 で、どの枠があと何人分足りないかが出ます。
+                  読むのは 校舎名 / 分野 × 時間帯の不足 / 合計 / 一般充足判定 / 不足数 だけです。
+                </p>
+              </Card>
+            )}
+
             {goals.rows.length > 0 ? (
               <Card
                 title="月次の目標と進捗"

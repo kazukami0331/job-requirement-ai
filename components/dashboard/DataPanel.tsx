@@ -56,6 +56,8 @@ export function DataMenu({
   onUploadPlan,
   onUploadHrSheet,
   hrSheetInfo,
+  onUploadPlacement,
+  placementInfo,
   onImportBackup,
   onExportBackup,
   onExportWorkbook,
@@ -73,6 +75,8 @@ export function DataMenu({
   onUploadHrSheet: (file: File) => void;
   /** 取り込み済みの採用管理表の状態。未取り込みなら null。 */
   hrSheetInfo: { sourceFileName: string; importedAt: string; rows: number } | null;
+  onUploadPlacement: (file: File) => void;
+  placementInfo: { sheetName: string; importedAt: string; rows: number } | null;
   onImportBackup: (file: File) => void;
   onExportBackup: () => void;
   onExportWorkbook: () => void;
@@ -135,6 +139,17 @@ export function DataMenu({
 
           <div className="space-y-1.5">
             <FilePicker label="不足人数マスタを取り込む" accept=".csv,.xls,.xlsx" onPick={onUploadPlan} block />
+            <FilePicker
+              label="委託講師配置表（Excel）を取り込む"
+              accept=".xls,.xlsx"
+              onPick={onUploadPlacement}
+              block
+            />
+            <p className="px-0.5 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              {placementInfo
+                ? `${placementInfo.rows}校舎を取り込み済み（${placementInfo.sheetName} ／ ${fmt(placementInfo.importedAt)}）。採用のゴールはここの不足数が全部0になることです。`
+                : "校舎 × 分野 × 時間帯の不足が入っている表。「一般充足」シートを読みます。"}
+            </p>
             <FilePicker
               label="採用管理表（Excel）を取り込む"
               accept=".xls,.xlsx"

@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import { HiringPlan } from "@/types/recruiting";
 import { PLAN_CATEGORIES, SHOP_MASTER, normalizeShopKey } from "./shops";
+import { SLOTS, Slot } from "./slots";
 import { shortageByShop } from "./plan";
 
 /**
@@ -31,6 +32,22 @@ export interface HrRow {
   hired: boolean;
   /** 応募日（YYYY-MM-DD）。読めなければ null。 */
   receivedDate: string | null;
+  /**
+   * 採用後に入れる時間帯。採用管理表の W〜Y列（平日昼 / 平日夜 / 土日）に ◯ が付いていれば true。
+   * 列が増える前に取り込んだデータには無いので、読むときは必ず slotsOf を通す。
+   */
+  slots?: Record<Slot, boolean>;
+}
+
+/** 時間帯の記入。◯ 以外（〇・○・1・✓）でも拾う。書き方は人によって揺れるため。 */
+function slotMark(v: unknown): boolean {
+  const t = String(v ?? "").trim();
+  return t !== "" && t !== "0" && !/^[×x✕－-]$/i.test(t);
+}
+
+/** 行の時間帯。記入が無い（列が無かった頃のデータを含む）ときは全部 false。 */
+export function slotsOf(row: HrRow): Record<Slot, boolean> {
+  return row.slots ?? { 平日昼: false, 平日夜: false, 土日: false };
 }
 
 export interface HrSheet {
@@ -134,6 +151,7 @@ export function parseHrSheet(fileName: string, buf: ArrayBuffer): HrSheet {
       status: status || "(未記入)",
       hired: HIRED.has(status),
       receivedDate: dateOf(String(r["応募日時"] ?? "")),
+      slots: Object.fromEntries(SLOTS.map((s) => [s, slotMark(r[s])])) as Record<Slot, boolean>,
     });
   }
 

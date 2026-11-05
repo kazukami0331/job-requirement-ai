@@ -1,5 +1,6 @@
 import { HiringPlan, Snapshot } from "@/types/recruiting";
 import type { HrSheet } from "./hrsheet";
+import type { PlacementSheet } from "./placement";
 
 /**
  * 週次スナップショットと採用計画をブラウザのIndexedDBに保存する。
@@ -82,11 +83,18 @@ export interface Backup {
   plan: HiringPlan | null;
   /** 採用チームのExcel（採用管理表）の集計用データ。無い運用もあるので任意。 */
   hrSheet?: HrSheet | null;
+  /** 委託講師配置表（一般充足シート）の不足。無い運用もあるので任意。 */
+  placement?: PlacementSheet | null;
 }
 
 export async function exportBackup(): Promise<Backup> {
-  const [snapshots, plan, hrSheet] = await Promise.all([listSnapshots(), loadPlan(), loadHrSheet<HrSheet>()]);
-  return { version: 1, exportedAt: new Date().toISOString(), snapshots, plan, hrSheet };
+  const [snapshots, plan, hrSheet, placement] = await Promise.all([
+    listSnapshots(),
+    loadPlan(),
+    loadHrSheet<HrSheet>(),
+    loadPlacement<PlacementSheet>(),
+  ]);
+  return { version: 1, exportedAt: new Date().toISOString(), snapshots, plan, hrSheet, placement };
 }
 
 /**
@@ -197,6 +205,20 @@ export async function saveHrSheet<T>(sheet: T): Promise<void> {
   await tx(SETTING_STORE, "readwrite", (s) => s.put(sheet, HR_SHEET_KEY) as IDBRequest<IDBValidKey>);
 }
 
+/**
+ * 委託講師配置表（一般充足シート）の不足。
+ * 校舎・分野・時間帯ごとのコマ数だけで、候補者の情報は入っていない。
+ */
+const PLACEMENT_KEY = "placement";
+
+export async function loadPlacement<T = PlacementSheet>(): Promise<T | null> {
+  return (await tx<T | undefined>(SETTING_STORE, "readonly", (s) => s.get(PLACEMENT_KEY))) ?? null;
+}
+
+export async function savePlacement<T>(sheet: T): Promise<void> {
+  await tx(SETTING_STORE, "readwrite", (s) => s.put(sheet, PLACEMENT_KEY) as IDBRequest<IDBValidKey>);
+}
+
 /** 初期データを読み込み済みにして、以後の自動読み込みを止める */
 export async function markSeedLoaded(): Promise<void> {
   await tx(SETTING_STORE, "readwrite", (s) => s.put(true, SEED_DONE_KEY) as IDBRequest<IDBValidKey>);
@@ -210,5 +232,6 @@ export async function importBackup(backup: Backup): Promise<{ snapshots: number 
   for (const snapshot of backup.snapshots) await saveSnapshot(snapshot);
   if (backup.plan) await savePlan(backup.plan);
   if (backup.hrSheet) await saveHrSheet(backup.hrSheet);
+  if (backup.placement) await savePlacement(backup.placement);
   return { snapshots: backup.snapshots.length };
 }

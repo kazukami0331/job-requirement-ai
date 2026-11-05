@@ -63,12 +63,14 @@ test("氏名・年齢・性別は読み取らない", () => {
   const dumped = JSON.stringify(sheet);
   assert.equal(dumped.includes("テスト 太郎"), false);
   assert.equal(dumped.includes("男性"), false);
+  // 読む列を増やすときは、ここに足してよいものか考えること（この画面はURLを知っていれば開ける）
   assert.deepEqual(Object.keys(sheet.rows[0]).sort(), [
     "category",
     "course",
     "hired",
     "receivedDate",
     "shopShortName",
+    "slots",
     "status",
   ]);
 });
