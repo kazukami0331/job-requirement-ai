@@ -34,6 +34,18 @@ export interface GoalWindow {
   to: string;
 }
 
+/**
+ * 「いつ起きたか」が分かっている出来事（面接・採用）。
+ *
+ * ジョブオプのエクスポートには面接日がほとんど入っていない（実データ505件中5件）。
+ * 採用管理表には面接日と採用日が入っているので、そちらが取れるなら実際の日を渡す。
+ */
+export interface DatedEvent {
+  shopShortName: string;
+  /** YYYY-MM-DD */
+  on: string;
+}
+
 export interface MonthGoal {
   /** YYYY-MM */
   month: string;
@@ -238,8 +250,13 @@ export function monthlyGoals(
    * 予実として比べられない（週次グラフの採用とも食い違う）。
    * 渡すのは、画面と同じ絞り込みをかけたうえで、採用・面接に至った日が
    * 期間内のものだけ。省略すると応募月で数える（旧来の見方）。
+   *
+   * **日付は呼ぶ側が決める。** 採用管理表があれば面接日・採用日という実際の日、
+   * 無ければジョブオプの選考ステータス最終更新日。最終更新日は後ろにしか動かないので、
+   * 8月に面接・採用した人も10月・11月に計上されてしまう（実データで8月の面接20件・
+   * 採用12名が0件になっていた）。実際の日が取れるならそちらを使う。
    */
-  events?: { hires: Application[]; interviews: Application[] },
+  events?: { hires: DatedEvent[]; interviews: DatedEvent[] },
   /**
    * 実績だけを並べる月の開始。既定は採用期の頭（9月）。
    * 施策の開始が7/23のように期の途中なら、その月から実績を出す。
@@ -285,8 +302,7 @@ export function monthlyGoals(
   const hiredSoFar = new Map<string, number>();
   const hiredDates = new Map<string, string[]>();
 
-  /** 採用・面接に至った日。ジョブオプの選考ステータス最終更新日を使う。 */
-  const movedOn = (a: Application) => (a.statusUpdatedAt ?? a.receivedAt).slice(0, 10);
+  const movedOn = (e: DatedEvent) => e.on;
 
   for (const a of apps) {
     const stage = stageOf(a.statusId);
@@ -317,6 +333,9 @@ export function monthlyGoals(
         c.interview++;
       });
     }
+    // 歩留まりも同じ出どころにそろえる。応募はジョブオプ、面接・採用はここで渡されたもの。
+    observed.interview = events.interviews.length;
+    observed.hire = events.hires.length;
     /**
      * 採用を校舎ごとに決まった順へ並べ、目標の人数までを「充足に効いた採用」とする。
      *

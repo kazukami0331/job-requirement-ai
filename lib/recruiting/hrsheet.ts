@@ -62,6 +62,8 @@ export interface HrRow {
   decision?: string;
   /** 採用日（YYYY-MM-DD）。「（採用日）」列。読めなければ null。 */
   hiredDate?: string | null;
+  /** 面接日（YYYY-MM-DD）。「面接日」列。読めなければ null。 */
+  interviewDate?: string | null;
   hired: boolean;
   /** 応募日（YYYY-MM-DD）。読めなければ null。 */
   receivedDate: string | null;
@@ -167,12 +169,12 @@ function dateOf(raw: string): string | null {
 }
 
 /**
- * 採用日。「2026/10/15」とも「10/15」とも書かれている。
+ * 面接日・採用日。「2026/10/15」とも「10/15」とも書かれている。
  *
  * 年が省かれているときは応募日の年を使い、応募日より前になってしまう場合だけ翌年にする
  * （採用は応募より後なので、12月応募・1月採用のような年またぎを拾うため）。
  */
-function hiredDateOf(raw: string, receivedDate: string | null): string | null {
+function afterDateOf(raw: string, receivedDate: string | null): string | null {
   const full = dateOf(raw);
   if (full) return full;
 
@@ -208,7 +210,8 @@ export function parseHrSheet(fileName: string, buf: ArrayBuffer): HrSheet {
       category: courseCategory(raw),
       status: status || "(未記入)",
       decision: decision || undefined,
-      hiredDate: hiredDateOf(String(r["（採用日）"] ?? r["採用日"] ?? ""), receivedDate),
+      hiredDate: afterDateOf(String(r["（採用日）"] ?? r["採用日"] ?? ""), receivedDate),
+      interviewDate: afterDateOf(String(r["面接日"] ?? ""), receivedDate),
       hired: isHired(status, decision),
       receivedDate,
       slots: Object.fromEntries(SLOTS.map((s) => [s, slotMark(r[s])])) as Record<Slot, boolean>,

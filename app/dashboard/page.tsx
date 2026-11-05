@@ -407,12 +407,52 @@ export default function DashboardPage() {
   const shopCourse = useMemo(() => shopCourseMatrix(apps), [apps]);
 
   /** 採用目標から逆算した月次の応募目標と進捗 */
+  /**
+   * 月次の実績に使う「面接した日・採用が決まった日」。
+   *
+   * ジョブオプのエクスポートには面接日がほとんど入っていない（実データ505件中5件）ので、
+   * これまでは選考ステータスの最終更新日で代用していた。最終更新日は後ろにしか動かないため、
+   * 8月に面接・採用した人も10月・11月に計上され、8月の実績が0件になっていた。
+   * 採用管理表には面接日・採用日が入っているので、取り込んであればそちらを使う。
+   */
+  const goalEvents = useMemo(() => {
+    const shopKey = shopFilter === "すべて" ? null : normalizeShopKey(shopFilter);
+    const inScope = (name: string) => {
+      const key = normalizeShopKey(name);
+      if (shopKey && key !== shopKey) return false;
+      return scope === "all" || !masterKeys || masterKeys.has(key);
+    };
+    const within = (on: string | null | undefined): on is string =>
+      !!on && (!periodFrom || on >= periodFrom);
+
+    if (hrSheet) {
+      const rows = hrSheet.rows.filter((r) => inScope(r.shopShortName));
+      return {
+        source: "hr" as const,
+        interviews: rows
+          .filter((r) => within(r.interviewDate))
+          .map((r) => ({ shopShortName: r.shopShortName, on: r.interviewDate as string })),
+        hires: rows
+          .filter((r) => r.hired && within(r.hiredDate))
+          .map((r) => ({ shopShortName: r.shopShortName, on: r.hiredDate as string })),
+      };
+    }
+
+    const movedOn = (a: { statusUpdatedAt: string | null; receivedAt: string }) =>
+      (a.statusUpdatedAt ?? a.receivedAt).slice(0, 10);
+    return {
+      source: "jobop" as const,
+      interviews: interviews.map((a) => ({ shopShortName: a.shopShortName, on: movedOn(a) })),
+      hires: hires.map((a) => ({ shopShortName: a.shopShortName, on: movedOn(a) })),
+    };
+  }, [hrSheet, interviews, hires, shopFilter, scope, masterKeys, periodFrom]);
+
   const goals = useMemo(
     // 採用済みも画面の集計期間に合わせる。ここだけ全期間にしていたせいで、
     // KPIの採用と月次目標の採用済みが別の数字になって読めなくなっていた。
     () =>
-      monthlyGoals(apps, plan, rates, asOf, goalWindow ?? undefined, periodApps, { hires, interviews }, periodFrom?.slice(0, 7)),
-    [apps, plan, rates, asOf, goalWindow, periodApps, hires, interviews, periodFrom]
+      monthlyGoals(apps, plan, rates, asOf, goalWindow ?? undefined, periodApps, goalEvents, periodFrom?.slice(0, 7)),
+    [apps, plan, rates, asOf, goalWindow, periodApps, goalEvents, periodFrom]
   );
 
   /**
@@ -1172,11 +1212,14 @@ export default function DashboardPage() {
                     校舎名の横の<strong>オレンジのコース名</strong>は、<strong>人数では目標に届いているのに、そのコースが
                     まだ埋まっていない</strong>こと（採用管理表から）。採用の数字も、その場合は緑にせずオレンジで出します。
                     ITを2名採ってもCADの不足は埋まらないので、校舎の人数だけで充足と見ないためです。
+                    月ごとの<strong>面接・採用の実績</strong>は
+                    {goalEvents.source === "hr"
+                      ? "、採用管理表の「面接日」「（採用日）」で数えています（実際にその月に面接・採用した数）。"
+                      : "、ジョブオプの選考ステータス最終更新日で数えています。ジョブオプには面接日がほとんど入っていないための代用で、更新日は後ろにしか動かないため、前の月の面接・採用が直近の月に寄ります。採用管理表を取り込むと、実際の面接日・採用日で数えます。"}
+                    応募はジョブオプの応募日です。
                     この表は<strong>採用目標を持っている校舎だけ</strong>です。六本木オフィスのように目標の無い拠点の
                     応募・採用は、上のKPIや応募数には入りますが、ここには出ません。
                     各マスは「実績 / 目標」。当月は月末までの残りがあるので、経過ぶんに対する進み具合で色を付けています。
-                    面接設定と採用は<strong>その月に応募した人を追いかけた数</strong>です（歩留まりは同じ人を追ったときの割合なので、
-                    別の月に応募した人の面接を混ぜると想定値と比べられません）。
                     採用目標は<strong>残りの人数を月に1名ずつ</strong>置いています（残り3名なら3ヶ月に1名ずつ、
                     残り1名なら先頭の月だけ）。応募と面接設定はその月の採用目標から歩留まりで割り戻した数です。
                     半分以上過ぎた月からは期間を始めません（応募を集めて採用するまでに数週間かかるため）。

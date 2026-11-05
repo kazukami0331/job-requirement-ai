@@ -465,7 +465,8 @@ export function GoalControls({
         <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
           実績の歩留まり：応募→面接 {pct(observed.interview, observed.applied)}／面接→採用{" "}
           {pct(observed.hire, observed.interview)}（応募{observed.applied}・面接{observed.interview}・採用
-          {observed.hire}）。選考中の応募も分母に入るため、低めに出ます。
+          {observed.hire}）。応募と面接・採用は数えている日が違う（応募日 / 面接日・採用日）ので、
+          前の月に応募した人の面接がここに入ります。目安として見てください。
         </p>
       )}
     </div>

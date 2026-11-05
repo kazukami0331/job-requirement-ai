@@ -70,6 +70,7 @@ test("氏名・年齢・性別は読み取らない", () => {
     "decision",
     "hired",
     "hiredDate",
+    "interviewDate",
     "receivedDate",
     "shopShortName",
     "slots",

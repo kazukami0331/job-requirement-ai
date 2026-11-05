@@ -57,7 +57,10 @@ const interviews = scoped.filter((a) => FUNNEL_STEPS[1].reached(stageOf(a.status
 
 const weeks = recentWeekKeys(apps, asOf);
 const summary = kpis(apps, weeks, asOf);
-const goals = monthlyGoals(apps, plan, DEFAULT_RATES, asOf, undefined, undefined, { hires, interviews });
+const goals = monthlyGoals(apps, plan, DEFAULT_RATES, asOf, undefined, undefined, {
+      hires: hires.map((a) => ({ shopShortName: a.shopShortName, on: (a.statusUpdatedAt ?? a.receivedAt).slice(0, 10) })),
+      interviews: interviews.map((a) => ({ shopShortName: a.shopShortName, on: (a.statusUpdatedAt ?? a.receivedAt).slice(0, 10) })),
+    });
 const total = goals.total!;
 
 test("応募数は、どの切り口で足しても同じになる", () => {
