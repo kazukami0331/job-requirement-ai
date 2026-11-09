@@ -122,7 +122,9 @@ async function selectAll<T>(table: string, query: string): Promise<T[]> {
     const res = await fetch(`${url}/rest/v1/${table}?${query}`, {
       headers: {
         apikey: key,
-        Authorization: `Bearer ${key}`,
+        // 旧形式の service_role（JWT）のときだけ Authorization を付ける。
+        // 新形式の sb_secret_... は apikey ヘッダーだけで service_role として扱われる。
+        ...(key.startsWith("eyJ") ? { Authorization: `Bearer ${key}` } : {}),
         Range: `${from}-${from + PAGE - 1}`,
         "Range-Unit": "items",
       },

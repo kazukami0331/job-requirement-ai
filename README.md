@@ -63,7 +63,7 @@ SwipeJob（Supabase: `swipe-jobs-production`）のデータを読み取り専用
 | 変数 | 内容 |
 | --- | --- |
 | `SUPABASE_URL` | `https://<project-ref>.supabase.co` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase の Project Settings → API Keys にある service_role（または Secret key） |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase の Project Settings → API Keys →「Secret keys」の `sb_secret_...`（旧形式の service_role キーも可） |
 | `ADMIN_USER` / `ADMIN_PASSWORD` | `/admin` に入るための Basic 認証の ID とパスワード（未設定だと誰も入れません） |
 
 service_role キーはサーバー側でしか使わないため、ブラウザには出ません。
