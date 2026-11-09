@@ -1,4 +1,4 @@
-import { listCandidates } from "@/lib/swipeAdmin";
+import { listCandidates, scopeStartLabel } from "@/lib/swipeAdmin";
 import { ErrorBox } from "@/components/admin/ui";
 import CandidateTable from "@/components/admin/CandidateTable";
 
@@ -19,7 +19,9 @@ export default async function AdminHome() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">候補者一覧</h1>
-        <p className="mt-1 text-sm text-slate-500">名前を押すと、その人のスワイプ履歴と求人の詳細が見られます。</p>
+        <p className="mt-1 text-sm text-slate-500">
+          {scopeStartLabel()} 以降に登録した人だけを表示しています。名前を押すと、その人のスワイプ履歴と求人の詳細が見られます。
+        </p>
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="登録ユーザー" value={rows.length} />
