@@ -101,6 +101,30 @@ const JOB_DETAIL_COLS =
 
 export class ConfigError extends Error {}
 
+/**
+ * 検証のスコープ：この日時（JST）以降に登録したユーザーだけを表示する。
+ * 環境変数 ADMIN_SCOPE_START（例: 2026-10-01）で変更できる。
+ */
+const SCOPE_START_JST = process.env.ADMIN_SCOPE_START || "2026-10-01";
+
+/** DB（UTC 保存）と比較するための UTC 文字列 "YYYY-MM-DD HH:MM:SS" */
+function scopeStartUtc() {
+  const d = new Date(`${SCOPE_START_JST.slice(0, 10)}T00:00:00+09:00`);
+  return d.toISOString().replace("T", " ").slice(0, 19);
+}
+
+export function scopeStartLabel() {
+  return SCOPE_START_JST.slice(0, 10).replace(/-/g, "/");
+}
+
+function inScope(u: Pick<AdminUser, "createdAt"> | null | undefined) {
+  if (!u?.createdAt) return false;
+  const iso = /[zZ]|[+-]\d\d:?\d\d$/.test(u.createdAt)
+    ? u.createdAt
+    : u.createdAt.replace(" ", "T") + "Z";
+  return new Date(iso).getTime() >= new Date(scopeStartUtc().replace(" ", "T") + "Z").getTime();
+}
+
 function config() {
   const url = process.env.SUPABASE_URL?.replace(/\/$/, "");
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -179,10 +203,13 @@ export type CandidateRow = AdminUser & {
 
 export async function listCandidates(): Promise<CandidateRow[]> {
   const [users, swipes, apps] = await Promise.all([
-    selectAll<AdminUser>("users", `select=${USER_COLS}&order=createdAt.desc`),
+    selectAll<AdminUser>(
+      "users",
+      `select=${USER_COLS}&createdAt=gte.${enc(scopeStartUtc())}&order=createdAt.desc`,
+    ),
     selectAll<Pick<Swipe, "userId" | "action" | "createdAt">>(
       "job_swipes",
-      "select=userId,action,createdAt",
+      `select=userId,action,createdAt&createdAt=gte.${enc(scopeStartUtc())}`,
     ),
     selectAll<Pick<Application, "userId">>("job_applications", "select=userId").catch(
       () => [] as Pick<Application, "userId">[],
@@ -281,7 +308,8 @@ export async function getJob(jobId: string) {
   const appByUser = new Map(apps.map((a) => [a.userId, a]));
   return {
     job: jobs[0] ?? null,
-    swipes: swipes.map((s) => ({
+    // スコープ外（検証開始前に登録）のユーザーのスワイプは出さない
+    swipes: swipes.filter((s) => inScope(userById.get(s.userId))).map((s) => ({
       ...s,
       user: userById.get(s.userId) ?? null,
       application: appByUser.get(s.userId) ?? null,
