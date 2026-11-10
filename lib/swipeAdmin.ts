@@ -108,7 +108,7 @@ export class ConfigError extends Error {}
 const SCOPE_START_JST = process.env.ADMIN_SCOPE_START || "2026-10-01";
 
 /** DB（UTC 保存）と比較するための UTC 文字列 "YYYY-MM-DD HH:MM:SS" */
-function scopeStartUtc() {
+export function scopeStartUtc() {
   const d = new Date(`${SCOPE_START_JST.slice(0, 10)}T00:00:00+09:00`);
   return d.toISOString().replace("T", " ").slice(0, 19);
 }
@@ -117,7 +117,7 @@ export function scopeStartLabel() {
   return SCOPE_START_JST.slice(0, 10).replace(/-/g, "/");
 }
 
-function inScope(u: Pick<AdminUser, "createdAt"> | null | undefined) {
+export function inScope(u: Pick<AdminUser, "createdAt"> | null | undefined) {
   if (!u?.createdAt) return false;
   const iso = /[zZ]|[+-]\d\d:?\d\d$/.test(u.createdAt)
     ? u.createdAt
@@ -138,8 +138,37 @@ function config() {
 
 const PAGE = 1000;
 
+/** PostgREST への書き込み（POST / PATCH / DELETE）。返り値は書き込んだ行 */
+export async function writeRows<T>(
+  method: "POST" | "PATCH" | "DELETE",
+  table: string,
+  query: string,
+  body?: unknown,
+  opts: { upsert?: boolean } = {},
+): Promise<T[]> {
+  const { url, key } = config();
+  const res = await fetch(`${url}/rest/v1/${table}${query ? `?${query}` : ""}`, {
+    method,
+    headers: {
+      apikey: key,
+      ...(key.startsWith("eyJ") ? { Authorization: `Bearer ${key}` } : {}),
+      "Content-Type": "application/json",
+      Prefer: ["return=representation", opts.upsert ? "resolution=merge-duplicates" : ""]
+        .filter(Boolean)
+        .join(","),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(`Supabase ${table} への書き込みに失敗しました (${res.status}): ${await res.text()}`);
+  }
+  const text = await res.text();
+  return text ? (JSON.parse(text) as T[]) : [];
+}
+
 /** PostgREST から全件取得（1000件ずつ Range でページング） */
-async function selectAll<T>(table: string, query: string): Promise<T[]> {
+export async function selectAll<T>(table: string, query: string): Promise<T[]> {
   const { url, key } = config();
   const out: T[] = [];
   for (let from = 0; ; from += PAGE) {
@@ -172,7 +201,7 @@ function inList(values: string[]) {
 }
 
 /** in.(...) が URL 長制限に引っかからないよう分割して取得 */
-async function selectIn<T>(
+export async function selectIn<T>(
   table: string,
   cols: string,
   column: string,
@@ -192,7 +221,7 @@ async function selectIn<T>(
   return out;
 }
 
-const enc = encodeURIComponent;
+export const enc = encodeURIComponent;
 
 export type CandidateRow = AdminUser & {
   likes: number;

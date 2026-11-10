@@ -1,28 +1,25 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { SESSION_COOKIE, verifySession } from "@/lib/session";
 
-// /admin 以下（SwipeJob 候補者ダッシュボード）は個人情報を含むため Basic 認証で保護する。
-// ADMIN_USER / ADMIN_PASSWORD が未設定のときは誰も入れない。
-export function proxy(req: NextRequest) {
-  const user = process.env.ADMIN_USER;
-  const pass = process.env.ADMIN_PASSWORD;
-  if (!user || !pass) {
-    return new NextResponse(
-      "ADMIN_USER と ADMIN_PASSWORD を環境変数に設定してください。",
-      { status: 503 },
-    );
+// /admin 以下（SwipeJob 顧客管理）は個人情報を含むため、ログインした担当者だけが見られる。
+const PUBLIC = [/^\/admin\/login\/?$/, /^\/admin\/setup\/?$/, /^\/admin\/invite\/[^/]+\/?$/];
+
+export async function proxy(req: NextRequest) {
+  const { pathname, search } = req.nextUrl;
+  if (PUBLIC.some((re) => re.test(pathname))) return NextResponse.next();
+
+  let ok = false;
+  try {
+    ok = !!(await verifySession(req.cookies.get(SESSION_COOKIE)?.value));
+  } catch {
+    ok = false;
   }
-  const header = req.headers.get("authorization") ?? "";
-  if (header.startsWith("Basic ")) {
-    const decoded = atob(header.slice(6));
-    const i = decoded.indexOf(":");
-    if (i >= 0 && decoded.slice(0, i) === user && decoded.slice(i + 1) === pass) {
-      return NextResponse.next();
-    }
-  }
-  return new NextResponse("認証が必要です", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="SwipeJob Admin", charset="UTF-8"' },
-  });
+  if (ok) return NextResponse.next();
+
+  const url = req.nextUrl.clone();
+  url.pathname = "/admin/login";
+  url.search = `?next=${encodeURIComponent(pathname + search)}`;
+  return NextResponse.redirect(url);
 }
 
 export const config = { matcher: ["/admin", "/admin/:path*"] };
