@@ -296,7 +296,7 @@ export async function addJobForCandidate(form: FormData) {
   const pdfPath = str(form, "pdfPath");
   if (!userId) redirect("/admin");
   if (!jobId && !(company && title)) {
-    redirect(back(path, { jobError: "求人 ID か、会社名と求人タイトルを入力してください" }) + "#jobs");
+    redirect(back(path, { tab: "jobs", jobError: "求人 ID か、会社名と求人タイトルを入力してください" }));
   }
   if (pdfPath && !pdfPath.startsWith(userId.replace(/[^A-Za-z0-9_-]/g, "_") + "/")) redirect(path);
   const err = await tryJobWrite(() =>
@@ -311,8 +311,8 @@ export async function addJobForCandidate(form: FormData) {
       staffId: me.id,
     }),
   );
-  if (err) redirect(back(path, { jobError: err }) + "#jobs");
-  redirect(back(path, { saved: "job" }) + "#jobs");
+  if (err) redirect(back(path, { tab: "jobs", jobError: err }));
+  redirect(back(path, { tab: "jobs", saved: "job" }));
 }
 
 /** 書き込みの失敗を、エラー画面ではなく画面上のメッセージにする */
@@ -336,8 +336,8 @@ export async function addSwipeJobForCandidate(form: FormData) {
   if (!userId || !jobId) redirect("/admin");
   const path = `/admin/users/${encodeURIComponent(userId)}`;
   const err = await tryJobWrite(() => addCandidateJob({ userId, source: "swipe", jobId, staffId: me.id }));
-  if (err) redirect(back(path, { jobError: err }) + "#jobs");
-  redirect(back(path, { saved: "job" }) + "#jobs");
+  if (err) redirect(back(path, { tab: "swipes", jobError: err }));
+  redirect(back(path, { tab: "swipes", saved: "job" }));
 }
 
 export async function updateJobStage(id: string, stage: string) {
@@ -356,7 +356,7 @@ export async function deleteCandidateJob(form: FormData) {
   const id = str(form, "id");
   const userId = str(form, "userId");
   await writeRows("DELETE", "crm_candidate_jobs", `id=eq.${enc(id)}`);
-  redirect(`/admin/users/${encodeURIComponent(userId)}#jobs`);
+  redirect(`/admin/users/${encodeURIComponent(userId)}?tab=jobs`);
 }
 
 // ───────── AI による軸の示唆 ─────────

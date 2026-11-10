@@ -36,10 +36,9 @@ export default function AddJobForm({ userId }: { userId: string }) {
           await addJobForCandidate(form);
         });
       }}
-      className="space-y-3 rounded-lg bg-slate-50 p-4"
+      className="space-y-3"
     >
       <input type="hidden" name="userId" value={userId} />
-      <div className="text-sm font-semibold">＋ 提案する求人を追加</div>
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="block">
           <span className="mb-1 block text-xs font-semibold text-slate-600">求人 ID（あれば）</span>

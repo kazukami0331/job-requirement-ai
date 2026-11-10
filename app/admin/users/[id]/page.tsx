@@ -17,6 +17,14 @@ export const dynamic = "force-dynamic";
 // AI 分析（数十秒かかる）のために長めに
 export const maxDuration = 120;
 
+const TABS = [
+  { key: "crm", label: "📞 対応・架電" },
+  { key: "jobs", label: "📋 提案・選考" },
+  { key: "swipes", label: "♥ スワイプ履歴" },
+  { key: "insights", label: "💡 傾向・AI 分析" },
+] as const;
+type TabKey = (typeof TABS)[number]["key"];
+
 const FILTERS = [
   { key: "all", label: "すべて" },
   { key: "like", label: "Like" },
@@ -29,10 +37,12 @@ export default async function CandidatePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ filter?: string; saved?: string; error?: string; jobError?: string }>;
+  searchParams: Promise<{ tab?: string; filter?: string; saved?: string; error?: string; jobError?: string }>;
 }) {
   const { id } = await params;
   const { filter = "all", saved, error, jobError } = await searchParams;
+  const tabParam = (await searchParams).tab;
+  const tab = TABS.some((t) => t.key === tabParam) ? (tabParam as TabKey) : "crm";
   const me = await requireStaff();
   const userId = decodeURIComponent(id);
 
@@ -63,6 +73,7 @@ export default async function CandidatePage({
 
   // 提案・選考する求人（SwipeJob の応募は自動でリストに入れる）
   let jobsPanel: React.ReactNode;
+  let jobsCount = 0;
   let listedJobIds: Set<string> | null = null; // null = 提案求人の表が使えない
 
   try {
@@ -70,6 +81,7 @@ export default async function CandidatePage({
     await syncSwipeApplications(userId, appliedIds);
     const jobs: CandidateJob[] = await listCandidateJobs(userId);
     listedJobIds = new Set(jobs.map((j) => j.job_id).filter((x): x is string => !!x));
+    jobsCount = jobs.length;
     const h = await headers();
     const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host")}`;
     jobsPanel = (
@@ -155,19 +167,46 @@ export default async function CandidatePage({
         )}
       </section>
 
-      {crmPanel}
+      <nav className="sticky top-[57px] z-[5] -mx-1 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">
+        {TABS.map((t) => {
+          const n = t.key === "jobs" ? jobsCount : t.key === "swipes" ? swipes.length : null;
+          return (
+            <Link
+              key={t.key}
+              href={`?tab=${t.key}`}
+              scroll={false}
+              className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold ${
+                tab === t.key ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              {t.label}
+              {n !== null && <span className="ml-1.5 tabular-nums opacity-70">{n}</span>}
+            </Link>
+          );
+        })}
+      </nav>
 
-      {jobsPanel}
+      {tab === "crm" && crmPanel}
 
-      <InsightsPanel ins={ins} text={insightsText(candidateName, ins)} userId={userId} />
+      {tab === "jobs" && jobsPanel}
 
+      {tab === "insights" && <InsightsPanel ins={ins} text={insightsText(candidateName, ins)} userId={userId} />}
+
+      {tab === "swipes" && (
+        <>
+          {saved === "job" && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+              ✓ 提案リストに追加しました（「📋 提案・選考」タブで確認できます）
+            </div>
+          )}
+          {jobError && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{jobError}</div>}
       <section className="rounded-xl border border-slate-200 bg-white">
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3">
           <h2 className="mr-2 font-semibold">スワイプ履歴</h2>
           {FILTERS.map((f) => (
             <Link
               key={f.key}
-              href={`?filter=${f.key}`}
+              href={`?tab=swipes&filter=${f.key}`}
               scroll={false}
               className={`rounded-full px-3 py-1 text-sm ${
                 filter === f.key ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -232,6 +271,8 @@ export default async function CandidatePage({
             ))}
           </ul>
         </section>
+      )}
+        </>
       )}
     </div>
   );

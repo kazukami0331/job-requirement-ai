@@ -6,7 +6,8 @@ import AddJobForm from "@/components/admin/AddJobForm";
 import CopyButton from "@/components/admin/CopyButton";
 import JobStageSelect from "@/components/admin/JobStageSelect";
 import MessageComposer from "@/components/admin/MessageComposer";
-import { Notice } from "@/components/admin/bits";
+import { Notice, btnCls, btnSubCls } from "@/components/admin/bits";
+import Modal from "@/components/admin/Modal";
 
 export default function CandidateJobsPanel({
   userId,
@@ -30,11 +31,30 @@ export default function CandidateJobsPanel({
     company: j.company || "（会社名なし）",
     title: j.title || j.job_id || "（タイトルなし）",
   });
+  const composeItems = jobs
+    .filter((j) => j.stage !== "rejected" && j.stage !== "declined")
+    .map((j) => ({ id: j.id, ...label(j), url: shareUrl(j), preselect: j.stage === "proposed" || j.stage === "interested" }));
+
   return (
     <section id="jobs" className="scroll-mt-20 rounded-xl border border-slate-200 bg-white">
       <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-4">
         <h2 className="font-semibold">📋 提案・選考する求人</h2>
         <span className="text-sm text-slate-500">{jobs.length} 件</span>
+        <div className="ml-auto flex flex-wrap gap-2">
+          {/* 求人数が変わったら作り直して閉じる */}
+          <Modal key={`add-${jobs.length}`} title="提案する求人を追加" buttonLabel="＋ 求人を追加" buttonClassName={btnSubCls} wide>
+            <AddJobForm userId={userId} />
+          </Modal>
+          <Modal
+            title={`${candidateName}様への送付文`}
+            buttonLabel="✉️ 送付文を作る"
+            buttonClassName={btnCls}
+            disabled={composeItems.length === 0}
+            wide
+          >
+            <MessageComposer candidateName={candidateName} staffName={staffName} items={composeItems} />
+          </Modal>
+        </div>
       </div>
       <div className="space-y-4 p-4">
         {saved === "job" && <Notice kind="ok">✓ 求人をリストに追加しました</Notice>}
@@ -42,7 +62,7 @@ export default function CandidateJobsPanel({
 
         {jobs.length === 0 ? (
           <p className="text-sm text-slate-400">
-            まだありません。下のフォームで提案求人を追加するか、スワイプ履歴の「＋ 提案リストへ」で Like した求人を入れてください。
+            まだありません。右上の「＋ 求人を追加」で提案求人を入れるか、「♥ スワイプ履歴」タブの「＋ 提案リストへ」で Like した求人を入れてください。
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -97,15 +117,6 @@ export default function CandidateJobsPanel({
           </div>
         )}
 
-        <MessageComposer
-          candidateName={candidateName}
-          staffName={staffName}
-          items={jobs
-            .filter((j) => j.stage !== "rejected" && j.stage !== "declined")
-            .map((j) => ({ id: j.id, ...label(j), url: shareUrl(j), preselect: j.stage === "proposed" || j.stage === "interested" }))}
-        />
-
-        <AddJobForm userId={userId} />
       </div>
     </section>
   );
