@@ -37,13 +37,6 @@ export function parseSalary(s: string | null | undefined): Range | null {
   return { min: Math.min(...nums), max: Math.max(...nums) };
 }
 
-function median(xs: number[]) {
-  if (!xs.length) return null;
-  const s = [...xs].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-}
-
 function sizeBucket(n: number | null | undefined) {
   if (!n) return null;
   if (n < 100) return "100 名未満";
@@ -101,17 +94,23 @@ export function buildInsights(liked: J[], passed: J[]): Insights {
     .slice(0, 6);
   const common = L >= 3 ? all.filter((f) => f.like / L >= 0.8).sort((a, b) => b.like - a.like).slice(0, 6) : [];
 
-  const salaryOf = (jobs: J[]) => {
-    const rs = jobs.map((j) => parseSalary(j.salary)).filter((r): r is Range => !!r);
-    const min = median(rs.map((r) => r.min));
-    const max = median(rs.map((r) => r.max));
-    return min === null || max === null ? null : { min, max };
+  // 年収：Like した求人の「下限」のうち一番低いもの（この金額以上なら検討対象になりそう）
+  const likedFloors = liked.map((j) => parseSalary(j.salary)?.min).filter((n): n is number => n !== undefined);
+  const salaryFloor = likedFloors.length ? Math.min(...likedFloors) : null;
+  const salary = {
+    like: salaryFloor === null ? null : { min: salaryFloor, max: Math.max(...liked.map((j) => parseSalary(j.salary)?.max ?? 0)) },
+    pass: null as Range | null,
   };
-  const salary = { like: salaryOf(liked), pass: salaryOf(passed) };
 
-  // 検索条件案：Like した求人で多かったものを、グループごとに上位から
+  // Like した職種（Like が少なくても全部出す）
+  const jobTypes = all
+    .filter((f) => f.group === "職種" && f.like > 0)
+    .sort((a, b) => b.like - a.like);
+
+  // 検索条件案
   const search: Insights["search"] = [];
-  for (const group of ["勤務地", "職種", "業界", "条件"]) {
+  if (jobTypes.length) search.push({ label: "職種", values: jobTypes.slice(0, 5).map((f) => f.value) });
+  for (const group of ["勤務地", "業界", "条件"]) {
     const values = all
       .filter((f) => f.group === group && f.like >= minLike && rate(f) >= base)
       .sort((a, b) => b.like - a.like)
@@ -119,23 +118,22 @@ export function buildInsights(liked: J[], passed: J[]): Insights {
       .map((f) => f.value);
     if (values.length) search.push({ label: group, values });
   }
-  if (salary.like) search.push({ label: "想定年収", values: [`${Math.round(salary.like.min)}万円〜（Like 求人の下限の中央値）`] });
+  if (salaryFloor !== null) search.push({ label: "想定年収", values: [`${Math.round(salaryFloor)}万円〜（Like 求人の下限で一番低い額）`] });
 
   const summary: string[] = [];
   const fmt = (f: FeatureStat) => `「${f.value}」（Like ${f.like} 件 / Pass ${f.pass} 件）`;
-  if (common.length) summary.push(`Like した求人のほぼすべてが ${common.slice(0, 3).map((f) => `「${f.value}」`).join("・")} に当てはまります。ここは外せない条件の可能性が高いです。`);
-  const nonCommon = likedFeat.filter((f) => !common.includes(f));
+  if (jobTypes.length) {
+    summary.push(
+      `Like した職種：${jobTypes.slice(0, 5).map((f) => `${f.value}（${f.like} 件）`).join("、")}。この職種を中心に探していそうです。`,
+    );
+  }
+  if (salaryFloor !== null) {
+    summary.push(`Like した求人の年収の下限は、一番低いもので ${Math.round(salaryFloor)}万円。この金額以上なら検討対象になりそうです。`);
+  }
+  if (common.length) summary.push(`Like した求人のほぼすべてが ${common.filter((f) => f.group !== "職種").slice(0, 3).map((f) => `「${f.value}」`).join("・") || "同じ条件"} に当てはまります。外せない条件の可能性があります。`);
+  const nonCommon = likedFeat.filter((f) => !common.includes(f) && f.group !== "職種");
   if (nonCommon.length) summary.push(`Like に偏っている特徴：${nonCommon.slice(0, 4).map(fmt).join("、")}。`);
   if (avoided.length) summary.push(`Pass に偏っている特徴：${avoided.slice(0, 3).map(fmt).join("、")}。避けたい条件かもしれないので架電で確認を。`);
-  if (salary.like && salary.pass) {
-    const diff = salary.like.min - salary.pass.min;
-    summary.push(
-      `想定年収（下限の中央値）は Like 求人 ${Math.round(salary.like.min)}万円 / Pass 求人 ${Math.round(salary.pass.min)}万円。` +
-        (Math.abs(diff) >= 30 ? (diff > 0 ? "年収が高めの求人を選んでいます。" : "年収よりほかの条件を優先しているようです。") : "年収で強く選んでいる様子はありません。"),
-    );
-  } else if (salary.like) {
-    summary.push(`Like 求人の想定年収（下限の中央値）は ${Math.round(salary.like.min)}万円です。`);
-  }
   if (L === 0) summary.push("まだ Like した求人がないため、傾向は出せません。");
 
   return {

@@ -63,7 +63,8 @@ export default async function CandidatePage({
 
   // 提案・選考する求人（SwipeJob の応募は自動でリストに入れる）
   let jobsPanel: React.ReactNode;
-  let listedJobIds = new Set<string>();
+  let listedJobIds: Set<string> | null = null; // null = 提案求人の表が使えない
+
   try {
     const appliedIds = [...swipes.filter((s) => s.application).map((s) => s.jobId), ...appsWithoutSwipe.map((a) => a.jobId)];
     await syncSwipeApplications(userId, appliedIds);
@@ -200,7 +201,7 @@ export default async function CandidatePage({
                 </div>
               </Link>
               <div className="flex w-32 shrink-0 items-center justify-center pr-3">
-                {listedJobIds.has(s.jobId) ? (
+                {!listedJobIds ? null : listedJobIds.has(s.jobId) ? (
                   <span className="text-xs text-emerald-700">✓ 提案リスト済</span>
                 ) : s.job ? (
                   <form action={addSwipeJobForCandidate}>
