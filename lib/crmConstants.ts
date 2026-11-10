@@ -10,13 +10,17 @@ export const STATUSES = [
   { key: "offered", label: "内定", tone: "bg-amber-100 text-amber-800" },
   { key: "accepted", label: "内定承諾", tone: "bg-emerald-100 text-emerald-700" },
   { key: "closed", label: "見送り・辞退", tone: "bg-rose-100 text-rose-700" },
+  { key: "excluded", label: "テスト・除外", tone: "bg-zinc-200 text-zinc-500" },
 ] as const;
 
 export type StatusKey = (typeof STATUSES)[number]["key"];
 
-/** 進捗の順番（見送り・辞退は -1） */
+/** テストアカウントなど、一覧・集計・分析から外す */
+export const EXCLUDED = "excluded";
+
+/** 進捗の順番（見送り・辞退、テスト・除外は -1） */
 export function statusRank(key: string | null | undefined) {
-  if (key === "closed") return -1;
+  if (key === "closed" || key === EXCLUDED) return -1;
   const i = STATUSES.findIndex((s) => s.key === key);
   return i < 0 ? 0 : i;
 }
@@ -26,7 +30,7 @@ export function statusInfo(key: string | null | undefined) {
 }
 
 /** ファネル（見送り・辞退を除いた順番どおりのステータス） */
-export const FUNNEL = STATUSES.filter((s) => s.key !== "closed");
+export const FUNNEL = STATUSES.filter((s) => s.key !== "closed" && s.key !== EXCLUDED);
 
 export const CALL_RESULTS = [
   { key: "connected", label: "つながった" },

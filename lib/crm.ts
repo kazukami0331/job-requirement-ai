@@ -5,7 +5,7 @@ import {
   selectAll,
   type AdminUser,
 } from "@/lib/swipeAdmin";
-import { FUNNEL, statusRank } from "@/lib/crmConstants";
+import { EXCLUDED, FUNNEL, statusRank } from "@/lib/crmConstants";
 import type { Staff } from "@/lib/auth";
 
 export type CrmCandidate = {
@@ -170,7 +170,8 @@ export async function computeAnalytics(staff: Staff[]) {
     ),
   ]);
 
-  const regAt = new Map(users.map((u) => [u.id, toMs(u.createdAt)]));
+  const excluded = new Set(cands.filter((c) => c.status === EXCLUDED).map((c) => c.user_id));
+  const regAt = new Map(users.filter((u) => !excluded.has(u.id)).map((u) => [u.id, toMs(u.createdAt)]));
   const inScope = (id: string) => regAt.has(id);
   const candBy = new Map(cands.map((c) => [c.user_id, c]));
 
