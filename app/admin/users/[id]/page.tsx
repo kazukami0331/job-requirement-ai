@@ -5,6 +5,13 @@ import { ActionBadge, AppliedBadge, Chips, ErrorBox } from "@/components/admin/u
 import CrmPanel from "@/components/admin/CrmPanel";
 import { crmForUser } from "@/lib/crm";
 import { listStaff, requireStaff } from "@/lib/auth";
+import { headers } from "next/headers";
+import { listCandidateJobs, syncSwipeApplications, type CandidateJob } from "@/lib/candidateJobs";
+import { buildInsights, insightsText } from "@/lib/insights";
+import { addSwipeJobForCandidate } from "@/app/admin/actions";
+import CandidateJobsPanel from "@/components/admin/CandidateJobsPanel";
+import InsightsPanel from "@/components/admin/InsightsPanel";
+import type { JobSummary } from "@/lib/swipeAdmin";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +27,10 @@ export default async function CandidatePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ filter?: string; saved?: string; error?: string }>;
+  searchParams: Promise<{ filter?: string; saved?: string; error?: string; jobError?: string }>;
 }) {
   const { id } = await params;
-  const { filter = "all", saved, error } = await searchParams;
+  const { filter = "all", saved, error, jobError } = await searchParams;
   const me = await requireStaff();
   const userId = decodeURIComponent(id);
 
@@ -44,6 +51,37 @@ export default async function CandidatePage({
     );
   } catch (e) {
     crmPanel = <ErrorBox error={e} />;
+  }
+
+  // Like / Pass の傾向
+  const likedJobs = swipes.filter((s) => s.action === "like" && s.job).map((s) => s.job as JobSummary);
+  const passedJobs = swipes.filter((s) => s.action !== "like" && s.job).map((s) => s.job as JobSummary);
+  const ins = buildInsights(likedJobs, passedJobs);
+  const candidateName = user.name || "（お名前）";
+
+  // 提案・選考する求人（SwipeJob の応募は自動でリストに入れる）
+  let jobsPanel: React.ReactNode;
+  let listedJobIds = new Set<string>();
+  try {
+    const appliedIds = [...swipes.filter((s) => s.application).map((s) => s.jobId), ...appsWithoutSwipe.map((a) => a.jobId)];
+    await syncSwipeApplications(userId, appliedIds);
+    const jobs: CandidateJob[] = await listCandidateJobs(userId);
+    listedJobIds = new Set(jobs.map((j) => j.job_id).filter((x): x is string => !!x));
+    const h = await headers();
+    const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host")}`;
+    jobsPanel = (
+      <CandidateJobsPanel
+        userId={userId}
+        candidateName={candidateName}
+        staffName={me.name}
+        jobs={jobs}
+        origin={origin}
+        saved={saved}
+        error={jobError}
+      />
+    );
+  } catch (e) {
+    jobsPanel = <ErrorBox error={e} />;
   }
 
   const likes = swipes.filter((s) => s.action === "like").length;
@@ -116,6 +154,10 @@ export default async function CandidatePage({
 
       {crmPanel}
 
+      {jobsPanel}
+
+      <InsightsPanel ins={ins} text={insightsText(candidateName, ins)} />
+
       <section className="rounded-xl border border-slate-200 bg-white">
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3">
           <h2 className="mr-2 font-semibold">スワイプ履歴</h2>
@@ -134,8 +176,8 @@ export default async function CandidatePage({
         </div>
         <ul className="divide-y divide-slate-100">
           {shown.map((s) => (
-            <li key={s.id}>
-              <Link href={`/admin/jobs/${encodeURIComponent(s.jobId)}?from=${encodeURIComponent(user.id)}`} className="flex items-start gap-4 px-4 py-3 hover:bg-slate-50">
+            <li key={s.id} className="flex items-stretch hover:bg-slate-50">
+              <Link href={`/admin/jobs/${encodeURIComponent(s.jobId)}?from=${encodeURIComponent(user.id)}`} className="flex min-w-0 flex-1 items-start gap-4 px-4 py-3">
                 <div className="w-16 shrink-0 pt-0.5"><ActionBadge action={s.action} /></div>
                 <div className="min-w-0 flex-1">
                   <div className="font-medium text-slate-900">
@@ -155,6 +197,17 @@ export default async function CandidatePage({
                   <div className="mt-0.5">{s.jobId}</div>
                 </div>
               </Link>
+              <div className="flex w-32 shrink-0 items-center justify-center pr-3">
+                {listedJobIds.has(s.jobId) ? (
+                  <span className="text-xs text-emerald-700">✓ 提案リスト済</span>
+                ) : s.job ? (
+                  <form action={addSwipeJobForCandidate}>
+                    <input type="hidden" name="userId" value={userId} />
+                    <input type="hidden" name="jobId" value={s.jobId} />
+                    <button className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100">＋ 提案リストへ</button>
+                  </form>
+                ) : null}
+              </div>
             </li>
           ))}
           {shown.length === 0 && <li className="px-4 py-10 text-center text-slate-400">該当するスワイプはありません</li>}

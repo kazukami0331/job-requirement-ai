@@ -11,9 +11,10 @@ import {
   STAFF_COLS,
   type Staff,
 } from "@/lib/auth";
-import { CALL_RESULTS, STAFF_COLORS, STATUSES } from "@/lib/crmConstants";
+import { CALL_RESULTS, JOB_STAGES, STAFF_COLORS, STATUSES } from "@/lib/crmConstants";
+import { addCandidateJob, PDF_BUCKET } from "@/lib/candidateJobs";
 import { crmSelect, type CrmCandidate } from "@/lib/crm";
-import { enc, writeRows } from "@/lib/swipeAdmin";
+import { enc, storageSignUpload, writeRows } from "@/lib/swipeAdmin";
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 const back = (path: string, q: Record<string, string>) =>
@@ -268,4 +269,74 @@ export async function deleteActivity(form: FormData) {
   const filter = me.role === "owner" ? `id=eq.${enc(id)}` : `id=eq.${enc(id)}&staff_id=eq.${enc(me.id)}`;
   await writeRows("DELETE", "crm_activities", filter);
   redirect(`/admin/users/${encodeURIComponent(userId)}`);
+}
+
+// ───────── 提案求人・選考管理 ─────────
+
+/** PDF をブラウザから Storage に直接上げるための URL を発行 */
+export async function getPdfUploadUrl(userId: string, fileName: string) {
+  await requireStaff();
+  if (!/\.pdf$/i.test(fileName)) return { ok: false as const, error: "PDF ファイルを選んでください" };
+  const path = `${userId.replace(/[^A-Za-z0-9_-]/g, "_")}/${randomUUID()}.pdf`;
+  try {
+    const uploadUrl = await storageSignUpload(PDF_BUCKET, path);
+    return { ok: true as const, uploadUrl, path };
+  } catch (e) {
+    return { ok: false as const, error: e instanceof Error ? e.message : "アップロードの準備に失敗しました" };
+  }
+}
+
+export async function addJobForCandidate(form: FormData) {
+  const me = await requireStaff();
+  const userId = str(form, "userId");
+  const path = `/admin/users/${encodeURIComponent(userId)}`;
+  const jobId = str(form, "jobId");
+  const company = str(form, "company");
+  const title = str(form, "title");
+  const pdfPath = str(form, "pdfPath");
+  if (!userId) redirect("/admin");
+  if (!jobId && !(company && title)) {
+    redirect(back(path, { jobError: "求人 ID か、会社名と求人タイトルを入力してください" }) + "#jobs");
+  }
+  if (pdfPath && !pdfPath.startsWith(userId.replace(/[^A-Za-z0-9_-]/g, "_") + "/")) redirect(path);
+  await addCandidateJob({
+    userId,
+    source: "proposal",
+    jobId,
+    company,
+    title,
+    pdfPath: pdfPath || null,
+    note: str(form, "note") || null,
+    staffId: me.id,
+  });
+  redirect(back(path, { saved: "job" }) + "#jobs");
+}
+
+/** スワイプした求人を提案・選考リストに入れる */
+export async function addSwipeJobForCandidate(form: FormData) {
+  const me = await requireStaff();
+  const userId = str(form, "userId");
+  const jobId = str(form, "jobId");
+  if (!userId || !jobId) redirect("/admin");
+  await addCandidateJob({ userId, source: "swipe", jobId, staffId: me.id });
+  redirect(back(`/admin/users/${encodeURIComponent(userId)}`, { saved: "job" }) + "#jobs");
+}
+
+export async function updateJobStage(id: string, stage: string) {
+  await requireStaff();
+  if (!JOB_STAGES.some((s) => s.key === stage)) return { ok: false, error: "ステージが不正です" };
+  try {
+    await writeRows("PATCH", "crm_candidate_jobs", `id=eq.${enc(id)}`, { stage, updated_at: new Date().toISOString() });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "保存に失敗しました" };
+  }
+}
+
+export async function deleteCandidateJob(form: FormData) {
+  await requireStaff();
+  const id = str(form, "id");
+  const userId = str(form, "userId");
+  await writeRows("DELETE", "crm_candidate_jobs", `id=eq.${enc(id)}`);
+  redirect(`/admin/users/${encodeURIComponent(userId)}#jobs`);
 }

@@ -43,6 +43,13 @@ export type Swipe = {
 };
 
 export type JobSummary = {
+  tags?: string[] | null;
+  prefecture?: string | null;
+  jobTypeSmallCategory?: string | null;
+  industryCategory?: string | null;
+  workStyle?: string | null;
+  employeeCount?: number | null;
+  employmentType?: string | null;
   id: string;
   title: string | null;
   company: string | null;
@@ -92,10 +99,10 @@ const USER_COLS =
   "id,email,name,phone,createdAt,interviewCompleted,utmSource,utmCampaign,lp";
 const PROFILE_COLS =
   "userId,desiredJobType,desiredLocations,desiredSalary,currentSalary,desiredIndustries,desiredWorkStyle,desiredJobTypeLargeCategories,desiredJobTypeSmallCategories,workHistory,skills,resumeFileUrl,resumeFileName,cvFileUrl,cvFileName";
-const JOB_SUMMARY_COLS =
-  "id,title,company,location,salary,jobType,industry,source,status";
+export const JOB_SUMMARY_COLS =
+  "id,title,company,location,salary,jobType,industry,source,status,tags,prefecture,jobTypeSmallCategory,industryCategory,workStyle,employeeCount,employmentType";
 // embedding（ベクトル）は巨大なので絶対に取らない
-const JOB_DETAIL_COLS =
+export const JOB_DETAIL_COLS =
   JOB_SUMMARY_COLS +
   ",companyUrl,description,employmentType,employeeCount,tags,requiredExperience,preferredExperience,education,prefecture,selectionProcess,workLocation,workingHours,salaryDetails,smokingPolicy,employmentBenefits,companyDescription,applicationRequirements,industryCategory,workStyle,jobTypeLargeCategory,jobTypeSmallCategory,jobUrl,createdAt";
 
@@ -144,7 +151,7 @@ export async function writeRows<T>(
   table: string,
   query: string,
   body?: unknown,
-  opts: { upsert?: boolean } = {},
+  opts: { upsert?: boolean; ignoreDuplicates?: boolean } = {},
 ): Promise<T[]> {
   const { url, key } = config();
   const res = await fetch(`${url}/rest/v1/${table}${query ? `?${query}` : ""}`, {
@@ -153,7 +160,10 @@ export async function writeRows<T>(
       apikey: key,
       ...(key.startsWith("eyJ") ? { Authorization: `Bearer ${key}` } : {}),
       "Content-Type": "application/json",
-      Prefer: ["return=representation", opts.upsert ? "resolution=merge-duplicates" : ""]
+      Prefer: [
+        "return=representation",
+        opts.upsert ? "resolution=merge-duplicates" : opts.ignoreDuplicates ? "resolution=ignore-duplicates" : "",
+      ]
         .filter(Boolean)
         .join(","),
     },
@@ -168,6 +178,37 @@ export async function writeRows<T>(
 }
 
 /** PostgREST から全件取得（1000件ずつ Range でページング） */
+/** Storage：ブラウザから直接アップロードするための署名付き URL */
+export async function storageSignUpload(bucket: string, path: string) {
+  const { url, key } = config();
+  const res = await fetch(`${url}/storage/v1/object/upload/sign/${bucket}/${path}`, {
+    method: "POST",
+    headers: { apikey: key, ...(key.startsWith("eyJ") ? { Authorization: `Bearer ${key}` } : {}) },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`アップロード URL の作成に失敗しました (${res.status}): ${await res.text()}`);
+  const { url: signed } = (await res.json()) as { url: string };
+  return `${url}/storage/v1${signed}`;
+}
+
+/** Storage：一時的にファイルを見られる署名付き URL */
+export async function storageSignDownload(bucket: string, path: string, expiresIn = 3600) {
+  const { url, key } = config();
+  const res = await fetch(`${url}/storage/v1/object/sign/${bucket}/${path}`, {
+    method: "POST",
+    headers: {
+      apikey: key,
+      ...(key.startsWith("eyJ") ? { Authorization: `Bearer ${key}` } : {}),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ expiresIn }),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`ファイルの URL 作成に失敗しました (${res.status}): ${await res.text()}`);
+  const { signedURL } = (await res.json()) as { signedURL: string };
+  return `${url}/storage/v1${signedURL}`;
+}
+
 export async function selectAll<T>(table: string, query: string): Promise<T[]> {
   const { url, key } = config();
   const out: T[] = [];
