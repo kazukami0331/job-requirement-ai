@@ -149,3 +149,44 @@ export async function syncSwipeApplications(userId: string, appliedJobIds: strin
     { ignoreDuplicates: true },
   );
 }
+
+export type ViewStats = {
+  views: number;
+  firstAt: string;
+  lastAt: string;
+  maxScroll: number;
+  totalSec: number;
+  pdfOpened: boolean;
+};
+
+/** 共有リンクの閲覧のまとめ（求人ごと）。表がまだなければ空 */
+export async function viewStats(candidateJobIds: string[]): Promise<Map<string, ViewStats>> {
+  const out = new Map<string, ViewStats>();
+  if (!candidateJobIds.length) return out;
+  const rows = await selectIn<{
+    candidate_job_id: string;
+    viewed_at: string;
+    last_seen_at: string;
+    duration_sec: number;
+    max_scroll: number;
+    pdf_opened: boolean;
+  }>("crm_job_views", "candidate_job_id,viewed_at,last_seen_at,duration_sec,max_scroll,pdf_opened", "candidate_job_id", candidateJobIds).catch(() => []);
+  for (const r of rows) {
+    const s = out.get(r.candidate_job_id) ?? {
+      views: 0,
+      firstAt: r.viewed_at,
+      lastAt: r.viewed_at,
+      maxScroll: 0,
+      totalSec: 0,
+      pdfOpened: false,
+    };
+    s.views++;
+    if (r.viewed_at < s.firstAt) s.firstAt = r.viewed_at;
+    if (r.last_seen_at > s.lastAt) s.lastAt = r.last_seen_at;
+    s.maxScroll = Math.max(s.maxScroll, r.max_scroll);
+    s.totalSec += r.duration_sec;
+    s.pdfOpened ||= r.pdf_opened;
+    out.set(r.candidate_job_id, s);
+  }
+  return out;
+}

@@ -87,3 +87,18 @@ alter table public.crm_candidate_jobs enable row level security;
 insert into storage.buckets (id, name, public)
 values ('crm-job-pdfs', 'crm-job-pdfs', false)
 on conflict (id) do nothing;
+
+-- ───────── 共有リンクの閲覧記録（2026/11 追加） ─────────
+-- 候補者が共有リンク（/j/...）を開くたびに 1 行。滞在時間とスクロールは開いている間に更新する
+create table if not exists public.crm_job_views (
+  id               uuid primary key,
+  candidate_job_id uuid not null references public.crm_candidate_jobs(id) on delete cascade,
+  viewed_at        timestamptz not null default now(),
+  last_seen_at     timestamptz not null default now(),
+  duration_sec     integer not null default 0,
+  max_scroll       integer not null default 0,   -- 0〜100（%）
+  pdf_opened       boolean not null default false,
+  user_agent       text
+);
+create index if not exists crm_job_views_job_idx on public.crm_job_views (candidate_job_id, viewed_at);
+alter table public.crm_job_views enable row level security;

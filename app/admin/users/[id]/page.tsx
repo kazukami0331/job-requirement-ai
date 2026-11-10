@@ -6,7 +6,7 @@ import CrmPanel from "@/components/admin/CrmPanel";
 import { crmForUser } from "@/lib/crm";
 import { listStaff, requireStaff } from "@/lib/auth";
 import { headers } from "next/headers";
-import { listCandidateJobs, syncSwipeApplications, type CandidateJob } from "@/lib/candidateJobs";
+import { listCandidateJobs, syncSwipeApplications, viewStats, type CandidateJob } from "@/lib/candidateJobs";
 import { buildInsights, insightsText } from "@/lib/insights";
 import { addSwipeJobForCandidate } from "@/app/admin/actions";
 import CandidateJobsPanel from "@/components/admin/CandidateJobsPanel";
@@ -90,6 +90,7 @@ export default async function CandidatePage({
         candidateName={candidateName}
         staffName={me.name}
         jobs={jobs}
+        views={await viewStats(jobs.map((j) => j.id))}
         origin={origin}
         saved={saved}
         error={jobError}
