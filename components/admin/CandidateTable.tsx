@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { quickUpdateCandidate } from "@/app/admin/actions";
 import type { CandidateRow } from "@/lib/swipeAdmin";
 import { STATUSES, statusInfo } from "@/lib/crmConstants";
-import { StaffChip, StatusBadge } from "@/components/admin/bits";
+import { Avatar } from "@/components/admin/bits";
 
 type Row = CandidateRow & {
   status: string;
@@ -37,10 +39,47 @@ export default function CandidateTable({ rows, staff, meId }: { rows: Row[]; sta
   const [assignee, setAssignee] = useState("all");
   const [sort, setSort] = useState<SortKey>("createdAt");
   const staffById = useMemo(() => new Map(staff.map((s) => [s.id, s])), [staff]);
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  // 保存中・保存直後の値（画面の再読み込みが終わるまで表示に使う）
+  const [edits, setEdits] = useState<Record<string, { status?: string; assigneeId?: string | null }>>({});
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // サーバーから最新の一覧が届いたら、手元の仮表示は捨てる
+  useEffect(() => setEdits({}), [rows]);
+
+  const withEdits = useMemo(
+    () => rows.map((r) => ({ ...r, ...(edits[r.id] ?? {}) }) as Row),
+    [rows, edits],
+  );
+
+  function save(userId: string, patch: { status?: string; assignee?: string }) {
+    setEdits((e) => ({
+      ...e,
+      [userId]: {
+        ...e[userId],
+        ...(patch.status !== undefined ? { status: patch.status } : {}),
+        ...(patch.assignee !== undefined ? { assigneeId: patch.assignee || null } : {}),
+      },
+    }));
+    setErrorMsg(null);
+    startTransition(async () => {
+      const res = await quickUpdateCandidate(userId, patch);
+      if (!res.ok) {
+        setErrorMsg(res.error ?? "保存に失敗しました");
+        setEdits((e) => {
+          const next = { ...e };
+          delete next[userId];
+          return next;
+        });
+      }
+      router.refresh();
+    });
+  }
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const list = rows.filter((r) => {
+    const list = withEdits.filter((r) => {
       if (status !== "all" && r.status !== status) return false;
       if (assignee === "me" && r.assigneeId !== meId) return false;
       if (assignee === "none" && r.assigneeId) return false;
@@ -51,9 +90,9 @@ export default function CandidateTable({ rows, staff, meId }: { rows: Row[]; sta
     const val = (r: Row) =>
       sort === "likes" ? r.likes : ms(sort === "createdAt" ? r.createdAt : sort === "lastSwipeAt" ? r.lastSwipeAt : r.lastContactAt);
     return [...list].sort((a, b) => val(b) - val(a));
-  }, [rows, q, status, assignee, sort, meId]);
+  }, [withEdits, q, status, assignee, sort, meId]);
 
-  const countBy = (key: string) => rows.filter((r) => r.status === key).length;
+  const countBy = (key: string) => withEdits.filter((r) => r.status === key).length;
   const sel = "rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm";
 
   return (
@@ -87,6 +126,7 @@ export default function CandidateTable({ rows, staff, meId }: { rows: Row[]; sta
         </select>
         <span className="text-sm text-slate-500">{filtered.length} 人</span>
       </div>
+      {errorMsg && <div className="border-b border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{errorMsg}</div>}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -112,10 +152,46 @@ export default function CandidateTable({ rows, staff, meId }: { rows: Row[]; sta
                     <Link href={`/admin/users/${encodeURIComponent(r.id)}`} className="font-medium text-indigo-700 hover:underline">
                       {r.name || "（名前未登録）"}
                     </Link>
-                    <div className="max-w-[220px] truncate text-xs text-slate-400">{r.phone ?? r.email ?? ""}</div>
+                    <div className="text-xs">
+                      {r.phone ? (
+                        <a href={`tel:${r.phone}`} className="tabular-nums text-slate-600 hover:underline">{r.phone}</a>
+                      ) : (
+                        <span className="text-slate-400">電話番号なし</span>
+                      )}
+                    </div>
                   </td>
-                  <td className="px-4 py-2.5"><StatusBadge label={st.label} tone={st.tone} /></td>
-                  <td className="px-4 py-2.5 whitespace-nowrap"><StaffChip staff={r.assigneeId ? staffById.get(r.assigneeId) : null} /></td>
+                  <td className="px-4 py-2.5">
+                    <select
+                      aria-label="ステータス"
+                      value={r.status}
+                      onChange={(e) => save(r.id, { status: e.target.value })}
+                      className={`cursor-pointer rounded-full border-0 py-1 pl-2.5 pr-7 text-xs font-semibold ${st.tone}`}
+                    >
+                      {STATUSES.map((s) => (
+                        <option key={s.key} value={s.key}>{s.label}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-4 py-2.5 whitespace-nowrap">
+                    <div className="flex items-center gap-1.5">
+                      {r.assigneeId && staffById.get(r.assigneeId) ? (
+                        <Avatar name={staffById.get(r.assigneeId)!.name} color={staffById.get(r.assigneeId)!.color} size={22} />
+                      ) : (
+                        <span className="inline-block h-[22px] w-[22px] rounded-full border border-dashed border-slate-300" />
+                      )}
+                      <select
+                        aria-label="担当"
+                        value={r.assigneeId ?? ""}
+                        onChange={(e) => save(r.id, { assignee: e.target.value })}
+                        className={`cursor-pointer rounded-md border border-transparent bg-transparent py-1 pr-6 text-sm hover:border-slate-300 ${r.assigneeId ? "text-slate-700" : "text-slate-400"}`}
+                      >
+                        <option value="">未割当</option>
+                        {staff.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}{s.id === meId ? "（自分）" : ""}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </td>
                   <td className={`px-4 py-2.5 text-right tabular-nums ${r.calls ? "text-slate-700" : "text-rose-500"}`}>{r.calls}</td>
                   <td className="px-4 py-2.5 whitespace-nowrap text-slate-600">{jst(r.lastContactAt)}</td>
                   <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-emerald-600">{r.likes}</td>
