@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { deleteCandidateJob } from "@/app/admin/actions";
-import type { CandidateJob } from "@/lib/candidateJobs";
+import type { CandidateJob, ViewStats } from "@/lib/candidateJobs";
+import { formatJst } from "@/lib/swipeAdmin";
 import { JOB_SOURCES } from "@/lib/crmConstants";
 import AddJobForm from "@/components/admin/AddJobForm";
 import CopyButton from "@/components/admin/CopyButton";
@@ -14,6 +15,7 @@ export default function CandidateJobsPanel({
   candidateName,
   staffName,
   jobs,
+  views,
   origin,
   saved,
   error,
@@ -22,6 +24,7 @@ export default function CandidateJobsPanel({
   candidateName: string;
   staffName: string;
   jobs: CandidateJob[];
+  views: Map<string, ViewStats>;
   origin: string;
   saved?: string;
   error?: string;
@@ -73,6 +76,7 @@ export default function CandidateJobsPanel({
                   <th className="py-2 pr-3 font-medium">求人</th>
                   <th className="py-2 pr-3 font-medium">選考ステージ</th>
                   <th className="py-2 pr-3 font-medium">共有リンク</th>
+                  <th className="py-2 pr-3 font-medium">候補者の閲覧</th>
                   <th className="py-2 font-medium" />
                 </tr>
               </thead>
@@ -102,6 +106,7 @@ export default function CandidateJobsPanel({
                           <a href={shareUrl(j)} target="_blank" rel="noreferrer" className="text-xs text-indigo-700 hover:underline">開く ↗</a>
                         </div>
                       </td>
+                      <td className="py-2.5 pr-3"><ViewCell v={views.get(j.id)} /></td>
                       <td className="py-2.5 text-right">
                         <form action={deleteCandidateJob}>
                           <input type="hidden" name="id" value={j.id} />
@@ -119,5 +124,20 @@ export default function CandidateJobsPanel({
 
       </div>
     </section>
+  );
+}
+
+function ViewCell({ v }: { v: ViewStats | undefined }) {
+  if (!v) return <span className="text-xs text-slate-400">未閲覧</span>;
+  const min = Math.floor(v.totalSec / 60);
+  const sec = v.totalSec % 60;
+  return (
+    <div className="text-xs leading-relaxed">
+      <div className="font-semibold text-emerald-700">👀 {v.views} 回</div>
+      <div className="text-slate-500">最終 {formatJst(v.lastAt)}</div>
+      <div className="text-slate-500">
+        {v.maxScroll}% まで・計 {min ? `${min}分` : ""}{sec}秒{v.pdfOpened ? "・PDF 開封" : ""}
+      </div>
+    </div>
   );
 }

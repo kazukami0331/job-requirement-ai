@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getCandidateJobByToken, lookupJobs } from "@/lib/candidateJobs";
+import ViewTracker from "@/components/ViewTracker";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,7 @@ export default async function SharedJobPage({ params }: { params: Promise<{ toke
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
+      <ViewTracker token={token} />
       <main className="mx-auto max-w-3xl space-y-4 px-4 py-6">
         <div className="text-xs font-semibold tracking-wide text-slate-500">求人のご紹介</div>
         <section className="rounded-2xl border border-slate-200 bg-white p-5">
@@ -47,7 +49,7 @@ export default async function SharedJobPage({ params }: { params: Promise<{ toke
             </div>
           )}
           {pdfUrl && (
-            <a href={pdfUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white">
+            <a href={pdfUrl} target="_blank" rel="noreferrer" data-track="pdf" className="mt-4 inline-flex rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white">
               📄 求人票（PDF）を開く
             </a>
           )}
