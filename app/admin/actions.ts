@@ -174,25 +174,50 @@ async function upsertCandidate(userId: string, patch: Partial<CrmCandidate>, pre
   );
 }
 
+async function saveCandidate(meId: string, userId: string, patch: { status?: string; assignee_id?: string | null }) {
+  const prev = await currentCandidate(userId);
+  await upsertCandidate(userId, patch, prev);
+  const from = prev?.status ?? "new";
+  if (patch.status && from !== patch.status) {
+    await writeRows("POST", "crm_status_history", "", {
+      id: randomUUID(),
+      user_id: userId,
+      from_status: from,
+      to_status: patch.status,
+      staff_id: meId,
+    });
+  }
+}
+
 export async function updateCandidate(form: FormData) {
   const me = await requireStaff();
   const userId = str(form, "userId");
   const status = str(form, "status");
   const assignee = str(form, "assignee");
   if (!userId || !STATUSES.some((s) => s.key === status)) redirect("/admin");
-
-  const prev = await currentCandidate(userId);
-  await upsertCandidate(userId, { status, assignee_id: assignee || null }, prev);
-  if ((prev?.status ?? "new") !== status) {
-    await writeRows("POST", "crm_status_history", "", {
-      id: randomUUID(),
-      user_id: userId,
-      from_status: prev?.status ?? "new",
-      to_status: status,
-      staff_id: me.id,
-    });
-  }
+  await saveCandidate(me.id, userId, { status, assignee_id: assignee || null });
   redirect(back(`/admin/users/${encodeURIComponent(userId)}`, { saved: "status" }));
+}
+
+/** 一覧からその場で変更する（画面遷移なし） */
+export async function quickUpdateCandidate(
+  userId: string,
+  patch: { status?: string; assignee?: string },
+): Promise<{ ok: boolean; error?: string }> {
+  const me = await requireStaff();
+  if (!userId) return { ok: false, error: "候補者が不明です" };
+  if (patch.status !== undefined && !STATUSES.some((s) => s.key === patch.status)) {
+    return { ok: false, error: "ステータスが不正です" };
+  }
+  try {
+    await saveCandidate(me.id, userId, {
+      ...(patch.status !== undefined ? { status: patch.status } : {}),
+      ...(patch.assignee !== undefined ? { assignee_id: patch.assignee || null } : {}),
+    });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "保存に失敗しました" };
+  }
 }
 
 export async function addActivity(form: FormData) {

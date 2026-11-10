@@ -155,7 +155,7 @@ export type StaffStats = {
 };
 
 export async function computeAnalytics(staff: Staff[]) {
-  const [users, cands, acts, history, apps] = await Promise.all([
+  const [users, cands, acts, history, apps, swipes] = await Promise.all([
     selectAll<Pick<AdminUser, "id" | "createdAt">>(
       "users",
       `select=id,createdAt&createdAt=gte.${enc(scopeStartUtc())}`,
@@ -164,6 +164,10 @@ export async function computeAnalytics(staff: Staff[]) {
     crmSelect<Activity>("crm_activities", "select=user_id,staff_id,type,result,occurred_at"),
     crmSelect<StatusChange>("crm_status_history", "select=user_id,to_status,changed_at"),
     selectAll<{ userId: string }>("job_applications", "select=userId").catch(() => []),
+    selectAll<{ userId: string; action: string }>(
+      "job_swipes",
+      `select=userId,action&createdAt=gte.${enc(scopeStartUtc())}`,
+    ),
   ]);
 
   const regAt = new Map(users.map((u) => [u.id, toMs(u.createdAt)]));
@@ -275,7 +279,17 @@ export async function computeAnalytics(staff: Staff[]) {
     };
   });
 
+  const scopedSwipes = swipes.filter((x) => inScope(x.userId));
+  const swipers = new Set(scopedSwipes.map((x) => x.userId));
+  const swipe = {
+    likes: scopedSwipes.filter((x) => x.action === "like").length,
+    passes: scopedSwipes.filter((x) => x.action !== "like").length,
+    users: swipers.size,
+    likedUsers: new Set(scopedSwipes.filter((x) => x.action === "like").map((x) => x.userId)).size,
+  };
+
   return {
+    swipe,
     registered: ids.length,
     calledPeople,
     connectedPeople,

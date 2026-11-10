@@ -38,6 +38,16 @@ export default async function AnalyticsPage() {
         </p>
       </div>
 
+      <Card title="スワイプ">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <Kpi label="Like / Pass" value={`${data.swipe.likes} / ${data.swipe.passes}`} sub={`Like 率 ${pct(data.swipe.likes, data.swipe.likes + data.swipe.passes)}`} />
+          <Kpi label="スワイプした人" value={`${data.swipe.users} 人`} sub={pct(data.swipe.users, data.registered) + "（登録のうち）"} />
+          <Kpi label="1 人あたりスワイプ数" value={data.swipe.users ? `${Math.round(((data.swipe.likes + data.swipe.passes) / data.swipe.users) * 10) / 10} 枚` : "—"} sub="スワイプした人の平均" />
+          <Kpi label="1 件以上 Like した人" value={`${data.swipe.likedUsers} 人`} sub={pct(data.swipe.likedUsers, data.swipe.users) + "（スワイプした人のうち）"} />
+        </div>
+      </Card>
+
+      <h2 className="pt-2 text-lg font-bold">架電・対応</h2>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Kpi label="登録" value={`${data.registered} 人`} />
         <Kpi label="架電した人" value={`${data.calledPeople} 人`} sub={pct(data.calledPeople, data.registered)} />
