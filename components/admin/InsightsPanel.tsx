@@ -1,7 +1,8 @@
 import type { Insights } from "@/lib/insights";
 import CopyButton from "@/components/admin/CopyButton";
+import AiInsightButton from "@/components/admin/AiInsightButton";
 
-export default function InsightsPanel({ ins, text }: { ins: Insights; text: string }) {
+export default function InsightsPanel({ ins, text, userId }: { ins: Insights; text: string; userId: string }) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white">
       <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-4">
@@ -36,6 +37,7 @@ export default function InsightsPanel({ ins, text }: { ins: Insights; text: stri
           <FeatureList title="Pass に多い特徴" items={ins.avoided} tone="text-rose-700" empty="目立つ特徴はありません" />
         </div>
       </div>
+      <AiInsightButton userId={userId} />
     </section>
   );
 }

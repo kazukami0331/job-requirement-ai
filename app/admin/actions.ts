@@ -340,3 +340,29 @@ export async function deleteCandidateJob(form: FormData) {
   await writeRows("DELETE", "crm_candidate_jobs", `id=eq.${enc(id)}`);
   redirect(`/admin/users/${encodeURIComponent(userId)}#jobs`);
 }
+
+// ───────── AI による軸の示唆 ─────────
+
+export async function runAiInsight(userId: string): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  await requireStaff();
+  try {
+    const { generateAiInsight } = await import("@/lib/aiInsight");
+    return { ok: true, text: await generateAiInsight(userId) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "AI の分析に失敗しました" };
+  }
+}
+
+/** AI の示唆を候補者のメモとして保存 */
+export async function saveInsightAsMemo(userId: string, text: string) {
+  const me = await requireStaff();
+  await writeRows("POST", "crm_activities", "", {
+    id: randomUUID(),
+    user_id: userId,
+    staff_id: me.id,
+    type: "memo",
+    note: `【AI 分析】\n${text}`,
+    occurred_at: new Date().toISOString(),
+  });
+  return { ok: true };
+}
