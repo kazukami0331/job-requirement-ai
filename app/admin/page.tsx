@@ -3,6 +3,7 @@ import { crmSummaries, CrmNotReadyError, type CandidateCrmSummary } from "@/lib/
 import { listStaff, requireStaff, type Staff } from "@/lib/auth";
 import { ErrorBox } from "@/components/admin/ui";
 import CandidateTable from "@/components/admin/CandidateTable";
+import { EXCLUDED } from "@/lib/crmConstants";
 
 const SELECTION = ["applied", "before_interview", "awaiting_result"];
 
@@ -36,10 +37,12 @@ export default async function AdminHome() {
     };
   });
 
-  const totalLikes = rows.reduce((n, r) => n + r.likes, 0);
-  const totalPasses = rows.reduce((n, r) => n + r.passes, 0);
-  const untouched = merged.filter((r) => r.status === "new").length;
-  const inSelection = merged.filter((r) => SELECTION.includes(r.status)).length;
+  // テスト・除外にした人は数字に入れない
+  const visible = merged.filter((r) => r.status !== EXCLUDED);
+  const totalLikes = visible.reduce((n, r) => n + r.likes, 0);
+  const totalPasses = visible.reduce((n, r) => n + r.passes, 0);
+  const untouched = visible.filter((r) => r.status === "new").length;
+  const inSelection = visible.filter((r) => SELECTION.includes(r.status)).length;
 
   return (
     <div className="space-y-6">
@@ -51,7 +54,7 @@ export default async function AdminHome() {
       </div>
       {crmError ? <ErrorBox error={crmError} /> : null}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="ユーザー数" value={rows.length.toLocaleString()} />
+        <Stat label="ユーザー数" value={visible.length.toLocaleString()} />
         <Stat label="登録後 未対応" value={untouched.toLocaleString()} tone="text-rose-600" note="ステータスが「登録・連絡中」のまま" />
         <Stat label="選考中" value={inSelection.toLocaleString()} tone="text-indigo-600" note="書類選考中〜面接結果待ち" />
         <Stat

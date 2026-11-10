@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { quickUpdateCandidate } from "@/app/admin/actions";
 import type { CandidateRow } from "@/lib/swipeAdmin";
-import { STATUSES, statusInfo } from "@/lib/crmConstants";
+import { EXCLUDED, STATUSES, statusInfo } from "@/lib/crmConstants";
 import { Avatar } from "@/components/admin/bits";
 
 type Row = CandidateRow & {
@@ -80,7 +80,8 @@ export default function CandidateTable({ rows, staff, meId }: { rows: Row[]; sta
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const list = withEdits.filter((r) => {
-      if (status !== "all" && r.status !== status) return false;
+      // 「すべて」ではテスト・除外の人を出さない（ステータスで選べば見られる）
+      if (status === "all" ? r.status === EXCLUDED : r.status !== status) return false;
       if (assignee === "me" && r.assigneeId !== meId) return false;
       if (assignee === "none" && r.assigneeId) return false;
       if (!["all", "me", "none"].includes(assignee) && r.assigneeId !== assignee) return false;
@@ -105,7 +106,7 @@ export default function CandidateTable({ rows, staff, meId }: { rows: Row[]; sta
           className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
         />
         <select value={status} onChange={(e) => setStatus(e.target.value)} className={sel}>
-          <option value="all">ステータス：すべて</option>
+          <option value="all">ステータス：すべて（除外以外）</option>
           {STATUSES.map((s) => (
             <option key={s.key} value={s.key}>{s.label}（{countBy(s.key)}）</option>
           ))}
