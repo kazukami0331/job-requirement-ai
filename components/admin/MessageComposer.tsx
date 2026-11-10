@@ -1,9 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import CopyButton from "@/components/admin/CopyButton";
 
 type Item = { id: string; company: string; title: string; url: string; preselect: boolean };
+
+/** 登録名から苗字を推測（「紙谷 和彦」→ 紙谷、「紙谷和彦」→ 紙谷） */
+export function guessSurname(name: string) {
+  const n = name.trim();
+  const parts = n.split(/[\s　]+/);
+  if (parts.length > 1) return parts[0];
+  if (/^[\p{Script=Han}々]{3,}$/u.test(n)) return n.slice(0, 2);
+  return n;
+}
 
 const NUM = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "⑪", "⑫", "⑬", "⑭", "⑮"];
 
@@ -18,8 +27,9 @@ export default function MessageComposer({
 }) {
   const [checked, setChecked] = useState<Set<string>>(new Set(items.filter((i) => i.preselect).map((i) => i.id)));
   const [extra, setExtra] = useState("");
+  const [sender, setSender] = useState(guessSurname(staffName));
 
-  const text = useMemo(() => {
+  const generated = useMemo(() => {
     const list = items.filter((i) => checked.has(i.id));
     const body = list
       .map((i, n) => `${NUM[n] ?? `(${n + 1})`}${i.company}/${i.title}\n${i.url}`)
@@ -27,7 +37,7 @@ export default function MessageComposer({
     return [
       `${candidateName}様`,
       "",
-      `お世話になっております。転職エージェントの${staffName}です。`,
+      `お世話になっております。転職エージェントの${sender}です。`,
       "先ほどはお電話にてありがとうございました。",
       `先日のお話を踏まえて、${candidateName}様にマッチしそうな求人をピックアップしましたので、ご確認ください。`,
       ...(extra.trim() ? ["", extra.trim()] : []),
@@ -40,7 +50,15 @@ export default function MessageComposer({
       "",
       "何卒よろしくお願いいたします。",
     ].join("\n");
-  }, [items, checked, candidateName, staffName, extra]);
+  }, [items, checked, candidateName, sender, extra]);
+
+  // 本文は自由に書き換えられる。求人の選択・差出人・ひとことを変えたら作り直す
+  const [text, setText] = useState(generated);
+  const [edited, setEdited] = useState(false);
+  useEffect(() => {
+    setText(generated);
+    setEdited(false);
+  }, [generated]);
 
   if (!items.length) return null;
 
@@ -69,10 +87,30 @@ export default function MessageComposer({
         ))}
       </div>
       <label className="block">
+        <span className="mb-1 block text-xs font-semibold text-slate-600">差出人（苗字）</span>
+        <input value={sender} onChange={(e) => setSender(e.target.value)} className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      </label>
+      <label className="block">
         <span className="mb-1 block text-xs font-semibold text-slate-600">ひとこと追加（任意）</span>
         <input value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="例：特に②は年間休日と通勤時間の条件に合っています。" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
       </label>
-      <textarea readOnly value={text} rows={Math.min(24, text.split("\n").length + 1)} className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 font-sans text-sm leading-relaxed text-slate-800" />
+      <div>
+        <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+          <span className="font-semibold text-slate-600">本文（そのまま書き換えられます）</span>
+          {edited && (
+            <button type="button" onClick={() => { setText(generated); setEdited(false); }} className="text-indigo-700 hover:underline">
+              書き換えを戻す
+            </button>
+          )}
+        </div>
+        <textarea
+          value={text}
+          onChange={(e) => { setText(e.target.value); setEdited(true); }}
+          rows={Math.min(26, text.split("\n").length + 2)}
+          className="w-full rounded-lg border border-slate-300 bg-white p-3 font-sans text-sm leading-relaxed text-slate-800 outline-none focus:border-slate-500"
+        />
+        <p className="mt-1 text-xs text-slate-400">求人のチェック・差出人・ひとことを変えると、本文は作り直されます。</p>
+      </div>
     </div>
   );
 }

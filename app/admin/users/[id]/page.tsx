@@ -14,6 +14,8 @@ import InsightsPanel from "@/components/admin/InsightsPanel";
 import type { JobSummary } from "@/lib/swipeAdmin";
 
 export const dynamic = "force-dynamic";
+// AI 分析（数十秒かかる）のために長めに
+export const maxDuration = 120;
 
 const FILTERS = [
   { key: "all", label: "すべて" },
@@ -156,7 +158,7 @@ export default async function CandidatePage({
 
       {jobsPanel}
 
-      <InsightsPanel ins={ins} text={insightsText(candidateName, ins)} />
+      <InsightsPanel ins={ins} text={insightsText(candidateName, ins)} userId={userId} />
 
       <section className="rounded-xl border border-slate-200 bg-white">
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3">
