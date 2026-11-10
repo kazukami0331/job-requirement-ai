@@ -13,7 +13,7 @@ import {
 } from "@/lib/auth";
 import { CALL_RESULTS, JOB_STAGES, STAFF_COLORS, STATUSES } from "@/lib/crmConstants";
 import { addCandidateJob, PDF_BUCKET } from "@/lib/candidateJobs";
-import { crmSelect, type CrmCandidate } from "@/lib/crm";
+import { crmSelect, CrmNotReadyError, isMissingTable, type CrmCandidate } from "@/lib/crm";
 import { enc, storageSignUpload, writeRows } from "@/lib/swipeAdmin";
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -299,27 +299,45 @@ export async function addJobForCandidate(form: FormData) {
     redirect(back(path, { jobError: "求人 ID か、会社名と求人タイトルを入力してください" }) + "#jobs");
   }
   if (pdfPath && !pdfPath.startsWith(userId.replace(/[^A-Za-z0-9_-]/g, "_") + "/")) redirect(path);
-  await addCandidateJob({
-    userId,
-    source: "proposal",
-    jobId,
-    company,
-    title,
-    pdfPath: pdfPath || null,
-    note: str(form, "note") || null,
-    staffId: me.id,
-  });
+  const err = await tryJobWrite(() =>
+    addCandidateJob({
+      userId,
+      source: "proposal",
+      jobId,
+      company,
+      title,
+      pdfPath: pdfPath || null,
+      note: str(form, "note") || null,
+      staffId: me.id,
+    }),
+  );
+  if (err) redirect(back(path, { jobError: err }) + "#jobs");
   redirect(back(path, { saved: "job" }) + "#jobs");
 }
 
-/** スワイプした求人を提案・選考リストに入れる */
+/** 書き込みの失敗を、エラー画面ではなく画面上のメッセージにする */
+async function tryJobWrite(fn: () => Promise<unknown>): Promise<string | null> {
+  try {
+    await fn();
+    return null;
+  } catch (e) {
+    if (e instanceof CrmNotReadyError || isMissingTable(e)) {
+      return "提案求人用の表がまだありません。Supabase の SQL Editor で supabase/crm.sql をもう一度実行してください。";
+    }
+    console.error("candidate job write failed", e);
+    return `登録に失敗しました：${e instanceof Error ? e.message.slice(0, 300) : String(e)}`;
+  }
+}
+
 export async function addSwipeJobForCandidate(form: FormData) {
   const me = await requireStaff();
   const userId = str(form, "userId");
   const jobId = str(form, "jobId");
   if (!userId || !jobId) redirect("/admin");
-  await addCandidateJob({ userId, source: "swipe", jobId, staffId: me.id });
-  redirect(back(`/admin/users/${encodeURIComponent(userId)}`, { saved: "job" }) + "#jobs");
+  const path = `/admin/users/${encodeURIComponent(userId)}`;
+  const err = await tryJobWrite(() => addCandidateJob({ userId, source: "swipe", jobId, staffId: me.id }));
+  if (err) redirect(back(path, { jobError: err }) + "#jobs");
+  redirect(back(path, { saved: "job" }) + "#jobs");
 }
 
 export async function updateJobStage(id: string, stage: string) {

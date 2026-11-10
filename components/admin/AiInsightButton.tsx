@@ -14,7 +14,13 @@ export default function AiInsightButton({ userId }: { userId: string }) {
   const router = useRouter();
 
   return (
-    <div className="space-y-3 border-t border-slate-100 p-4">
+    <details className="group border-t border-slate-100">
+      <summary className="flex cursor-pointer list-none items-center gap-2 p-4 text-sm font-semibold text-indigo-700 hover:bg-slate-50">
+        <span className="inline-block transition-transform group-open:rotate-90">▶</span>
+        🤖 AI による軸の分析
+        {text && <span className="text-xs font-normal text-slate-400">（分析済み）</span>}
+      </summary>
+      <div className="space-y-3 px-4 pb-4">
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
@@ -32,7 +38,7 @@ export default function AiInsightButton({ userId }: { userId: string }) {
         >
           {pending ? "AI が分析中…（30 秒〜1 分）" : text ? "🤖 もう一度 AI で分析" : "🤖 AI で軸を分析する"}
         </button>
-        <span className="text-xs text-slate-400">Like / Pass・プロフィール・架電メモをまとめて読み、軸の仮説と探す条件を出します。</span>
+        <span className="text-xs text-slate-400">Like した求人・Pass の傾向（集計）・プロフィール・架電メモを読み、軸の仮説と探す条件を出します。押したときだけ AI を使います。</span>
       </div>
       {error && <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
       {text && (
@@ -57,6 +63,7 @@ export default function AiInsightButton({ userId }: { userId: string }) {
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{text}</p>
         </div>
       )}
-    </div>
+      </div>
+    </details>
   );
 }
