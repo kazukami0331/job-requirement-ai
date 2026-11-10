@@ -220,6 +220,10 @@ export async function quickUpdateCandidate(
   }
 }
 
+async function insertActivity(id: string, row: Record<string, unknown>) {
+  await writeRows("POST", "crm_activities", "", { id, ...row });
+}
+
 export async function addActivity(form: FormData) {
   const me = await requireStaff();
   const userId = str(form, "userId");
@@ -233,15 +237,21 @@ export async function addActivity(form: FormData) {
   }
   if (type === "memo" && !note) redirect(back(path, { error: "メモを入力してください" }));
 
-  await writeRows("POST", "crm_activities", "", {
-    id: randomUUID(),
+  const given = str(form, "activityId");
+  const activityId = /^[0-9a-f-]{36}$/i.test(given) ? given : randomUUID();
+  try {
+    await insertActivity(activityId, {
     user_id: userId,
     staff_id: me.id,
     type,
     result: result || null,
     note: note || null,
     occurred_at: jstLocalToIso(str(form, "occurredAt")),
-  });
+    });
+  } catch (e) {
+    // 同じ ID がすでにある＝二重送信。1 件目が記録済みなので成功扱いにする
+    if (!/\(409\)|23505|duplicate key/.test(e instanceof Error ? e.message : "")) throw e;
+  }
 
   // 担当者が決まっていなければ、最初に記録した人を担当にする
   const prev = await currentCandidate(userId);

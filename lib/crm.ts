@@ -5,7 +5,7 @@ import {
   selectAll,
   type AdminUser,
 } from "@/lib/swipeAdmin";
-import { EXCLUDED, FUNNEL, statusRank } from "@/lib/crmConstants";
+import { ENDED, EXCLUDED, FUNNEL, statusInfo, statusRank } from "@/lib/crmConstants";
 import type { Staff } from "@/lib/auth";
 
 export type CrmCandidate = {
@@ -238,7 +238,23 @@ export async function computeAnalytics(staff: Staff[]) {
     }
     return { key: s.key, label: s.label, count: reached.length, leadDaysMedian: median(days) };
   });
-  const closed = ids.filter((id) => candBy.get(id)?.status === "closed").length;
+  // 途中で終わった人：今そのステータスの人数と、一度でもそのステータスになった人数
+  const everIn = new Map<string, Set<string>>();
+  for (const h of history) {
+    if (!inScope(h.user_id) || !ENDED.includes(h.to_status)) continue;
+    const set = everIn.get(h.to_status) ?? new Set<string>();
+    set.add(h.user_id);
+    everIn.set(h.to_status, set);
+  }
+  const ended = ENDED.map((key) => ({
+    key,
+    label: statusInfo(key).label,
+    current: ids.filter((id) => candBy.get(id)?.status === key).length,
+    ever: new Set([
+      ...(everIn.get(key) ?? []),
+      ...ids.filter((id) => candBy.get(id)?.status === key),
+    ]).size,
+  }));
 
   // 時間帯別の接続率
   const bands = HOUR_BANDS.map((b) => ({ ...b, calls: 0, connected: 0 }));
@@ -302,7 +318,7 @@ export async function computeAnalytics(staff: Staff[]) {
       : null,
     swipeApplied: swipeApplied.size,
     funnel,
-    closed,
+    ended,
     bands,
     perStaff: perStaff.filter((p) => p.staffId !== null || p.candidates > 0 || p.calls > 0),
   };

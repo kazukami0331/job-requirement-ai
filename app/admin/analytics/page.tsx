@@ -83,12 +83,16 @@ export default async function AnalyticsPage() {
                 <td className="py-2 text-right tabular-nums text-slate-600">{i === 0 ? "—" : days(f.leadDaysMedian)}</td>
               </tr>
             ))}
-            <tr>
-              <td className="py-2 text-rose-700">見送り・辞退（現在）</td>
-              <td className="py-2 text-right font-semibold tabular-nums">{data.closed}</td>
-              <td className="py-2 text-right tabular-nums text-slate-600">{pct(data.closed, data.registered)}</td>
-              <td colSpan={2} />
-            </tr>
+            {data.ended.map((e) => (
+              <tr key={e.key}>
+                <td className="py-2 text-rose-700">{e.label}</td>
+                <td className="py-2 text-right font-semibold tabular-nums">{e.current}</td>
+                <td className="py-2 text-right tabular-nums text-slate-600">{pct(e.current, data.registered)}</td>
+                <td colSpan={2} className="py-2 text-right text-xs text-slate-400">
+                  {e.ever !== e.current ? `これまでに ${e.ever} 人（今は別のステータスの人を含む）` : "今このステータスの人数"}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </Card>
