@@ -1,4 +1,5 @@
 import { ConfigError } from "@/lib/swipeAdmin";
+import { CrmNotReadyError } from "@/lib/crm";
 
 export function ActionBadge({ action }: { action: string }) {
   if (action === "like")
@@ -43,7 +44,7 @@ export function Chips({ items }: { items: unknown[] | null | undefined }) {
 }
 
 export function ErrorBox({ error }: { error: unknown }) {
-  const isConfig = error instanceof ConfigError;
+  const isConfig = error instanceof ConfigError || error instanceof CrmNotReadyError;
   return (
     <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
       <p className="font-semibold">{isConfig ? "設定が必要です" : "データを取得できませんでした"}</p>
@@ -53,3 +54,5 @@ export function ErrorBox({ error }: { error: unknown }) {
     </div>
   );
 }
+
+export { Avatar, StaffChip, StatusBadge, Notice, inputCls, btnCls, btnSubCls } from "@/components/admin/bits";

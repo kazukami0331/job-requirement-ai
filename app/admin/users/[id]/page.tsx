@@ -2,6 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatJst, getCandidate } from "@/lib/swipeAdmin";
 import { ActionBadge, AppliedBadge, Chips, ErrorBox } from "@/components/admin/ui";
+import CrmPanel from "@/components/admin/CrmPanel";
+import { crmForUser } from "@/lib/crm";
+import { listStaff, requireStaff } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -17,10 +20,11 @@ export default async function CandidatePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ filter?: string }>;
+  searchParams: Promise<{ filter?: string; saved?: string; error?: string }>;
 }) {
   const { id } = await params;
-  const { filter = "all" } = await searchParams;
+  const { filter = "all", saved, error } = await searchParams;
+  const me = await requireStaff();
   const userId = decodeURIComponent(id);
 
   let data;
@@ -31,6 +35,16 @@ export default async function CandidatePage({
   }
   if (!data) notFound();
   const { user, profile, swipes, appsWithoutSwipe } = data;
+
+  let crmPanel: React.ReactNode;
+  try {
+    const [crm, staff] = await Promise.all([crmForUser(userId), listStaff()]);
+    crmPanel = (
+      <CrmPanel userId={userId} {...crm} staff={staff} me={me} saved={saved} error={error} />
+    );
+  } catch (e) {
+    crmPanel = <ErrorBox error={e} />;
+  }
 
   const likes = swipes.filter((s) => s.action === "like").length;
   const passes = swipes.filter((s) => s.action === "pass").length;
@@ -54,7 +68,7 @@ export default async function CandidatePage({
             <h1 className="text-2xl font-bold">{user.name || "（名前未登録）"}</h1>
             <div className="mt-1 space-x-3 text-sm text-slate-600">
               <span>{user.email ?? "メール未登録"}</span>
-              {user.phone && <span>{user.phone}</span>}
+              {user.phone && <a href={`tel:${user.phone}`} className="text-indigo-700 hover:underline">📞 {user.phone}</a>}
             </div>
             <div className="mt-1 text-xs text-slate-400">
               登録 {formatJst(user.createdAt)} ・ ID {user.id}
@@ -99,6 +113,8 @@ export default async function CandidatePage({
           </dl>
         )}
       </section>
+
+      {crmPanel}
 
       <section className="rounded-xl border border-slate-200 bg-white">
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3">
