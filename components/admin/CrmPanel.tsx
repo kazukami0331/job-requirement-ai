@@ -3,6 +3,8 @@ import type { Staff } from "@/lib/auth";
 import type { Activity, CrmCandidate, StatusChange } from "@/lib/crm";
 import { CALL_RESULTS, callResultLabel, STATUSES, statusInfo } from "@/lib/crmConstants";
 import { formatJst } from "@/lib/swipeAdmin";
+import { randomUUID } from "node:crypto";
+import SubmitButton from "@/components/admin/SubmitButton";
 import { Avatar, btnCls, btnSubCls, inputCls, Notice, StaffChip, StatusBadge } from "@/components/admin/bits";
 
 /** 今の日本時間を datetime-local の形で */
@@ -57,9 +59,6 @@ export default function CrmPanel({
 
       <div className="grid gap-6 p-4 lg:grid-cols-2">
         <div className="space-y-6">
-          {saved === "status" && <Notice kind="ok">ステータス・担当を保存しました</Notice>}
-          {(saved === "call" || saved === "memo") && <Notice kind="ok">記録しました</Notice>}
-          {error && <Notice kind="error">{error}</Notice>}
 
           {/* ステータス・担当 */}
           <form action={updateCandidate} className="space-y-3">
@@ -83,13 +82,22 @@ export default function CrmPanel({
                 </select>
               </label>
             </div>
-            <button className={btnSubCls}>ステータス・担当を保存</button>
+            <div className="flex flex-wrap items-center gap-3">
+              <SubmitButton className={btnSubCls}>ステータス・担当を保存</SubmitButton>
+              {saved === "status" && <span className="text-sm font-semibold text-emerald-700">✓ 保存しました</span>}
+            </div>
           </form>
 
           {/* 架電・メモ */}
           <form action={addActivity} className="space-y-3 rounded-lg bg-slate-50 p-4">
             <input type="hidden" name="userId" value={userId} />
+            {/* 同じ送信が 2 回届いても 1 件だけ記録されるよう、表示ごとに ID を振る */}
+            <input type="hidden" name="activityId" value={randomUUID()} />
             <div className="text-sm font-semibold">📞 架電・メモを記録</div>
+            {(saved === "call" || saved === "memo") && (
+              <Notice kind="ok">✓ {saved === "call" ? "架電" : "メモ"}を記録しました（右の履歴に追加されています）</Notice>
+            )}
+            {error && <Notice kind="error">{error}</Notice>}
             <label className="block">
               <span className="mb-1 block text-xs font-semibold text-slate-600">日時</span>
               <input type="datetime-local" name="occurredAt" defaultValue={nowJstLocal()} className={inputCls} />
@@ -112,8 +120,8 @@ export default function CrmPanel({
               <textarea name="note" rows={3} className={inputCls} placeholder="話した内容、次のアクションなど" />
             </label>
             <div className="flex flex-wrap gap-2">
-              <button name="type" value="call" className={btnCls}>架電を記録</button>
-              <button name="type" value="memo" className={btnSubCls}>メモだけ残す</button>
+              <SubmitButton name="type" value="call" className={btnCls} pendingText="記録中…">架電を記録</SubmitButton>
+              <SubmitButton name="type" value="memo" className={btnSubCls} pendingText="記録中…">メモだけ残す</SubmitButton>
             </div>
             <p className="text-xs text-slate-400">担当が未割当のときは、記録した人が担当になります。</p>
           </form>
