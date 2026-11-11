@@ -57,8 +57,8 @@ import { DataMenu } from "@/components/dashboard/DataPanel";
 import { HR_CATEGORY_LABEL, HrSheet, compareWithJobop, crossTab, parseHrSheet, planTargets } from "@/lib/recruiting/hrsheet";
 import { hireDiffDetail } from "@/lib/recruiting/hrdiff";
 import { PlacementSheet, parsePlacementSheet } from "@/lib/recruiting/placement";
-import { staffing } from "@/lib/recruiting/staffing";
-import { SlotSummary, StaffingTable } from "@/components/dashboard/staffing";
+import { hireMatrix, staffing } from "@/lib/recruiting/staffing";
+import { HireMatrixTable, SlotSummary, StaffingTable } from "@/components/dashboard/staffing";
 import { HrCategoryNote, HrCompareTable } from "@/components/dashboard/hrsheet";
 import { DEFAULT_RATES, GoalRates, GoalWindow, monthlyGoals } from "@/lib/recruiting/goal";
 import {
@@ -446,6 +446,19 @@ export default function DashboardPage() {
       hires: hires.map((a) => ({ shopShortName: a.shopShortName, on: movedOn(a) })),
     };
   }, [hrSheet, interviews, hires, shopFilter, scope, masterKeys, periodFrom]);
+
+  /**
+   * コース × 時間帯 の採用数。採用管理表だけで出せるので、配置表が無くても見られる。
+   * 充足の表は配置表に載っている校舎しか出さないため、六本木オフィスなどがそちらに出てこない。
+   */
+  const hireSlots = useMemo(() => {
+    const shopKey = shopFilter === "すべて" ? null : normalizeShopKey(shopFilter);
+    return hireMatrix(hrSheet, {
+      from: periodFrom,
+      include: (key) =>
+        (shopKey ? key === shopKey : true) && (scope === "all" || !masterKeys || masterKeys.has(key)),
+    });
+  }, [hrSheet, periodFrom, shopFilter, scope, masterKeys]);
 
   const goals = useMemo(
     // 採用済みも画面の集計期間に合わせる。ここだけ全期間にしていたせいで、
@@ -1109,6 +1122,25 @@ export default function DashboardPage() {
 
           {/* 目標と充足。配置表の不足 → 月次の進捗 → コース別の充足と応募、の順で見る。 */}
           <div className={`space-y-4 sm:space-y-5 ${section === "goal" ? "" : "hidden sm:block"}`}>
+            {/* W〜Y列（平日昼・平日夜・土日）の記入が、どのコースに効いているか。配置表が無くても出す。 */}
+            {hireSlots.total > 0 && (
+              <Card
+                title="コース × 時間帯の採用数（採用管理表 W〜Y列）"
+                subtitle="採用した人が入れる時間帯です。1人が複数の時間帯に入れる場合は、その全部に数えています（マスを足しても人数には戻りません）。"
+              >
+                <div className="space-y-3">
+                  <HireMatrixTable data={hireSlots} />
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                    採用管理表でステータスか面接結果2が「採用」の
+                    {hireSlots.total}名を、W〜Y列の記入どおりに数えています。
+                    {hireSlots.withoutSlots > 0 &&
+                      `うち${hireSlots.withoutSlots}名は時間帯の記入が無いので、どのマスにも入れていません（人数には入っています）。`}
+                    不足と突き合わせた「残り」は、下の 校舎 × コース × 時間帯 の表に出ます。
+                  </p>
+                </div>
+              </Card>
+            )}
+
             {/* 採用のゴール。ここの不足数が全部0になれば達成。 */}
             {staff.hasPlacement ? (
               <Card

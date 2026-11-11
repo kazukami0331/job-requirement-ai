@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import * as XLSX from "xlsx";
 import { parsePlacementSheet } from "@/lib/recruiting/placement";
 import { parseHrSheet } from "@/lib/recruiting/hrsheet";
-import { placementFieldOf, staffing } from "@/lib/recruiting/staffing";
+import { hireMatrix, placementFieldOf, staffing } from "@/lib/recruiting/staffing";
 
 /**
  * 委託講師配置表（不足）と採用管理表（合格者の時間帯）の突き合わせ。
@@ -185,4 +185,25 @@ test("合計は、どこを足しても同じになる", () => {
     (["平日昼", "平日夜", "土日"] as const).reduce((a, x) => a + s.total.bySlot[x].shortage, 0),
     "時間帯ごとの小計も合計に戻る"
   );
+});
+
+test("コース × 時間帯の採用数は、配置表が無くても出せる", () => {
+  const hr = hrOf([
+    { school: "六本木オフィス", course: "IT", status: "合格", 平日昼: "◯", 土日: "◯" },
+    { school: "栄校", course: "CAD", status: "合格", 平日夜: "◯" },
+    { school: "栄校", course: "Office", status: "合格", 平日昼: "◯" },
+    { school: "栄校", course: "IT", status: "合格" },
+    { school: "栄校", course: "IT", status: "不採用", 平日昼: "◯" },
+  ]);
+
+  const m = hireMatrix(hr);
+  assert.equal(m.total, 4, "採用した人数（不採用は入らない）");
+  assert.equal(m.cells.IT["平日昼"], 1);
+  assert.equal(m.cells.IT["土日"], 1, "1人が2つの時間帯に入れるなら、両方に数える");
+  assert.equal(m.people.IT, 2, "人数は実人数なので、マスを足した数とは一致しない");
+  assert.equal(m.cells.C["平日夜"], 1);
+  assert.equal(m.cells.Office["平日昼"], 1, "配置表に枠の無いコースも出す");
+  assert.equal(m.withoutSlots, 1, "時間帯の記入が無い人はマスに入れない");
+  assert.deepEqual(m.bySlot, { 平日昼: 2, 平日夜: 1, 土日: 1 });
+  assert.deepEqual(m.categories, ["IT", "C", "Office"], "採用が1名以上あるコースだけ行にする");
 });

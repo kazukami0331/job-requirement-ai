@@ -2,7 +2,8 @@
 
 import { FIELD_LABEL, PLACEMENT_FIELDS, PlacementField } from "@/lib/recruiting/placement";
 import { SLOTS, SLOT_LABEL, Slot } from "@/lib/recruiting/slots";
-import { Staffing, StaffingCell, StaffingRow } from "@/lib/recruiting/staffing";
+import { HireMatrix, Staffing, StaffingCell, StaffingRow } from "@/lib/recruiting/staffing";
+import { HR_CATEGORY_LABEL } from "@/lib/recruiting/hrsheet";
 import { SortTh, sorted, useSort } from "./hrsheet";
 
 /**
@@ -202,6 +203,80 @@ export function SlotSummary({ data }: { data: Staffing }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * コース × 時間帯 の採用数。
+ *
+ * 「W〜Y列の記入が、どのコースの何曜日に効いているのか」を、
+ * 委託講師配置表が無くても見られるようにする表。
+ * マスはその枠に入れる人数で、1人が複数の枠に入れるなら両方に数える。
+ */
+export function HireMatrixTable({ data }: { data: HireMatrix }) {
+  if (data.total === 0) return null;
+
+  const num = (n: number) => (
+    <span style={{ color: n > 0 ? "var(--text-primary)" : "var(--text-muted)" }}>{n || "–"}</span>
+  );
+
+  return (
+    <div className="-mx-1 overflow-x-auto">
+      <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
+        <colgroup>
+          <col />
+          {SLOTS.map((s) => (
+            <col key={s} style={{ width: "5.5rem" }} />
+          ))}
+          <col style={{ width: "5.5rem" }} />
+        </colgroup>
+        <thead>
+          <tr style={{ borderBottom: "1px solid var(--gridline)" }}>
+            <th className="px-2 py-1.5 text-left text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>
+              コース
+            </th>
+            {SLOTS.map((s) => (
+              <th key={s} className="px-2 py-1.5 text-center text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>
+                {SLOT_LABEL[s]}
+              </th>
+            ))}
+            <th className="px-2 py-1.5 text-center text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>
+              人数
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.categories.map((c) => (
+            <tr key={c} style={{ borderBottom: "1px solid var(--hairline)" }}>
+              <td className={`${cell} text-left`} style={{ color: "var(--text-primary)" }}>
+                {HR_CATEGORY_LABEL[c]}
+              </td>
+              {SLOTS.map((s) => (
+                <td key={s} className={cell}>
+                  {num(data.cells[c][s])}
+                </td>
+              ))}
+              <td className={`${cell} font-semibold`} style={{ color: "var(--text-primary)" }}>
+                {data.people[c]}
+              </td>
+            </tr>
+          ))}
+          <tr style={{ borderTop: "1px solid var(--gridline)" }}>
+            <td className={`${cell} text-left font-semibold`} style={{ color: "var(--text-primary)" }}>
+              合計
+            </td>
+            {SLOTS.map((s) => (
+              <td key={s} className={`${cell} font-semibold`} style={{ color: "var(--series-1)" }}>
+                {data.bySlot[s]}
+              </td>
+            ))}
+            <td className={`${cell} font-semibold`} style={{ color: "var(--text-primary)" }}>
+              {data.total}
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   );
 }

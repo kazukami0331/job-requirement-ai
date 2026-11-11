@@ -1,4 +1,4 @@
-import { HrRow, HrSheet, slotsOf } from "./hrsheet";
+import { HR_CATEGORIES, HrCategory, HrRow, HrSheet, categoryOf, slotsOf } from "./hrsheet";
 import { PLACEMENT_FIELDS, PlacementField, PlacementRow, PlacementSheet } from "./placement";
 import { SLOTS, Slot } from "./slots";
 import { SHOP_MASTER, normalizeShopKey } from "./shops";
@@ -235,4 +235,73 @@ function countHire(r: StaffingRow, h: HrRow) {
     return;
   }
   for (const s of marked) r.cells[field][s].hired++;
+}
+
+/**
+ * コース × 時間帯 の採用数。
+ *
+ * 「W〜Y列の記入が、どのコースの何曜日に効いているのか」を、
+ * 委託講師配置表が無くても見られるようにする。
+ * 充足の表は配置表（＝不足）を起点にしているので、配置表に無い校舎（六本木オフィスなど）や
+ * 枠の無いコース（Office・事務）の採用がそこには出てこない。
+ *
+ * マスは**その枠に入れる人数**。1人が平日昼と土日の両方に入れるなら、両方に数える。
+ * 行の「人数」は実人数なので、マスを足した数とは一致しない。
+ */
+export interface HireMatrix {
+  /** 行に出すコース。採用が1名以上あるものだけ。 */
+  categories: HrCategory[];
+  /** コース × 時間帯 の、その枠に入れる人数 */
+  cells: Record<HrCategory, Record<Slot, number>>;
+  /** コースごとの実人数 */
+  people: Record<HrCategory, number>;
+  /** 時間帯ごとの実人数（コースを問わず） */
+  bySlot: Record<Slot, number>;
+  /** 採用の実人数 */
+  total: number;
+  /** 時間帯の記入が無い採用。どの枠に入れるか分からないので、マスには数えない。 */
+  withoutSlots: number;
+}
+
+export function hireMatrix(hrSheet: HrSheet | null, options: StaffingOptions = {}): HireMatrix {
+  const { from = null, include } = options;
+
+  const cells = Object.fromEntries(
+    HR_CATEGORIES.map((c) => [c, Object.fromEntries(SLOTS.map((s) => [s, 0]))])
+  ) as Record<HrCategory, Record<Slot, number>>;
+  const people = Object.fromEntries(HR_CATEGORIES.map((c) => [c, 0])) as Record<HrCategory, number>;
+  const bySlot = Object.fromEntries(SLOTS.map((s) => [s, 0])) as Record<Slot, number>;
+  let total = 0;
+  let withoutSlots = 0;
+
+  for (const h of hrSheet?.rows ?? []) {
+    if (!h.hired) continue;
+    const on = h.hiredDate ?? h.receivedDate;
+    if (from && on && on < from) continue;
+    if (include && !include(normalizeShopKey(h.shopShortName))) continue;
+
+    const cat = categoryOf(h);
+    const slots = slotsOf(h);
+    const marked = SLOTS.filter((s) => slots[s]);
+
+    total++;
+    people[cat]++;
+    if (marked.length === 0) {
+      withoutSlots++;
+      continue;
+    }
+    for (const s of marked) {
+      cells[cat][s]++;
+      bySlot[s]++;
+    }
+  }
+
+  return {
+    categories: HR_CATEGORIES.filter((c) => people[c] > 0),
+    cells,
+    people,
+    bySlot,
+    total,
+    withoutSlots,
+  };
 }
