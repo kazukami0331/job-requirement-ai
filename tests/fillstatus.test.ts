@@ -22,6 +22,7 @@ function row(
       C: cell(...(by.C ?? [0, null])),
       Office: cell(),
       事務: cell(),
+      カウンセラー: cell(),
       none: cell(),
     },
     total: cell(...total),

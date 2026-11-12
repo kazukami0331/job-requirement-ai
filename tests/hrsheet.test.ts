@@ -139,7 +139,7 @@ test("対象校舎の絞り込みは、画面と同じ条件で渡せる", () =>
 
 test("列は IT / D/W / C / Office / 事務 / その他・未記入 で固定する", () => {
   const cross = crossTab(sheetOf(SAMPLE));
-  assert.deepEqual(cross.categories, ["IT", "D/W", "C", "Office", "事務", "none"]);
+  assert.deepEqual(cross.categories, ["IT", "D/W", "C", "Office", "事務", "カウンセラー", "none"]);
 });
 
 test("分野の末尾の「？」が付いていても IT として数える", () => {
@@ -231,7 +231,7 @@ test("コースの目標は、不足のあるコースに1名ずつ置く", () =
   assert.equal(t.byShop.get("豊田")?.byCategory["IT"], 1, "枠が3つあっても1名");
   assert.equal(t.byShop.get("豊田")?.byCategory["C"], 0, "不足が無いコースは0");
   assert.equal(t.byShop.get("梅田")?.byCategory["IT"], 1, "夜だけの不足でも1名");
-  assert.deepEqual(t.totalByCategory, { IT: 2, "D/W": 2, C: 1, Office: 0, 事務: 0, none: 0 });
+  assert.deepEqual(t.totalByCategory, { IT: 2, "D/W": 2, C: 1, Office: 0, 事務: 0, カウンセラー: 0, none: 0 });
   assert.equal(t.minHires, 5, "校舎の目標は不足のあるコースの数（豊田2＋梅田3）");
   assert.equal(t.slots, 9, "不足の枠数も説明用に持つ");
 });
@@ -336,7 +336,7 @@ test("採用日は「10/15」のように年が省かれていても読む", () 
 test("Pythonは IT、カウンセラーは講師の区分に入れない", () => {
   // 六本木オフィスで Python のコースとカウンセラーの職種を追加した（2026-11-05 指示）
   assert.equal(courseCategory("Python"), "IT", "プログラミングの求人なのでIT");
-  assert.equal(courseCategory("カウンセラー"), "none", "講師ではないのでコースの区分に入れない");
+  assert.equal(courseCategory("カウンセラー"), "カウンセラー", "応募数を見たいので別の区分にする");
   assert.equal(courseCategory("WEBDTP"), "D/W", "ここは変えない");
   assert.equal(placementFieldOf("Python"), "IT");
   assert.equal(placementFieldOf("カウンセラー"), null, "配置表に枠が無い");

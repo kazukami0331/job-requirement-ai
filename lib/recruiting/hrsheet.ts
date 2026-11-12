@@ -115,9 +115,9 @@ function course(raw: string): string {
  * 未記入を D/W に混ぜるとWebデザインの実績が実態より多く見えるので、列を分けて出す
  * （2026-10-12 カズヒコさん指示）。
  */
-export type HrCategory = "IT" | "D/W" | "C" | "Office" | "事務" | "none";
+export type HrCategory = "IT" | "D/W" | "C" | "Office" | "事務" | "カウンセラー" | "none";
 
-export const HR_CATEGORIES: HrCategory[] = ["IT", "D/W", "C", "Office", "事務", "none"];
+export const HR_CATEGORIES: HrCategory[] = ["IT", "D/W", "C", "Office", "事務", "カウンセラー", "none"];
 
 export const HR_CATEGORY_LABEL: Record<HrCategory, string> = {
   IT: "IT",
@@ -125,7 +125,8 @@ export const HR_CATEGORY_LABEL: Record<HrCategory, string> = {
   C: "CAD",
   Office: "Office",
   事務: "事務",
-  // 空欄のほか、講師ではない職種（カウンセラーなど）もここに入る
+  カウンセラー: "カウンセラー",
+  // 分野が空欄の行はここ
   none: "その他・未記入",
 };
 
@@ -143,12 +144,13 @@ export const HR_CATEGORY_LABEL: Record<HrCategory, string> = {
  * - Python … プログラミングの求人なので IT（2026-11-05、六本木オフィスで開始）
  * - Office … Officeスキルだけの講師求人を別に開いたので、別の区分にする（2026-11-05 指示）
  * - 事務 … 事務のアルバイトを別に開いたので、別の区分にする（2026-11-05 指示）
- * - カウンセラー … 講師ではないので、どの区分にも入れない
+ * - カウンセラー … 講師ではないが、応募数を見たいので別の区分にする（2026-11-12 指示）。
+ *   「オンラインカウンセラー」もここに入る。目標は無い
  */
 export function courseCategory(raw: string): HrCategory {
   const t = course(raw).toUpperCase();
   if (t === "(未記入)") return "none";
-  if (/カウンセラー|カウンセリング/.test(t)) return "none";
+  if (/カウンセラー|カウンセリング/.test(t)) return "カウンセラー";
   if (t.startsWith("IT") || t.includes("PYTHON")) return "IT";
   if (t.includes("CAD")) return "C";
   // 事務 を Office より先に見る（「事務（Officeスキル）」を事務として扱うため）
@@ -262,7 +264,8 @@ export interface HrCross {
   excluded: number;
 }
 
-const zero = (): Record<HrCategory, number> => ({ IT: 0, "D/W": 0, C: 0, Office: 0, 事務: 0, none: 0 });
+const zero = (): Record<HrCategory, number> =>
+  Object.fromEntries(HR_CATEGORIES.map((c) => [c, 0])) as Record<HrCategory, number>;
 
 /** 店舗マスタに当たる校舎は正式な略称にそろえる（「福岡天神」と「福岡天神校」を1行にする） */
 const MASTER_BY_KEY = new Map(SHOP_MASTER.map((s) => [normalizeShopKey(s.short), s.short]));
@@ -287,7 +290,10 @@ export function crossTab(sheet: HrSheet, options: CrossOptions | string | null =
 
   const byShop = new Map<string, HrCrossShop>();
   const totalByCategory = zero();
-  const rawByCategory: Record<HrCategory, Record<string, number>> = { IT: {}, "D/W": {}, C: {}, Office: {}, 事務: {}, none: {} };
+  const rawByCategory = Object.fromEntries(HR_CATEGORIES.map((c) => [c, {}])) as Record<
+    HrCategory,
+    Record<string, number>
+  >;
   let excluded = 0;
   let total = 0;
   let totalApplied = 0;
