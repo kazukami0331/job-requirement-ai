@@ -2,6 +2,7 @@
 
 import { CourseFill, CourseFillCell, CourseFillRow, FILL_COLOR, fillStatus, shortCourses } from "@/lib/recruiting/coursefill";
 import { HR_CATEGORY_LABEL, HrCategory } from "@/lib/recruiting/hrsheet";
+import { POSTING_LABEL, PostingIndex } from "@/lib/recruiting/posting";
 import { Fill, SortTh, sorted, useSort } from "./hrsheet";
 
 /**
@@ -10,9 +11,23 @@ import { Fill, SortTh, sorted, useSort } from "./hrsheet";
  * 見たいのは「このコースは何名ほしくて、何名採れて、応募は来ているか」なので、
  * コースごとに 応募 / 採用 の2列を並べて置く。
  * 応募はジョブオプ、採用は採用チームのExcel。出どころが違うことは見出しの下に書く。
+ *
+ * 掲載ステータスを取り込んでいると、**有料で出している枠に色が付く**。
+ * 同じ「応募0」でも、無料掲載なら当たり前、有料なら求人そのものを疑う話になるので、
+ * 表の上で区別が付かないと打ち手を間違える。
  */
 
 const cell = "px-2 py-1 text-xs tabular whitespace-nowrap";
+
+/**
+ * 有料掲載のマスの背景。
+ *
+ * 有料で応募が来ているぶんは「払っているだけの効果が出ている」ので薄い青、
+ * 有料なのに応募0は手を打つ対象なので赤にする。無料と空欄には色を付けない
+ * （色が付いているマスだけを見れば、お金が出ている枠が分かる状態にする）。
+ */
+const PAID_BG = "color-mix(in srgb, var(--series-1) 14%, transparent)";
+const PAID_EMPTY_BG = "color-mix(in srgb, var(--status-critical) 16%, transparent)";
 /**
  * 列幅。合計が表の幅より狭いぶんは、ブラウザが全列に均して配ってくれる。
  * 校舎名の列にだけ余りを寄せると、校舎名と最初の数字が離れて読みにくくなる。
@@ -31,7 +46,7 @@ interface Group {
   of: (row: CourseFillRow) => CourseFillCell;
 }
 
-export function CourseFillTable({ fill }: { fill: CourseFill }) {
+export function CourseFillTable({ fill, posting = null }: { fill: CourseFill; posting?: PostingIndex | null }) {
   const sort = useSort<Key>();
   if (fill.rows.length === 0) return null;
 
@@ -100,14 +115,32 @@ export function CourseFillTable({ fill }: { fill: CourseFill }) {
   const bodyCells = (r: CourseFillRow, emphasize: boolean) =>
     groups.flatMap((g) => {
       const c = g.of(r);
+      // 掲載ステータスは校舎 × コースに付くので、合計の列と合計行には色を付けない
+      const post = posting && g.key !== "total" && r.key !== "(合計)" ? posting.at(r.key, g.key as HrCategory) : null;
+      const paid = post?.state === "paid";
+      const background = paid ? (c.applied === 0 ? PAID_EMPTY_BG : PAID_BG) : undefined;
+      const note = post
+        ? `${POSTING_LABEL[post.state]}掲載中${
+            post.columns.length > 0
+              ? `（${post.columns.map((x) => `${x.label}: ${POSTING_LABEL[x.state]}`).join(" / ")}）`
+              : ""
+          }${paid && c.applied === 0 ? " ／ 応募0。求人の内容を見直す対象です。" : ""}`
+        : undefined;
+
       return [
-        <td key={`${g.key}:applied`} className={`${cell} text-center`} style={groupBorder}>
+        <td
+          key={`${g.key}:applied`}
+          className={`${cell} text-center`}
+          style={{ ...groupBorder, background }}
+          title={note}
+        >
           <Applied n={c.applied} muted={g.key === "none"} />
         </td>,
         <td
           key={`${g.key}:hired`}
           className={`${cell} text-center`}
-          style={{ fontWeight: (emphasize || g.key === "total") && g.key !== "none" ? 600 : 400 }}
+          style={{ fontWeight: (emphasize || g.key === "total") && g.key !== "none" ? 600 : 400, background }}
+          title={note}
         >
           {g.key === "total" ? <Total r={r} /> : <Hired c={c} muted={g.key === "none"} />}
         </td>,

@@ -58,6 +58,8 @@ export function DataMenu({
   hrSheetInfo,
   onUploadPlacement,
   placementInfo,
+  onUploadPosting,
+  postingInfo,
   onImportBackup,
   onExportBackup,
   onExportWorkbook,
@@ -77,6 +79,9 @@ export function DataMenu({
   hrSheetInfo: { sourceFileName: string; importedAt: string; rows: number } | null;
   onUploadPlacement: (file: File) => void;
   placementInfo: { sheetName: string; importedAt: string; rows: number } | null;
+  /** 求人の掲載ステータス（校舎 × コースの有料 / 無料） */
+  onUploadPosting: (file: File) => void;
+  postingInfo: { sheetName: string; importedAt: string; shops: number; paid: number } | null;
   onImportBackup: (file: File) => void;
   onExportBackup: () => void;
   onExportWorkbook: () => void;
@@ -149,6 +154,17 @@ export function DataMenu({
               {placementInfo
                 ? `${placementInfo.rows}校舎を取り込み済み（${placementInfo.sheetName} ／ ${fmt(placementInfo.importedAt)}）。採用のゴールはここの不足数が全部0になることです。`
                 : "校舎 × 分野 × 時間帯の不足が入っている表。「一般充足」シートを読みます。"}
+            </p>
+            <FilePicker
+              label="掲載ステータス（有料/無料）を取り込む"
+              accept=".xls,.xlsx,.csv"
+              onPick={onUploadPosting}
+              block
+            />
+            <p className="px-0.5 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              {postingInfo
+                ? `${postingInfo.shops}校舎・有料${postingInfo.paid}枠を取り込み済み（${postingInfo.sheetName} ／ ${fmt(postingInfo.importedAt)}）。有料のマスに「校舎 × コースの応募と採用」で色が付きます。`
+                : "校舎 × コースに「有料」「無料」が入っている表。有料なのに応募0の枠に色を付けます。"}
             </p>
             <FilePicker
               label="採用管理表（Excel）を取り込む"

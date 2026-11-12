@@ -72,11 +72,38 @@ test("氏名・年齢・性別は読み取らない", () => {
     "hired",
     "hiredDate",
     "interviewDate",
+    "outcome",
     "receivedDate",
     "shopShortName",
     "slots",
     "status",
   ]);
+});
+
+test("面接結果の文字は保存せず、判定だけを持つ", () => {
+  // V列は手書きの所見で、社内の人の名前が書かれていることがある。
+  // この画面はURLを知っていれば開けるので、文字をそのまま持ち出さない。
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet([
+      {
+        応募日時: "2026/10/01(木) 10:00",
+        スクール: "栄校",
+        分野: "IT",
+        ステータス: "面接実施済",
+        面接日: "2026/10/08",
+        面接結果: "採用候補（岡田さん確認待ち）",
+      },
+    ]),
+    "元データ"
+  );
+  const sheet = parseHrSheet("テスト.xlsx", XLSX.write(wb, { type: "array", bookType: "xlsx" }) as ArrayBuffer);
+  const dumped = JSON.stringify(sheet);
+  assert.equal(dumped.includes("岡田"), false);
+  assert.equal(dumped.includes("採用候補"), false);
+  // 「採用候補」はまだ決まっていないので検討中
+  assert.equal(sheet.rows[0].outcome, "pending");
 });
 
 test("採用とみなすのは「合格」「採用」だけ", () => {

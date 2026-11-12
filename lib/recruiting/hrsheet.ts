@@ -60,6 +60,15 @@ export interface HrRow {
   status: string;
   /** 「面接結果2」列。採用 / 不採用 / 辞退 / 不合格。採否はこちらで決まる。 */
   decision?: string;
+  /**
+   * 面接の結果（内定 / 見送り / 辞退 / 検討中）。
+   *
+   * 「面接結果」列（V列）は手書きの所見で「採用（岡田さん確認）」のように
+   * 社内の人名が書かれていることがある。この画面はURLを知っていれば開けるので、
+   * **文字はそのまま持たず、取り込むときに判定だけに変える**。
+   * 列が増える前に取り込んだデータには無いので、読むときは必ず outcomeOf を通す。
+   */
+  outcome?: InterviewOutcome;
   /** 採用日（YYYY-MM-DD）。「（採用日）」列。読めなければ null。 */
   hiredDate?: string | null;
   /** 面接日（YYYY-MM-DD）。「面接日」列。読めなければ null。 */
@@ -167,6 +176,59 @@ export function courseCategory(raw: string): HrCategory {
  * 無ければ分野から作り直す。
  */
 /** 画面に出す採否。面接結果2があればそれ、無ければステータス。 */
+/**
+ * 面接の結果。週ごとの面接数・内定数・合格率を出すために、1行を4つのどれかに振る。
+ *
+ * 結果が書かれる場所は3つあり、確かな順に 面接結果2（AA） → ステータス（I） → 面接結果（V）。
+ * 面接結果2 が入るのは最後なので、そこだけ見ると直近の週が全部「検討中」になってしまう。
+ * 逆に面接結果（V）は手書きの所見で「不採用＞採用」のように書き換えも入るので、
+ * 矢印があれば最後に書かれたほうを採る。
+ *
+ * 「採用候補」「相談」は**まだ決まっていない**ので検討中に入れる。
+ * 決まっていないものを内定に混ぜると合格率が実態より良く見える。
+ */
+export type InterviewOutcome = "hired" | "rejected" | "declined" | "pending";
+
+export const INTERVIEW_OUTCOME_LABEL: Record<InterviewOutcome, string> = {
+  hired: "内定",
+  rejected: "見送り",
+  declined: "辞退",
+  pending: "検討中・不明",
+};
+
+/** 「不採用＞採用」のような書き換えは、矢印の右（最後に書かれたほう）を見る */
+function latest(raw: string): string {
+  const parts = raw.split(/[＞>→⇒]/);
+  return (parts[parts.length - 1] ?? "").trim();
+}
+
+function outcomeOfText(raw: string): InterviewOutcome | null {
+  const t = latest(raw).replace(/[\s　]/g, "");
+  if (!t) return null;
+  if (t.includes("辞退")) return "declined";
+  // 「採用候補」「不採用候補」はまだ決まっていない
+  if (t.includes("候補")) return "pending";
+  if (/不採用|不合格|見送/.test(t)) return "rejected";
+  if (/採用|合格|内定/.test(t)) return "hired";
+  return null;
+}
+
+/** 3つの列を確かな順に見て、1つの判定にする */
+function outcomeFrom(decision: string, status: string, result: string): InterviewOutcome {
+  return (
+    outcomeOfText(decision) ??
+    outcomeOfText(status === "(未記入)" ? "" : status) ??
+    outcomeOfText(result) ??
+    "pending"
+  );
+}
+
+export function outcomeOf(row: HrRow): InterviewOutcome {
+  // 画面の他の場所の「採用」と数がずれないよう、採用の判定は hired（面接結果2・ステータス）に合わせる
+  if (row.hired) return "hired";
+  return row.outcome ?? outcomeFrom(row.decision ?? "", row.status, "");
+}
+
 export function decisionOf(row: HrRow): string {
   return row.decision || row.status;
 }
@@ -217,6 +279,7 @@ export function parseHrSheet(fileName: string, buf: ArrayBuffer): HrSheet {
     }
     const status = text(r["ステータス"]);
     const decision = text(r["面接結果2"]);
+    const result = text(r["面接結果"]);
     const raw = String(r["分野"] ?? "");
     const receivedDate = dateOf(String(r["応募日時"] ?? ""));
     rows.push({
@@ -225,6 +288,7 @@ export function parseHrSheet(fileName: string, buf: ArrayBuffer): HrSheet {
       category: courseCategory(raw),
       status: status || "(未記入)",
       decision: decision || undefined,
+      outcome: outcomeFrom(decision, status, result),
       hiredDate: afterDateOf(String(r["（採用日）"] ?? r["採用日"] ?? ""), receivedDate),
       interviewDate: afterDateOf(String(r["面接日"] ?? ""), receivedDate),
       hired: isHired(status, decision),

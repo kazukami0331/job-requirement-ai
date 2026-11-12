@@ -36,11 +36,13 @@ import {
   loadHrSheet,
   loadPlacement,
   loadPlan,
+  loadPosting,
   loadProjectStart,
   saveGoalWindow,
   saveHrSheet,
   savePlacement,
   savePlan,
+  savePosting,
   saveProjectStart,
   saveSnapshot,
   setSharedAt,
@@ -57,6 +59,9 @@ import { DataMenu } from "@/components/dashboard/DataPanel";
 import { HR_CATEGORY_LABEL, HrSheet, compareWithJobop, crossTab, parseHrSheet, planTargets } from "@/lib/recruiting/hrsheet";
 import { hireDiffDetail } from "@/lib/recruiting/hrdiff";
 import { PlacementSheet, parsePlacementSheet } from "@/lib/recruiting/placement";
+import { PostingSheet, paidGaps, parsePostingSheet, postingIndex } from "@/lib/recruiting/posting";
+import { interviewWeeks } from "@/lib/recruiting/interview";
+import { InterviewWeeklyTable } from "@/components/dashboard/interview";
 import { hireMatrix, staffing } from "@/lib/recruiting/staffing";
 import { HireMatrixTable, SlotSummary, StaffingTable } from "@/components/dashboard/staffing";
 import { HrCategoryNote, HrCompareTable } from "@/components/dashboard/hrsheet";
@@ -177,6 +182,8 @@ export default function DashboardPage() {
   // 採用チームが作っている採用管理表（Excel）。コース別の集計に使う。
   const [hrSheet, setHrSheet] = useState<HrSheet | null>(null);
   const [placement, setPlacement] = useState<PlacementSheet | null>(null);
+  // 求人の掲載ステータス（有料 / 無料）。有料なのに応募0の枠に色を付けるために使う。
+  const [posting, setPosting] = useState<PostingSheet | null>(null);
   const [message, setMessage] = useState<Message>(null);
   const [loading, setLoading] = useState(true);
   const [dimension, setDimension] = useState<Dimension>("shopShortName");
@@ -222,18 +229,20 @@ export default function DashboardPage() {
 
         // 公開データが無いときだけ、同梱してある受領済みデータを入れる
         const seeded = remote?.data ? false : await loadSeedIfEmpty();
-        const [s, p, w, start, hr, pl] = await Promise.all([
+        const [s, p, w, start, hr, pl, po] = await Promise.all([
           listSnapshots(),
           loadPlan(),
           loadGoalWindow(),
           loadProjectStart(),
           loadHrSheet(),
           loadPlacement(),
+          loadPosting(),
         ]);
         setSnapshots(s);
         setPlan(p);
         setHrSheet(hr);
         setPlacement(pl);
+        setPosting(po);
         // 一度選んだ按分期間は覚えておく。開くたびに目標が割り直されると計画にならない。
         if (w) setGoalWindow(w);
         if (start) setProjectStart(start);
@@ -559,6 +568,30 @@ export default function DashboardPage() {
     });
   }, [placement, hrSheet, periodFrom, shopFilter]);
 
+  /**
+   * 掲載ステータスを校舎 × コースで引ける形にしたもの。
+   * 取り込んでいないときは null で、表に色は付かない。
+   */
+  const postIdx = useMemo(() => postingIndex(posting), [posting]);
+
+  /** 有料で出しているのに応募0の枠。これが「求人を直す」対象。 */
+  const paid = useMemo(() => (postIdx ? paidGaps(fill, postIdx) : null), [fill, postIdx]);
+
+  /**
+   * 週ごとの面接数・内定数・合格率（採用管理表の 面接日 / ステータス / 面接結果 / 面接結果2）。
+   * 校舎の絞り込みと期間はこの画面の指定に合わせる。
+   */
+  const interviewStats = useMemo(() => {
+    const shopKey = shopFilter === "すべて" ? null : normalizeShopKey(shopFilter);
+    return interviewWeeks(hrSheet, {
+      from: periodFrom,
+      // 校舎の絞り込みは他の表と同じ条件にする。ここだけ全校舎にすると、
+      // 同じ画面の採用数と内定数が別の母数になって読み比べられない。
+      include: (key) =>
+        (shopKey ? key === shopKey : true) && (scope === "all" || !masterKeys || masterKeys.has(key)),
+    });
+  }, [hrSheet, periodFrom, shopFilter, scope, masterKeys]);
+
   const handleUploadApplications = useCallback(async (file: File) => {
     try {
       const snapshot = buildSnapshot(file.name, await readFile(file));
@@ -652,15 +685,54 @@ export default function DashboardPage() {
     }
   }, []);
 
+  /**
+   * 掲載ステータス（有料 / 無料）を読み込む。
+   * 校舎 × コースのマス目だけを読み、求人票の中身は持たない。
+   */
+  const handleUploadPosting = useCallback(async (file: File) => {
+    try {
+      const sheet = parsePostingSheet(file.name, await readFile(file));
+      if (sheet.rows.length === 0) {
+        setMessage({
+          kind: "error",
+          text: "掲載ステータスを読み取れませんでした。校舎の列と、コースごとの列（IT / Webデザイン / CAD など）に「有料」「無料」が入っているか確認してください。",
+        });
+        return;
+      }
+      await savePosting(sheet);
+      setPosting(sheet);
+      setSection("goal");
+      const total = sheet.rows.reduce(
+        (a, r) => a + Object.values(r.byCategory).filter((c) => c?.state === "paid").length,
+        0
+      );
+      setMessage({
+        kind: "info",
+        text: `掲載ステータス（${sheet.sheetName}）から${sheet.rows.length}校舎を取り込みました。有料は${total}枠です。「校舎 × コースの応募と採用」で有料のマスに色が付きます。${
+          sheet.unknownColumns.length > 0 ? `読めなかった列: ${sheet.unknownColumns.join("・")}` : ""
+        }`,
+      });
+    } catch (e) {
+      setMessage({ kind: "error", text: `取り込みに失敗しました: ${e instanceof Error ? e.message : String(e)}` });
+    }
+  }, []);
+
   const handleImportBackup = useCallback(async (file: File) => {
     try {
       const backup = JSON.parse(await file.text());
       const result = await importBackup(backup);
-      const [s, p, hr, pl] = await Promise.all([listSnapshots(), loadPlan(), loadHrSheet(), loadPlacement()]);
+      const [s, p, hr, pl, po] = await Promise.all([
+        listSnapshots(),
+        loadPlan(),
+        loadHrSheet(),
+        loadPlacement(),
+        loadPosting(),
+      ]);
       setSnapshots(s);
       setPlan(p);
       setHrSheet(hr);
       setPlacement(pl);
+      setPosting(po);
       setMessage({ kind: "info", text: `${result.snapshots}件のスナップショットを復元しました。` });
     } catch (e) {
       setMessage({ kind: "error", text: `復元に失敗しました: ${e instanceof Error ? e.message : String(e)}` });
@@ -826,6 +898,17 @@ export default function DashboardPage() {
             plan={plan}
             onUploadApplications={handleUploadApplications}
             onUploadPlan={handleUploadPlan}
+            onUploadPosting={handleUploadPosting}
+            postingInfo={
+              posting
+                ? {
+                    sheetName: posting.sheetName,
+                    importedAt: posting.importedAt,
+                    shops: posting.rows.length,
+                    paid: postIdx?.paid ?? 0,
+                  }
+                : null
+            }
             onUploadPlacement={handleUploadPlacement}
             placementInfo={
               placement
@@ -1281,7 +1364,28 @@ export default function DashboardPage() {
               subtitle="コースごとに「応募」と「採用 / 目標」を並べています。埋まっていない枠が多く、応募も来ていない校舎から並びます。見出しを押すと並び替わります。"
             >
               <div className="space-y-4">
-                <CourseFillTable fill={fill} />
+                {/* 有料で出しているのに応募0の枠。ここが求人を直す対象。 */}
+                {paid && (
+                  <p
+                    className="rounded-lg px-2.5 py-2 text-xs leading-relaxed"
+                    style={{
+                      background: paid.gaps.length > 0 ? "color-mix(in srgb, var(--status-critical) 10%, transparent)" : "var(--background)",
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    有料掲載は<strong style={{ color: "var(--text-primary)" }}>{paid.paid}枠</strong>。
+                    {paid.gaps.length > 0 ? (
+                      <>
+                        そのうち<strong style={{ color: "var(--status-critical)" }}>応募0が{paid.gaps.length}枠</strong>です（
+                        {paid.gaps.map((g) => g.label).join("・")}）。お金が出ているのに応募が来ていないので、
+                        求人の内容・条件・掲載エリアを見直す対象です。
+                      </>
+                    ) : (
+                      <>有料の枠はすべて応募が来ています。</>
+                    )}
+                  </p>
+                )}
+                <CourseFillTable fill={fill} posting={postIdx} />
                 <ul className="space-y-1 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
                   <li>
                     <strong style={{ color: "var(--text-primary)" }}>応募</strong> … ジョブオプ。コースは求人の職種名から判定します。
@@ -1315,6 +1419,24 @@ export default function DashboardPage() {
                     {hrSheet ? ` ／ 取り込み ${hrSheet.rows.length}行（${hrSheet.sourceFileName}）` : ""}。
                   </li>
                 </ul>
+                {postIdx ? (
+                  <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                    マスの背景 … <strong style={{ color: "var(--text-primary)" }}>青</strong>は有料で掲載中かつ応募あり、
+                    <strong style={{ color: "var(--status-critical)" }}>赤</strong>は有料なのに応募0。
+                    無料掲載と掲載なしには色を付けていません（色が付いているマスが、お金の出ている枠です）。
+                    マスにカーソルを置くと、どの求人が有料かが出ます。
+                    {posting ? ` ／ 掲載ステータス ${posting.rows.length}校舎（${posting.sourceFileName}）` : ""}
+                    {posting && posting.unknownColumns.length > 0
+                      ? ` ／ コースに結び付けられなかった列: ${posting.unknownColumns.join("・")}`
+                      : ""}
+                  </p>
+                ) : (
+                  <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                    掲載ステータス（校舎 × コースの有料 / 無料）を取り込むと、
+                    <strong>有料のマスに色が付きます</strong>。有料なのに応募0の枠が一目で分かるようになります。
+                    右上の「その他」→「掲載ステータス（有料/無料）を取り込む」から選んでください。
+                  </p>
+                )}
                 <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
                   色 … <strong style={{ color: "var(--status-good)" }}>緑</strong>はそのコースが埋まった、
                   <strong style={{ color: "var(--status-critical)" }}>赤</strong>はまだ0名。
@@ -1364,6 +1486,50 @@ export default function DashboardPage() {
 
           {/* 内訳。軸をひとつ選んで、週の動きと選考の進み具合を続けて見る。 */}
           <div className={`space-y-4 sm:space-y-5 ${section === "breakdown" ? "" : "hidden sm:block"}`}>
+            {/* 面接してから先の歩留まり。応募が増えても面接に進まなければ採用は増えない。 */}
+            <Card
+              title="週ごとの面接と内定"
+              subtitle="採用管理表の面接日で週に分けています。まだ結果が出ていない面接は「検討中・不明」に置き、内定にも見送りにも混ぜていません。"
+            >
+              {interviewStats && interviewStats.rows.length > 0 ? (
+                <div className="space-y-3">
+                  <InterviewWeeklyTable stats={interviewStats} />
+                  <ul className="space-y-1 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                    <li>
+                      <strong style={{ color: "var(--text-primary)" }}>面接</strong> …
+                      採用管理表の<strong>面接日</strong>がその週に入っている人数。
+                      面接日が空の{interviewStats.noDate}行は数えていません（まだ面接していない人・未記入）。
+                      {interviewStats.upcoming > 0 && `うち${interviewStats.upcoming}件は今日より先の予定です。`}
+                    </li>
+                    <li>
+                      <strong style={{ color: "var(--text-primary)" }}>結果</strong> …
+                      <strong>面接結果2</strong>（AA列）→<strong>ステータス</strong>（I列）→
+                      <strong>面接結果</strong>（V列）の順に見ます。面接結果2は最後に入るので、
+                      そこだけ見ると直近の週が全部「検討中」になってしまうためです。
+                      「採用候補」「相談」は<strong>まだ決まっていない</strong>ので検討中に入れています。
+                    </li>
+                    <li>
+                      <strong style={{ color: "var(--text-primary)" }}>合格率</strong> …
+                      内定 ÷（内定＋見送り）。<strong>辞退と検討中は分母に入れていません</strong>
+                      （辞退は本人の都合、検討中はまだ結果が出ていないため）。
+                      面接数を分母にした率は、各行の合格率にカーソルを置くと出ます。
+                    </li>
+                    <li>
+                      {periodFrom ? `対象は${j(periodFrom)}以降の面接` : "対象は全期間の面接"}
+                      {interviewStats.excluded > 0 ? `（期間・対象校舎の条件で${interviewStats.excluded}行を除外）` : ""}
+                      {shopFilter !== "すべて" ? ` ／ ${shopFilter}のみ` : ""}。
+                    </li>
+                  </ul>
+                </div>
+              ) : (
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {hrSheet
+                    ? "この期間・校舎に、面接日が入っている行がありません。"
+                    : "採用管理表（Excel）が未取り込みのため出せません。右上の「その他」→「採用管理表（Excel）を取り込む」から選んでください。"}
+                </p>
+              )}
+            </Card>
+
             {/* 軸の切り替えは、表のすぐ上（カードの見出し）に置く。状態は2枚で共通。 */}
             <Card
               title={`${DIMENSION_LABEL[dimension]}ごとの選考状況`}
