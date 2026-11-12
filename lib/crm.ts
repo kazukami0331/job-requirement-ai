@@ -254,7 +254,7 @@ export async function computeAnalytics(staff: Staff[]) {
       ...(everIn.get(key) ?? []),
       ...ids.filter((id) => candBy.get(id)?.status === key),
     ]).size,
-  }));
+  })).filter((e) => e.key !== "closed" || e.ever > 0); // 旧ステータスは使われているときだけ
 
   // 時間帯別の接続率
   const bands = HOUR_BANDS.map((b) => ({ ...b, calls: 0, connected: 0 }));

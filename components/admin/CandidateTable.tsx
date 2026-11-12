@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { quickUpdateCandidate } from "@/app/admin/actions";
 import type { CandidateRow } from "@/lib/swipeAdmin";
-import { EXCLUDED, STATUSES, statusInfo } from "@/lib/crmConstants";
+import { EXCLUDED, selectableStatuses, STATUSES, statusInfo } from "@/lib/crmConstants";
 import { Avatar } from "@/components/admin/bits";
 
 type Row = CandidateRow & {
@@ -107,7 +107,7 @@ export default function CandidateTable({ rows, staff, meId }: { rows: Row[]; sta
         />
         <select value={status} onChange={(e) => setStatus(e.target.value)} className={sel}>
           <option value="all">ステータス：すべて（除外以外）</option>
-          {STATUSES.map((s) => (
+          {STATUSES.filter((s) => !("legacy" in s) || countBy(s.key) > 0).map((s) => (
             <option key={s.key} value={s.key}>{s.label}（{countBy(s.key)}）</option>
           ))}
         </select>
@@ -168,7 +168,7 @@ export default function CandidateTable({ rows, staff, meId }: { rows: Row[]; sta
                       onChange={(e) => save(r.id, { status: e.target.value })}
                       className={`cursor-pointer rounded-full border-0 py-1 pl-2.5 pr-7 text-xs font-semibold ${st.tone}`}
                     >
-                      {STATUSES.map((s) => (
+                      {selectableStatuses(r.status).map((s) => (
                         <option key={s.key} value={s.key}>{s.label}</option>
                       ))}
                     </select>

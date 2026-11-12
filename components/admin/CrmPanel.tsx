@@ -1,7 +1,7 @@
 import { addActivity, deleteActivity, updateCandidate } from "@/app/admin/actions";
 import type { Staff } from "@/lib/auth";
 import type { Activity, CrmCandidate, StatusChange } from "@/lib/crm";
-import { CALL_RESULTS, callResultLabel, STATUSES, statusInfo } from "@/lib/crmConstants";
+import { CALL_RESULTS, callResultLabel, selectableStatuses, statusInfo } from "@/lib/crmConstants";
 import { formatJst } from "@/lib/swipeAdmin";
 import { randomUUID } from "node:crypto";
 import SubmitButton from "@/components/admin/SubmitButton";
@@ -67,7 +67,7 @@ export default function CrmPanel({
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ステータス</span>
                 <select name="status" defaultValue={status} className={inputCls}>
-                  {STATUSES.map((s) => (
+                  {selectableStatuses(status).map((s) => (
                     <option key={s.key} value={s.key}>{s.label}</option>
                   ))}
                 </select>
