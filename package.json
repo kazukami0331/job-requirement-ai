@@ -12,10 +12,12 @@
     "test": "npm run test:gas && npm run test:dashboard"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.7.0",
     "@vercel/blob": "^2.8.0",
     "next": "^16.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "server-only": "^0.0.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

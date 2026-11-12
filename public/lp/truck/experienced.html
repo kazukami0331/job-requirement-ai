@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ドライバーJob トラック経験者</title>
+<meta name="description" content="トラックドライバー経験者のための、AIを活用した求人マッチング。持っている免許・希望の運行で求人をスワイプ。AIが条件に合う会社を提案し、応募動機も作成。在籍中でもスマホだけで転職活動が進められます。無料。">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="sw.css?v=20261104-3">
+</head>
+<body>
+
+<div class="demo-bar">このページは提案用のデモです。フォームに入力した内容は送信されません。</div>
+
+<header>
+  <div class="wrap hd">
+    <a class="logo" href="#top" aria-label="ドライバーJob">
+      <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h11v10H2z"/><path d="M13 9h4l4 4v3h-8z" fill="#F5822E" stroke="#F5822E"/><circle cx="6" cy="17.5" r="1.8" fill="#fff"/><circle cx="17" cy="17.5" r="1.8" fill="#fff"/></svg></span>
+      <span>ドライバーJob<small>トラックドライバーの転職｜villio</small></span>
+    </a>
+    <button type="button" class="btn" data-open-lead data-cta="header_primary">無料で申し込む</button>
+  </div>
+</header>
+
+<main>
+<section class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div class="hero-copy fadein">
+      <div class="hero-pills">
+        <span class="pill strong"><svg viewBox="0 0 24 24" fill="none" stroke="#16233A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h11v10H2z"/><path d="M13 9h4l4 4v3h-8z"/></svg>トラックドライバー<b>特化</b></span>
+        <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="#E94E5E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>大型・けん引を<b>活かせる求人</b></span>
+      </div>
+      <h1><span>スワイプするだけ。</span><span><span class="mk">AIが良い会社を見つける。</span></span></h1>
+      <p class="sub"><span class="nb em"><span class="kp">在籍中でも、スマホだけで。</span><span class="kp">面談の日程調整はいりません。</span></span></p>
+      <button type="button" class="btn" data-open-lead data-cta="hero_form"><span>無料で申し込む（60秒）</span></button>
+      <div class="fields" aria-label="対象の仕事">
+        <span class="fld"><img src="images/delivery.jpg" alt=""><b>ルート配送</b></span>
+        <span class="fld"><img src="images/fleet.jpg" alt=""><b>地場・中距離</b></span>
+        <span class="fld"><img src="images/highway.jpg" alt=""><b>長距離・幹線</b></span>
+        <span class="fld"><img src="images/team.jpg" alt=""><b>大型・トレーラー</b></span>
+      </div>
+    </div>
+    <div class="hero-photo fadein">
+      <img src="images/hero.jpg" alt="トラックの運転席で笑顔を見せるドライバー" width="1400" height="933" fetchpriority="high">
+      <div class="seal" role="img" aria-label="支援実績 1,500回以上"><span class="sl-label">支援実績</span><span class="sl-num">1,500</span><span class="sl-unit">回以上</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="diff" id="diff">
+  <div class="wrap">
+    <h2><span class="sub">DIFFERENCE</span>普通の転職エージェントとの違い</h2>
+    <p class="lead2">パソコンも、職務経歴書も、平日日中の面談もいりません。<br>AIが求人探しと書類づくりを手伝うので、ドライバーの方でもスマホだけで応募まで進めます。</p>
+    <div class="vs">
+      <div class="vcol old">
+        <h3>一般的な転職エージェント<span class="tg">人が中心</span></h3>
+        <ol class="vsteps">
+          <li><span><b>平日日中に電話面談</b><small>1時間ほど時間を取って、経歴と希望を話す</small></span></li>
+          <li><span><b>職務経歴書をパソコンで作る</b><small>書き方がわからず、ここで止まりがち</small></span></li>
+          <li><span><b>担当者からの求人紹介を待つ</b><small>紹介されるのは担当者が選んだ数件だけ</small></span></li>
+          <li><span><b>応募ごとに志望動機を書く</b><small>1社ずつ文章を考える</small></span></li>
+        </ol>
+        <div class="vend">応募まで、数日〜数週間</div>
+      </div>
+      <div class="vcol new">
+        <h3>ドライバーJob<span class="tg">AIを活用</span></h3>
+        <ol class="vsteps">
+          <li><span><b>希望の条件をタップで選ぶ</b><small>免許、勤務地、「毎日帰りたい」などを選ぶだけ</small></span></li>
+          <li><span><b>求人をスワイプ</b><small>気になる求人に“いいね”。1件数秒、休憩中でもOK</small></span></li>
+          <li><span><b>AIがあなたに合う求人を提案</b><small>“いいね”の傾向から、条件の近い求人を見つける</small></span></li>
+          <li><span><b>AIが応募動機を作って、ワンタップで応募</b><small>文章は確認して、必要なら直すだけ</small></span></li>
+        </ol>
+        <div class="vend">スマホだけで、すき間時間に応募まで</div>
+      </div>
+    </div>
+    <div class="cmp">
+      <table>
+        <thead><tr><th></th><th class="us">ドライバーJob（AI）</th><th class="them">一般的な転職エージェント</th></tr></thead>
+        <tbody>
+          <tr><th>必要なもの</th><td class="us">スマホだけ</td><td class="them">パソコン・職務経歴書</td></tr>
+          <tr><th>使う時間</th><td class="us">荷待ち・休憩・帰宅後など、好きな時間に</td><td class="them">平日日中の面談・電話</td></tr>
+          <tr><th>求人の見つけ方</th><td class="us">自分でスワイプ＋AIが好みを学んで提案</td><td class="them">担当者が選んだ求人の紹介を待つ</td></tr>
+          <tr><th>応募書類</th><td class="us">AIが求人ごとに応募動機を作成</td><td class="them">自分で一から作成</td></tr>
+          <tr><th>人への相談</th><td class="us">必要なときだけ、専任アドバイザーに相談できる</td><td class="them">最初から面談が必須</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="features" id="features">
+  <div class="wrap">
+    <h2><span class="sub">FEATURES</span>特徴</h2>
+    <div class="fcards">
+
+      <article class="fcard t1 fadein">
+        <div class="ftx">
+          <div class="fidx">01 / 4</div>
+          <h3>条件を選んで、<br>スワイプするだけ</h3>
+          <p>持っている免許と希望の運行を選ぶだけ。<b>「毎日帰りたい」「手積み・手降ろしをなくしたい」「大型・けん引を活かして年収を上げたい」</b>など、経験者ならではの条件で探せます。</p>
+        </div>
+        <div class="fvi" aria-hidden="true"><div class="phone fp"><div class="scr"><div class="ah"><span class="alogo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16233A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h11v10H2z"/><path d="M13 9h4l4 4v3h-8z" fill="#F5822E" stroke="#F5822E"/><circle cx="6" cy="17.5" r="1.8" fill="#fff"/><circle cx="17" cy="17.5" r="1.8" fill="#fff"/></svg>ドライバーJob</span><span class="filt"><svg viewBox="0 0 24 24" fill="none" stroke="#16233A" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2.5" fill="#fff"/><circle cx="15" cy="17" r="2.5" fill="#fff"/></svg></span></div><div class="stack"><article class="jc c3"><div class="jh"><span class="jtag">ルート配送</span><h3 class="jt">中型トラックのルート配送</h3><p class="js">&lt;愛知/面接1回&gt;日勤のみ／土日休み</p><div class="jco"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h2M13 16h2"/></svg>総合物流会社</div></div><div class="jb"><div class="jsal"><span class="ico">¥</span><div><small>想定年収</small><b>420万円〜520万円</b></div></div><div class="jinfo"><div><small><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg>勤務地</small><b>愛知県 小牧市</b></div><div><small><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M2 6h11v10H2z"/><path d="M13 9h4l4 4v3h-8z"/></svg>車両</small><b>4t</b></div></div><div class="jtags"><span>日勤のみ</span><span>土日休み</span><span>残業少なめ</span><span>賞与年2回</span></div><p class="jdesc">決まった取引先を回るルート配送です。荷物はカゴ台車で運びます。</p><div class="jmore">タップして詳細を見る ›</div></div></article><article class="jc c2"><div class="jh"><span class="jtag">トレーラー</span><h3 class="jt">海上コンテナのトレーラー輸送</h3><p class="js">&lt;静岡/面接1回&gt;けん引免許を活かす／港湾輸送</p><div class="jco"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h2M13 16h2"/></svg>港湾物流会社</div></div><div class="jb"><div class="jsal"><span class="ico">¥</span><div><small>想定年収</small><b>500万円〜700万円</b></div></div><div class="jinfo"><div><small><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg>勤務地</small><b>静岡県 静岡市</b></div><div><small><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M2 6h11v10H2z"/><path d="M13 9h4l4 4v3h-8z"/></svg>車両</small><b>トレーラー</b></div></div><div class="jtags"><span>けん引免許</span><span>日帰り中心</span><span>賞与年2回</span><span>退職金あり</span></div><p class="jdesc">港のコンテナを工場や倉庫へ運ぶトレーラー輸送です。日帰りの運行が中心です。</p><div class="jmore">タップして詳細を見る ›</div></div></article><article class="jc c1"><span class="stamp">いいね</span><div class="jh"><span class="jtag">地場輸送</span><h3 class="jt">大型ウイング車の地場輸送（日帰り）</h3><p class="js">&lt;静岡/面接1回&gt;大型免許を活かす／手積みなし／毎日帰宅</p><div class="jco"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h2M13 16h2"/></svg>大手物流グループ</div></div><div class="jb"><div class="jsal"><span class="ico">¥</span><div><small>想定年収</small><b>480万円〜620万円</b></div></div><div class="jinfo"><div><small><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg>勤務地</small><b>静岡県 静岡市</b></div><div><small><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M2 6h11v10H2z"/><path d="M13 9h4l4 4v3h-8z"/></svg>車両</small><b>大型10tウイング</b></div></div><div class="jtags"><span>毎日帰宅</span><span>手積みなし</span><span>大型手当</span><span>土日休み</span></div><p class="jdesc">物流センターと工場をつなぐ日帰りの地場輸送です。パレット積みが中心で、手積み・手降ろしはありません。</p><div class="jmore">タップして詳細を見る ›</div></div></article></div><div class="ph-act"><span class="no">✕</span><span class="doc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M9 13h7M9 17h7"/></svg></span><span class="yes">♥</span></div><div class="atab"><span class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>ホーム</span><span class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18.5 9l-4.7 1.4L12 15l-1.8-4.6L5.5 9l4.7-1.4z"/><path d="M18 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>AIのおすすめ</span><span class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M9 13h7M9 17h7"/></svg>応募<i>2</i></span><span class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>マイページ</span></div></div></div></div>
+      </article>
+
+      <article class="fcard t2 fadein">
+        <div class="ftx">
+          <div class="fidx">02 / 4</div>
+          <h3>AIが、あなたに合う<br>求人を提案</h3>
+          <p>“いいね”した求人の傾向から、AIが<b>あなたが大事にしている条件を読み取り、近い求人を提案</b>します。自分では検索しきれない求人にも出会えます。</p>
+        </div>
+        <div class="fvi" aria-hidden="true"><div class="phone fp"><div class="scr"><div class="ah"><span class="alogo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16233A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h11v10H2z"/><path d="M13 9h4l4 4v3h-8z" fill="#F5822E" stroke="#F5822E"/><circle cx="6" cy="17.5" r="1.8" fill="#fff"/><circle cx="17" cy="17.5" r="1.8" fill="#fff"/></svg>ドライバーJob</span><span class="filt"><svg viewBox="0 0 24 24" fill="none" stroke="#16233A" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2.5" fill="#fff"/><circle cx="15" cy="17" r="2.5" fill="#fff"/></svg></span></div><div class="ai-msg"><div class="who">あなたへの提案<i>AI</i></div><b>大型免許</b>をお持ちで、「<b>日帰り</b>」「<b>手積みなし</b>」を重視していますね。今より拘束時間が短く、免許を活かせる求人を見つけました。</div><div class="recs"><div class="rec"><span class="r">大型ウイング車の地場輸送（日帰り）</span><span class="m">静岡県 静岡市／480万〜620万円</span><span class="why"><span>✓ 毎日帰宅</span><span>✓ 手積みなし</span><span>✓ 大型手当</span></span></div><div class="rec"><span class="r">海上コンテナのトレーラー輸送</span><span class="m">静岡県 静岡市／500万〜700万円</span><span class="why"><span>✓ けん引を活かせる</span><span>✓ 日帰り中心</span></span></div><div class="rec"><span class="r">大型トラックのセンター間輸送</span><span class="m">愛知県 一宮市／470万〜600万円</span><span class="why"><span>✓ パレット中心</span><span>✓ 土日休み</span></span></div></div><div class="atab"><span class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>ホーム</span><span class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18.5 9l-4.7 1.4L12 15l-1.8-4.6L5.5 9l4.7-1.4z"/><path d="M18 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>AIのおすすめ</span><span class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M9 13h7M9 17h7"/></svg>応募<i>2</i></span><span class=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>マイページ</span></div></div></div></div>
+      </article>
+
+      <article class="fcard t1 fadein">
+        <div class="ftx">
+          <div class="fidx">03 / 4</div>
+          <h3>AIが各求人に合わせて<br>応募動機を作成</h3>
+          <p>これまでの運行経験や無事故の実績を、AIが<b>求人ごとに伝わる応募動機にまとめます。</b>書類づくりに時間を取られません。</p>
+        </div>
+        <div class="fvi" aria-hidden="true"><div class="phone fp"><div class="scr"><div class="bar"><b>応募内容確認</b><span class="x">✕</span></div><div class="ap"><div class="ap-lab">応募動機<span class="ai">AIが作成</span></div><div class="ap-box"><p>大型ウイング車の地場輸送（日帰り）の求人を拝見し、応募いたしました。</p><p>私はこれまで8年間、大型トラックで関東〜関西の長距離輸送に携わり、無事故で運行を続けてまいりました。</p><p>家族との時間を大切にしながら、これまでの経験と大型免許を活かして、安全で確実な輸送に貢献したいと考えております。</p><div class="ap-fade"></div></div><div class="ap-btns"><span class="ed">✎ 編集</span><span class="go">応募</span></div></div></div></div></div>
+      </article>
+
+      <article class="fcard t3 fadein">
+        <div class="ftx">
+          <div class="fidx">04 / 4</div>
+          <h3>迷ったら、専任の<br>キャリアアドバイザーへの<br>相談も可能</h3>
+          <p>給与の内訳、荷役、運行の内容など、求人票ではわかりにくい部分をご案内します。<b>転職活動前の相談だけでも構いません。</b>夜間・土日のご相談も可能です。</p>
+        </div>
+        <div class="fvi"><img class="fphoto" src="images/team.jpg" width="1400" height="934" alt="トラックの前に並ぶ作業着姿のスタッフ" style="object-position:center 35%"></div>
+      </article>
+
+    </div>
+    <p class="note-img">※画面はイメージです。掲載している求人は表示例です。</p>
+  </div>
+</section>
+
+<section class="data" id="data">
+  <div class="wrap">
+    <h2><span class="sub">DATA</span>いま、トラックドライバーは追い風です</h2>
+    <div class="dcards3">
+      <div class="dcard">
+        <span class="rno">理由1</span><b class="dt">賃金が上がっている</b>
+        <div class="stat"><b>+7.4</b><i>%</i><small>前年比</small></div>
+        <p>ドライバーの1か月の平均賃金は<b>36万300円</b>。前の年から7.4%上がりました（2024年5〜7月支給分）。</p>
+      </div>
+      <div class="dcard">
+        <span class="rno">理由2</span><b class="dt">長時間労働の見直しが進んでいる</b>
+        <div class="stat"><b>960</b><i>時間</i><small>年間の残業上限</small></div>
+        <p>2024年4月から、トラックドライバーにも時間外労働の上限（年960時間）が適用されました。拘束時間のルールも見直されています。</p>
+      </div>
+      <div class="dcard">
+        <span class="rno">理由3</span><b class="dt">人手が足りず、採用に積極的</b>
+        <div class="stat"><b>約2</b><i>倍</i><small>全職業平均と比べた求人倍率</small></div>
+        <p>トラックドライバーの有効求人倍率は全職業平均の約2倍。多くの会社が採用に力を入れています。</p>
+      </div>
+    </div>
+    <p class="src">出典：<a href="https://www.lnews.jp/2025/08/r0818901.html" target="_blank" rel="noopener">全日本トラック協会「トラック運送事業の賃金・労働時間等の実態」2024年度版</a>／<a href="https://www.mhlw.go.jp/stf/houdou_kouhou/kouhou_shuppan/magazine/202312_001.html" target="_blank" rel="noopener">厚生労働省「時間外労働の上限規制（自動車運転の業務）」</a>／<a href="https://www.mlit.go.jp/common/001186731.pdf" target="_blank" rel="noopener">国土交通省「トラック運送業の現状等について」</a></p>
+  </div>
+</section>
+
+<section class="faq-sec" id="faq">
+  <div class="wrap" style="max-width:760px">
+    <h2><span class="sub">FAQ</span>よくある質問</h2>
+    <div class="faq">
+      <details><summary>本当に無料ですか？</summary><p>はい。求人のスワイプからAIの提案、応募、選考のサポートまで、求職者の方に費用は一切かかりません。</p></details>
+      <details><summary>パソコンや職務経歴書がなくても使えますか？</summary><p>使えます。スマホだけで、求人探しから応募まで進められます。応募動機はAIが作成するので、文章を一から書く必要はありません。</p></details>
+      <details><summary>いまの会社に知られずに転職活動できますか？</summary><p>できます。秘密厳守で対応し、在籍中の会社や関係者にご相談内容が伝わることはありません。応募までスマホで進められるので、平日日中に時間を取る必要もありません。</p></details>
+      <details><summary>毎日家に帰れる求人はありますか？</summary><p>あります。ルート配送や地場（近距離）の仕事は日帰りの運行が中心です。「毎日帰宅」の条件で絞り込めます。</p></details>
+      <details><summary>40代・50代でも使えますか？</summary><p>使えます。年齢のみを理由にご案内をお断りすることはありません。</p></details>
+      <details><summary>AIだけで決めるのが不安です。人にも相談できますか？</summary><p>できます。専任のキャリアアドバイザーが、求人の詳しい条件や選考の進め方をご案内します。夜間・土日のご相談も可能です。</p></details>
+    </div>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="wrap">
+    <h2>まずは60秒で、無料申し込み</h2>
+    <p>お名前と連絡先だけで申し込めます。あなたに合う求人を担当者がご案内します。</p>
+    <button type="button" class="btn" data-open-lead data-cta="footer_form"><span>無料で申し込む（60秒）</span></button>
+  </div>
+</section>
+<p class="ag-switch">トラックの乗務がはじめての方は<a href="index.html">こちら</a></p>
+</main>
+
+<footer>
+  <div class="wrap fwrap">
+    <div>
+      <div style="color:var(--text);font-weight:700;font-family:'Zen Kaku Gothic New',sans-serif">ドライバーJob</div>
+      <div class="license">運営：villio, Inc.／有料職業紹介事業許可番号 13-ユ-317691</div>
+      <div class="license">掲載している写真・画面はイメージです。</div>
+    </div>
+    <div>
+      <a href="https://villio.jp/">会社概要</a>
+      <a href="https://talentamp.jp/privacy_policy-recruiting">プライバシーポリシー</a>
+      <a href="https://talentamp.jp/terms-1">利用規約</a>
+      <div style="margin-top:12px">© 2026 villio inc.</div>
+    </div>
+  </div>
+</footer>
+
+<div class="fix-cta"><button type="button" class="btn" data-open-lead data-cta="footer_sticky"><span>無料で申し込む（60秒）</span></button></div>
+
+<!-- 登録モーダル（デモ。送信しない） -->
+<div class="lm-overlay" id="leadModal" hidden>
+  <div class="lm-dialog" role="dialog" aria-modal="true" aria-labelledby="leadModalTitle">
+    <button type="button" class="lm-close" data-close-lead aria-label="閉じる">&#10005;</button>
+    <h2 id="leadModalTitle">無料で申し込む</h2>
+    <div class="sv-progress" id="svProgress" hidden><span class="sv-bar"><i id="svBarFill" style="width:33%"></i></span><span class="sv-count" id="svCount">質問 1/3</span></div>
+
+    <div class="sv-step" data-step="1">
+      <p class="sv-safe">※ご入力いただいた内容は公開されません。求人のご案内にのみ使用します。</p>
+      <form id="leadForm" novalidate>
+        <div class="lm-field"><label for="leadName">お名前<span class="lm-req">必須</span></label><input type="text" id="leadName" name="name" autocomplete="name"><p class="lm-err" hidden></p></div>
+        <div class="lm-field"><label for="leadEmail">メールアドレス<span class="lm-req">必須</span></label><input type="email" id="leadEmail" name="email" autocomplete="email" inputmode="email"><p class="lm-err" hidden></p></div>
+        <div class="lm-field"><label for="leadPhone">電話番号<span class="lm-req">必須</span></label><input type="tel" id="leadPhone" name="phone" autocomplete="tel" inputmode="tel" placeholder="090-1234-5678"><p class="lm-err" hidden></p></div>
+        <div class="lm-hp" aria-hidden="true"><label>会社名<input type="text" name="company" tabindex="-1" autocomplete="off"></label></div>
+        <button type="submit" class="btn lm-submit" id="leadSubmit" data-cta="modal_submit"><span id="leadSubmitLabel">送信して申し込む（無料）</span><span class="lm-spinner" id="leadSpinner" hidden></span></button>
+        <p class="lm-err lm-err-global" id="leadGlobalErr" hidden></p>
+        <p class="lm-privacy">送信することで<a href="https://talentamp.jp/privacy_policy-recruiting" target="_blank" rel="noopener">個人情報の取扱い</a>に同意したものとみなします。</p>
+      </form>
+    </div>
+
+    <div class="sv-step" data-step="2" hidden>
+      <p class="sv-q">希望の勤務地を選んでください</p>
+      <p class="sv-hint">複数選択できます</p>
+      <div class="sv-chips" data-sv-multi="locations">
+        <button type="button" class="sv-chip" data-v="東京都">東京都</button>
+        <button type="button" class="sv-chip" data-v="神奈川県">神奈川県</button>
+        <button type="button" class="sv-chip" data-v="千葉県">千葉県</button>
+        <button type="button" class="sv-chip" data-v="埼玉県">埼玉県</button>
+        <button type="button" class="sv-chip" data-v="静岡県">静岡県</button>
+        <button type="button" class="sv-chip" data-v="愛知県">愛知県</button>
+        <button type="button" class="sv-chip" data-v="その他">その他</button>
+      </div>
+      <button type="button" class="btn sv-next" data-sv-next>次へ</button>
+    </div>
+
+    <div class="sv-step" data-step="3" hidden>
+      <p class="sv-q">希望の働き方を選んでください</p>
+      <p class="sv-hint">複数選択できます。わからなければ「まだ決めていない」でOKです</p>
+      <div class="sv-chips" data-sv-multi="workstyles">
+        <button type="button" class="sv-chip" data-v="ルート配送">ルート配送</button>
+        <button type="button" class="sv-chip" data-v="地場・近距離">地場・近距離</button>
+        <button type="button" class="sv-chip" data-v="中・長距離">中・長距離</button>
+        <button type="button" class="sv-chip" data-v="まだ決めていない" data-exclusive>まだ決めていない</button>
+      </div>
+      <div class="sv-nav"><button type="button" class="sv-back" data-sv-back>戻る</button><button type="button" class="btn sv-next" data-sv-next>次へ</button></div>
+    </div>
+
+    <div class="sv-step" data-step="4" hidden>
+      <p class="sv-q">お持ちの免許を選んでください</p><p class="sv-hint">複数選択できます</p><div class="sv-chips" data-sv-multi="licenses"><button type="button" class="sv-chip" data-v="普通">普通</button><button type="button" class="sv-chip" data-v="準中型">準中型</button><button type="button" class="sv-chip" data-v="中型">中型</button><button type="button" class="sv-chip" data-v="大型">大型</button><button type="button" class="sv-chip" data-v="けん引">けん引</button><button type="button" class="sv-chip" data-v="フォークリフト">フォークリフト</button></div>
+      <div class="sv-nav"><button type="button" class="sv-back" data-sv-back>戻る</button><button type="button" class="btn sv-next" data-sv-next>回答を送る</button></div>
+    </div>
+
+    <div class="sv-step" data-step="5" hidden>
+      <div class="done-msg">
+        <p>ご登録ありがとうございます。<br>担当者から、あなたに合う求人をご案内します。</p>
+        <button type="button" class="btn" data-close-lead>閉じる</button>
+      </div>
+    </div>
+    <p class="lm-license">運営：villio, Inc.／有料職業紹介事業許可番号 13-ユ-317691</p>
+  </div>
+</div>
+
+<script>window.LP_CONFIG = { lpId: "truck_exp" };</script>
+<script src="lp.js?v=20261104-3"></script>
+<script>
+// スマホ固定CTAはヒーローのCTAが見えている間は隠す
+(function(){
+  var fix = document.querySelector(".fix-cta"), heroBtn = document.querySelector(".hero .btn");
+  if (fix && heroBtn && "IntersectionObserver" in window) {
+    new IntersectionObserver(function(en){ fix.style.visibility = en[0].isIntersecting ? "hidden" : "visible"; }, { threshold: 0 }).observe(heroBtn);
+  }
+})();
+</script>
+</body>
+</html>
