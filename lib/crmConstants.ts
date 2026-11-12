@@ -9,16 +9,27 @@ export const STATUSES = [
   { key: "awaiting_result", label: "面接結果待ち", tone: "bg-fuchsia-100 text-fuchsia-700" },
   { key: "offered", label: "内定", tone: "bg-amber-100 text-amber-800" },
   { key: "accepted", label: "内定承諾", tone: "bg-emerald-100 text-emerald-700" },
+  // ここから下は「途中で終わった」ステータス
+  { key: "declined", label: "辞退（候補者から）", tone: "bg-rose-100 text-rose-700" },
+  { key: "rejected", label: "見送り（企業から）", tone: "bg-red-100 text-red-700" },
+  { key: "other_offer", label: "他社で決定", tone: "bg-pink-100 text-pink-700" },
+  { key: "quit", label: "転職活動中止", tone: "bg-stone-200 text-stone-700" },
   { key: "unreachable", label: "みなし辞退（連絡不通）", tone: "bg-orange-100 text-orange-700" },
   { key: "invalid", label: "無効応募", tone: "bg-stone-200 text-stone-700" },
-  { key: "closed", label: "見送り・辞退", tone: "bg-rose-100 text-rose-700" },
+  // 辞退と見送りを分ける前のステータス。新しくは選べない（すでに付いている人だけ表示）
+  { key: "closed", label: "見送り・辞退（旧・未分類）", tone: "bg-rose-50 text-rose-500", legacy: true },
   { key: "excluded", label: "テスト・除外", tone: "bg-zinc-200 text-zinc-500" },
 ] as const;
 
 export type StatusKey = (typeof STATUSES)[number]["key"];
 
 /** 途中で終わったステータス（分析では件数を別に数える） */
-export const ENDED = ["unreachable", "invalid", "closed"];
+export const ENDED = ["declined", "rejected", "other_offer", "quit", "unreachable", "invalid", "closed"];
+
+/** 選択肢に出すステータス（旧ステータスは、今それが付いている人にだけ出す） */
+export function selectableStatuses(current?: string | null) {
+  return STATUSES.filter((s) => !("legacy" in s) || s.key === current);
+}
 
 /** テストアカウントなど、一覧・集計・分析から外す */
 export const EXCLUDED = "excluded";
@@ -61,8 +72,8 @@ export const JOB_STAGES = [
   { key: "interview", label: "面接中", tone: "bg-violet-100 text-violet-700" },
   { key: "offered", label: "内定", tone: "bg-amber-100 text-amber-800" },
   { key: "accepted", label: "内定承諾", tone: "bg-emerald-100 text-emerald-700" },
-  { key: "rejected", label: "不合格・お見送り", tone: "bg-rose-100 text-rose-700" },
-  { key: "declined", label: "辞退・見送り（候補者）", tone: "bg-zinc-200 text-zinc-600" },
+  { key: "rejected", label: "見送り（企業から・不合格）", tone: "bg-rose-100 text-rose-700" },
+  { key: "declined", label: "辞退（候補者から）", tone: "bg-zinc-200 text-zinc-600" },
 ] as const;
 
 export function jobStageInfo(key: string | null | undefined) {
