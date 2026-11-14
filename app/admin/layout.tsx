@@ -14,18 +14,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3">
-          <Link href="/admin" className="font-bold tracking-tight">
-            SwipeJob <span className="font-normal text-slate-400">顧客管理</span>
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:gap-6">
+          <Link href="/admin" className="whitespace-nowrap font-bold tracking-tight">
+            SwipeJob <span className="hidden font-normal text-slate-400 sm:inline">顧客管理</span>
           </Link>
           {me && (
             <>
-              <nav className="flex gap-4 text-sm text-slate-600">
+              <nav className="flex gap-3 whitespace-nowrap text-sm text-slate-600 sm:gap-4">
                 <Link href="/admin" className="hover:text-slate-900">候補者</Link>
                 <Link href="/admin/analytics" className="hover:text-slate-900">分析</Link>
                 <Link href="/admin/staff" className="hover:text-slate-900">メンバー</Link>
               </nav>
-              <div className="ml-auto flex items-center gap-3">
+              <div className="ml-auto flex items-center gap-2 whitespace-nowrap sm:gap-3">
                 <Link href="/admin/staff" className="flex items-center gap-2 text-sm text-slate-700">
                   <Avatar name={me.name} color={me.color} size={26} />
                   <span className="hidden sm:inline">{me.name}</span>
@@ -38,7 +38,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           )}
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+      <main className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-6">{children}</main>
     </div>
   );
 }
