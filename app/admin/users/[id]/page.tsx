@@ -112,31 +112,7 @@ export default async function CandidatePage({
     : true,
   );
 
-  return (
-    <div className="space-y-6">
-      <Link href="/admin" className="text-sm text-slate-500 hover:text-slate-900">← 候補者一覧</Link>
-
-      <section className="rounded-xl border border-slate-200 bg-white p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">{user.name || "（名前未登録）"}</h1>
-            <div className="mt-1 space-x-3 text-sm text-slate-600">
-              <span>{user.email ?? "メール未登録"}</span>
-              {user.phone && <a href={`tel:${user.phone}`} className="text-indigo-700 hover:underline">📞 {user.phone}</a>}
-            </div>
-            <div className="mt-1 text-xs text-slate-400">
-              登録 {formatJst(user.createdAt)} ・ ID {user.id}
-              {(user.utmSource || user.lp) && ` ・ 流入 ${[user.utmSource, user.utmCampaign, user.lp].filter(Boolean).join(" / ")}`}
-            </div>
-          </div>
-          <div className="flex gap-3 text-center">
-            <Count label="Like" value={likes} tone="text-emerald-600" />
-            <Count label="Pass" value={passes} tone="text-slate-500" />
-            <Count label="応募" value={applied} tone="text-indigo-600" />
-          </div>
-        </div>
-
-        {profile && (
+  const profileDl = profile ? (
           <dl className="mt-5 grid gap-x-6 gap-y-3 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2">
             <Field label="希望職種">
               {profile.desiredJobType || <Chips items={profile.desiredJobTypeSmallCategories?.length ? profile.desiredJobTypeSmallCategories : profile.desiredJobTypeLargeCategories} />}
@@ -165,6 +141,41 @@ export default async function CandidatePage({
               </div>
             </Field>
           </dl>
+  ) : null;
+
+  return (
+    <div className="space-y-6">
+      <Link href="/admin" className="text-sm text-slate-500 hover:text-slate-900">← 候補者一覧</Link>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">{user.name || "（名前未登録）"}</h1>
+            <div className="mt-1 space-x-3 text-sm text-slate-600">
+              <span>{user.email ?? "メール未登録"}</span>
+              {user.phone && <a href={`tel:${user.phone}`} className="text-indigo-700 hover:underline">📞 {user.phone}</a>}
+            </div>
+            <div className="mt-1 text-xs text-slate-400">
+              登録 {formatJst(user.createdAt)} ・ ID {user.id}
+              {(user.utmSource || user.lp) && ` ・ 流入 ${[user.utmSource, user.utmCampaign, user.lp].filter(Boolean).join(" / ")}`}
+            </div>
+          </div>
+          <div className="flex gap-3 text-center">
+            <Count label="Like" value={likes} tone="text-emerald-600" />
+            <Count label="Pass" value={passes} tone="text-slate-500" />
+            <Count label="応募" value={applied} tone="text-indigo-600" />
+          </div>
+        </div>
+
+        {profileDl && (
+          <>
+            {/* PC はそのまま表示、スマホは折りたたみ */}
+            <div className="hidden md:block">{profileDl}</div>
+            <details className="mt-4 border-t border-slate-100 pt-3 md:hidden">
+              <summary className="cursor-pointer text-sm font-semibold text-slate-600">プロフィール（希望条件・職歴・書類）を見る</summary>
+              {profileDl}
+            </details>
+          </>
         )}
       </section>
 

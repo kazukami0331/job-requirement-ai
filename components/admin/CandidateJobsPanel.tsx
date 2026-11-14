@@ -68,7 +68,38 @@ export default function CandidateJobsPanel({
             まだありません。右上の「＋ 求人を追加」で提案求人を入れるか、「♥ スワイプ履歴」タブの「＋ 提案リストへ」で Like した求人を入れてください。
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* スマホ：カード表示 */}
+          <ul className="space-y-3 md:hidden">
+            {jobs.map((j) => {
+              const l = label(j);
+              return (
+                <li key={j.id} className="space-y-2 rounded-lg border border-slate-200 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{JOB_SOURCES[j.source] ?? j.source}</span>
+                    <form action={deleteCandidateJob}>
+                      <input type="hidden" name="id" value={j.id} />
+                      <input type="hidden" name="userId" value={userId} />
+                      <button className="text-xs text-slate-400">外す</button>
+                    </form>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500">{l.company}</div>
+                    <div className="text-sm font-medium text-slate-900">{l.title}</div>
+                  </div>
+                  <JobStageSelect id={j.id} stage={j.stage} />
+                  <div className="flex items-center gap-3">
+                    <CopyButton text={shareUrl(j)} label="リンクをコピー" />
+                    <a href={shareUrl(j)} target="_blank" rel="noreferrer" className="text-xs text-indigo-700">開く ↗</a>
+                  </div>
+                  <ViewCell v={views.get(j.id)} />
+                </li>
+              );
+            })}
+          </ul>
+
+          {/* PC：表 */}
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-slate-500">
                 <tr>
@@ -120,6 +151,7 @@ export default function CandidateJobsPanel({
               </tbody>
             </table>
           </div>
+          </>
         )}
 
       </div>
